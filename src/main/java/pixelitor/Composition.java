@@ -699,6 +699,74 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
     }
 
     /**
+     * Cuts the selected pixels from the active image layer
+     * into a new layer above it.
+     */
+    public void layerViaCut() {
+        if (!hasSelection()) {
+            Messages.showInfo("Layer via Cut",
+                "There is no selection to cut.");
+            return;
+        }
+        if (!(activeLayer instanceof ImageLayer srcLayer)) {
+            Messages.showInfo("Layer via Cut",
+                "The active layer is not an image layer.");
+            return;
+        }
+
+        Selection sel = getSelection();
+        Rectangle selBounds = sel.getShapeBounds();
+
+        // 1. Back up the source layer's selected region for undo.
+        ImageEdit imageEdit = ImageEdit.createEmbedded(srcLayer);
+
+        // 2. Extract the selected pixels.
+        BufferedImage extracted = ImageUtils.extractSelectedRegion(
+            srcLayer.getImage(), sel, srcLayer.getTx(), srcLayer.getTy());
+
+        // 3. Clear the selected region on the source layer.
+        Graphics2D g = srcLayer.getImage().createGraphics();
+        g.translate(-srcLayer.getTx(), -srcLayer.getTy());
+        g.setClip(sel.getShape());
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(selBounds.x, selBounds.y, selBounds.width, selBounds.height);
+        g.dispose();
+        srcLayer.update();
+        srcLayer.updateIconImage();
+
+        // 4. Create a new layer with the extracted pixels at the selection offset.
+        var newLayer = ImageLayer.fromSubImage(extracted, this,
+            generateNewLayerName(), selBounds.x, selBounds.y);
+
+        // 5. Capture state needed for the NewLayerEdit before adding.
+        Layer prevActiveLayer = activeLayer;
+        MaskViewMode prevMaskViewMode = view.getMaskViewMode();
+
+        // 6. Add the new layer without history (we build a MultiEdit).
+        getHolderForNewLayers().adder()
+            .add(newLayer);
+
+        var newLayerEdit = new NewLayerEdit("",
+            newLayer, prevActiveLayer, prevMaskViewMode);
+        newLayerEdit.setEmbedded(true);
+
+        History.add(new MultiEdit("Layer via Cut", this,
+            imageEdit, newLayerEdit) {
+            @Override
+            public void undo() {
+                super.undo();
+                srcLayer.updateIconImage();
+            }
+
+            @Override
+            public void redo() {
+                super.redo();
+                srcLayer.updateIconImage();
+            }
+        });
+    }
+
+    /**
      * Duplicates the currently active layer and adds it above the original.
      */
     public void duplicateActiveLayer() {

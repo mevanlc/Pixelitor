@@ -201,6 +201,31 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         return layer;
     }
 
+    /**
+     * Creates a new ImageLayer from a sub-image that should appear
+     * at the given canvas-space position. The image is padded to
+     * canvas size as needed.
+     */
+    public static ImageLayer fromSubImage(BufferedImage img,
+                                          Composition comp,
+                                          String name,
+                                          int x, int y) {
+        ImageLayer layer = new ImageLayer(comp, name);
+
+        Canvas canvas = comp.getCanvas();
+        int canvasWidth = canvas.getWidth();
+        int canvasHeight = canvas.getHeight();
+
+        BufferedImage layerImg = layer.createEmptyLayerImage(
+            canvasWidth, canvasHeight);
+        Graphics2D g = layerImg.createGraphics();
+        g.drawImage(img, x, y, null);
+        g.dispose();
+
+        layer.setImage(layerImg);
+        return layer;
+    }
+
     @Serial
     private void writeObject(ObjectOutputStream out) throws IOException {
         out.defaultWriteObject();

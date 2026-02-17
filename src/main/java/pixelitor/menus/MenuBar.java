@@ -300,6 +300,11 @@ public class MenuBar extends JMenuBar {
         layersMenu.addViewEnabled(i18n.getString("new_from_visible"), i18n.getString("new_from_visible_tt"),
             Composition::addNewLayerFromVisible, CTRL_SHIFT_ALT_E);
 
+        // layer via cut
+        layersMenu.addViewEnabled("Layer via Cut",
+            "Cut the selected pixels into a new layer",
+            Composition::layerViaCut, CTRL_SHIFT_X);
+
         layersMenu.add(createLayerStackSubmenu());
         layersMenu.add(createLayerTransformSubmenu());
         layersMenu.add(createLayerMaskSubmenu());
