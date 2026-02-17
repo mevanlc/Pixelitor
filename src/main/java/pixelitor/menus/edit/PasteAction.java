@@ -24,14 +24,8 @@ import pixelitor.utils.*;
 import pixelitor.utils.Error;
 
 import java.awt.Image;
-import java.awt.Toolkit;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.util.Optional;
 
 import static pixelitor.utils.Texts.i18n;
 
@@ -61,22 +55,14 @@ public class PasteAction extends NamedAction implements ViewActivationListener {
     }
 
     private static Result<BufferedImage, String> retrieveClipboardImage() {
-        Transferable clipboardContents = Toolkit.getDefaultToolkit().getSystemClipboard().getContents(null);
-
-        if (clipboardContents == null) {
-            return Result.error("The clipboard is empty. Nothing to paste.");
+        Image clipImage = ImageUtils.getClipboardImage();
+        if (clipImage == null) {
+            return Result.error("The clipboard doesn't contain an image.");
         }
-
-        if (!clipboardContents.isDataFlavorSupported(DataFlavor.imageFlavor)) {
-            return Result.error("The clipboard content isn't an image.");
-        }
-
         try {
-            Image clipImage = (Image)
-                clipboardContents.getTransferData(DataFlavor.imageFlavor);
             BufferedImage pastedImage = ImageUtils.copyToBufferedImage(clipImage);
             return Result.success(pastedImage);
-        } catch (UnsupportedFlavorException | IOException ex) {
+        } catch (Exception ex) {
             Messages.showException(ex);
             return Result.error(ex.getMessage());
         }

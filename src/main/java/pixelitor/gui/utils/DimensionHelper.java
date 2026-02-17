@@ -238,6 +238,13 @@ public class DimensionHelper {
         heightTF.setText(unit.format(valueInUnit));
     }
 
+    public void setTargetSize(int width, int height) {
+        targetWidth = width;
+        targetHeight = height;
+        updateWidthText();
+        updateHeightText();
+    }
+
     public void setInitialValues() {
         ResizeUnit unit = getUnit();
         widthValidator.updateContext(unit, getDpi());

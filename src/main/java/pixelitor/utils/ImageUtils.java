@@ -41,6 +41,7 @@ import pixelitor.utils.test.Assertions;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.color.ColorSpace;
 import java.awt.color.ICC_ColorSpace;
 import java.awt.color.ICC_Profile;
@@ -993,6 +994,23 @@ public class ImageUtils {
         return maskG;
     }
 
+    /**
+     * Returns the image on the system clipboard, or null if there isn't one.
+     */
+    public static Image getClipboardImage() {
+        var contents = Toolkit.getDefaultToolkit()
+            .getSystemClipboard().getContents(null);
+        if (contents == null
+            || !contents.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+            return null;
+        }
+        try {
+            return (Image) contents.getTransferData(DataFlavor.imageFlavor);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static BufferedImage copyToBufferedImage(Image src) {
         BufferedImage copy;
         if (src instanceof MultiResolutionImage mri) {
@@ -1024,7 +1042,7 @@ public class ImageUtils {
         return copy;
     }
 
-    private static Image resolveMultiResImage(MultiResolutionImage mri, Image src) {
+    public static Image resolveMultiResImage(MultiResolutionImage mri, Image src) {
         if (AppPreferences.getFlag(AppPreferences.FLAG_PREFER_RETINA_PASTE)) {
             // Pick the largest resolution variant by pixel area.
             List<Image> variants = mri.getResolutionVariants();

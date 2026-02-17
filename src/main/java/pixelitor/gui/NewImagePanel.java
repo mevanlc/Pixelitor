@@ -24,10 +24,14 @@ import pixelitor.gui.utils.DimensionHelper;
 import pixelitor.gui.utils.GridBagHelper;
 import pixelitor.gui.utils.ValidatedPanel;
 import pixelitor.gui.utils.ValidationResult;
+import pixelitor.utils.ImageUtils;
+import pixelitor.utils.Messages;
 import pixelitor.utils.ResizeUnit;
 
 import javax.swing.*;
 import java.awt.GridBagLayout;
+import java.awt.Image;
+import java.awt.image.MultiResolutionImage;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
@@ -80,6 +84,12 @@ public class NewImagePanel extends ValidatedPanel implements DialogMenuOwner, Ke
         var dpiChooser = dimensions.getDpiChooser();
         dpiChooser.addItemListener(this);
         gbh.addLabelAndLastControl("DPI:", dpiChooser);
+
+        var clipboardSizeBtn = new JButton("Clipboard Size");
+        clipboardSizeBtn.setToolTipText("Set dimensions from the image on the clipboard");
+        clipboardSizeBtn.addActionListener(e -> setDimensionsFromClipboard());
+        gbh.addLabelAndLastControl("", clipboardSizeBtn);
+
         gbh.addVerticalSpace(PANEL_PADDING);
 
         fillSelector = new JComboBox<>(FillType.values());
@@ -97,6 +107,22 @@ public class NewImagePanel extends ValidatedPanel implements DialogMenuOwner, Ke
         }
         // forward events from DPI and unit choosers to the helper
         dimensions.itemStateChanged(e);
+    }
+
+    private void setDimensionsFromClipboard() {
+        Image img = ImageUtils.getClipboardImage();
+        if (img == null) {
+            Messages.showInfo("Clipboard Size", "No image found on the clipboard.");
+            return;
+        }
+        if (img instanceof MultiResolutionImage mri) {
+            img = ImageUtils.resolveMultiResImage(mri, img);
+        }
+        int w = img.getWidth(null);
+        int h = img.getHeight(null);
+        if (w > 0 && h > 0) {
+            dimensions.setTargetSize(w, h);
+        }
     }
 
     @Override
