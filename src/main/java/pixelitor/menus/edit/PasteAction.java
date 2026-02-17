@@ -23,6 +23,7 @@ import pixelitor.gui.utils.NamedAction;
 import pixelitor.utils.*;
 import pixelitor.utils.Error;
 
+import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -71,8 +72,9 @@ public class PasteAction extends NamedAction implements ViewActivationListener {
         }
 
         try {
-            BufferedImage pastedImage = (BufferedImage)
+            Image clipImage = (Image)
                 clipboardContents.getTransferData(DataFlavor.imageFlavor);
+            BufferedImage pastedImage = ImageUtils.copyToBufferedImage(clipImage);
             return Result.success(pastedImage);
         } catch (UnsupportedFlavorException | IOException ex) {
             Messages.showException(ex);

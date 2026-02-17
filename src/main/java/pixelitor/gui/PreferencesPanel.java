@@ -63,6 +63,7 @@ public class PreferencesPanel extends JTabbedPane {
     private JTextField magickDirTF;
     private JTextField gmicDirTF;
     private JCheckBox nativeChoosersCB;
+    private JCheckBox retinaResolutionCB;
     private JCheckBox experimentalCB;
 
     // persists the last selected tab between dialog instances
@@ -298,6 +299,7 @@ public class PreferencesPanel extends JTabbedPane {
         var gbh = new GridBagHelper(advancedPanel);
 
         addNativeChoosersCB(gbh);
+        addRetinaResolutionCB(gbh);
         addUndoLevelsChooser(gbh);
         addMagickDirField(gbh);
         addGmicDirField(gbh);
@@ -311,6 +313,14 @@ public class PreferencesPanel extends JTabbedPane {
         nativeChoosersCB = new JCheckBox("", FileChoosers.useNativeDialogs());
         // no action listener, set only when OK is pressed
         gbh.addLabelAndControl("Use System File Choosers:", nativeChoosersCB);
+    }
+
+    private void addRetinaResolutionCB(GridBagHelper gbh) {
+        retinaResolutionCB = new JCheckBox("",
+            AppPreferences.getFlag(AppPreferences.FLAG_PREFER_RETINA_PASTE));
+        retinaResolutionCB.setToolTipText(
+            "When pasting on HiDPI displays, use the high-resolution variant");
+        gbh.addLabelAndControl("Prefer HiDPI Resolution When Pasting:", retinaResolutionCB);
     }
 
     private void addUndoLevelsChooser(GridBagHelper gbh) {
@@ -367,6 +377,8 @@ public class PreferencesPanel extends JTabbedPane {
         PanMethod.changeTo((PanMethod) panMethodCB.getSelectedItem());
         View.snappingSettingChanged(snapCB.isSelected());
         FileChoosers.setUseNativeDialogs(nativeChoosersCB.isSelected());
+        AppPreferences.setFlag(AppPreferences.FLAG_PREFER_RETINA_PASTE,
+            retinaResolutionCB.isSelected());
         Features.enableExperimental(experimentalCB.isSelected());
 
         return true; // valid, dialog can be closed

@@ -118,7 +118,8 @@ public final class AppPreferences {
 
     // binary masks for the flags
     public static final long FLAG_PIXEL_SNAP = 1L;
-    // subsequent flag masks would be 1L << 1, 1L << 2, etc.
+    public static final long FLAG_PREFER_RETINA_PASTE = 1L << 1;
+    // subsequent flag masks would be 1L << 2, 1L << 3, etc.
 
     // the default settings for the flags (binary OR between
     // the masks of the flags that are true by default)

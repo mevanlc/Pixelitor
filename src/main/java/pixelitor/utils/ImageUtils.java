@@ -995,7 +995,12 @@ public class ImageUtils {
 
     public static BufferedImage copyToBufferedImage(Image src) {
         BufferedImage copy;
-        if (src instanceof BufferedImage bufferedImage) {
+        if (src instanceof MultiResolutionImage mri) {
+            // Must be checked before BufferedImage, because the
+            // resolution variants are typically BufferedImage instances.
+            Image chosen = resolveMultiResImage(mri, src);
+            copy = copyToBufferedImage(chosen);
+        } else if (src instanceof BufferedImage bufferedImage) {
             if (bufferedImage.getColorModel() instanceof IndexColorModel) {
                 copy = convertToARGB(bufferedImage, false);
             } else {
@@ -1004,9 +1009,42 @@ public class ImageUtils {
         } else if (src instanceof VolatileImage volatileImage) {
             copy = volatileImage.getSnapshot();
         } else {
-            throw new UnsupportedOperationException("src class is " + src.getClass().getName());
+            // Generic fallback: render the Image into a new BufferedImage.
+            int w = src.getWidth(null);
+            int h = src.getHeight(null);
+            if (w <= 0 || h <= 0) {
+                throw new UnsupportedOperationException(
+                    "Cannot determine dimensions for src class " + src.getClass().getName());
+            }
+            copy = new BufferedImage(w, h, TYPE_INT_ARGB);
+            Graphics2D g = copy.createGraphics();
+            g.drawImage(src, 0, 0, null);
+            g.dispose();
         }
         return copy;
+    }
+
+    private static Image resolveMultiResImage(MultiResolutionImage mri, Image src) {
+        if (AppPreferences.getFlag(AppPreferences.FLAG_PREFER_RETINA_PASTE)) {
+            // Pick the largest resolution variant by pixel area.
+            List<Image> variants = mri.getResolutionVariants();
+            Image largest = variants.getFirst();
+            long largestArea = (long) largest.getWidth(null) * largest.getHeight(null);
+            for (int i = 1; i < variants.size(); i++) {
+                Image variant = variants.get(i);
+                long area = (long) variant.getWidth(null) * variant.getHeight(null);
+                if (area > largestArea) {
+                    largest = variant;
+                    largestArea = area;
+                }
+            }
+            return largest;
+        } else {
+            // Use the logical (1x) resolution.
+            int w = src.getWidth(null);
+            int h = src.getHeight(null);
+            return mri.getResolutionVariant(w, h);
+        }
     }
 
     public static void unpremultiply(BufferedImage dest) {
