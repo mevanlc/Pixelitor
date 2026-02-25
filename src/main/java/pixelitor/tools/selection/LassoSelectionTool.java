@@ -61,6 +61,7 @@ public class LassoSelectionTool extends AbstractSelectionTool {
 
         // add the current point to the lasso path
         selectionBuilder.updateDraftSelection(drag);
+        e.repaint();
     }
 
     @Override

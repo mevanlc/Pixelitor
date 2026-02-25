@@ -66,6 +66,7 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
 
         drag.setExpandFromCenter(expandFromCenter);
         selectionBuilder.updateDraftSelection(drag);
+        e.repaint();
     }
 
     @Override
