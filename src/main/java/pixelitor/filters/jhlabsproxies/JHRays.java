@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,11 +17,12 @@
 
 package pixelitor.filters.jhlabsproxies;
 
-import com.jhlabs.composite.MiscComposite;
+import com.jhlabs.composite.AddComposite;
 import com.jhlabs.image.RaysFilter;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.ResizingFilterHelper;
 import pixelitor.filters.gui.BooleanParam;
+import pixelitor.filters.gui.GradientParam;
 import pixelitor.filters.gui.ImagePositionParam;
 import pixelitor.filters.gui.RangeParam;
 import pixelitor.utils.ImageUtils;
@@ -49,6 +50,9 @@ public class JHRays extends ParametrizedFilter {
     private final RangeParam length = new RangeParam("Length", 0, 20, 200);
     private final RangeParam opacity = new RangeParam(OPACITY, 0, 80, 100);
     private final RangeParam strength = new RangeParam("Strength", 0, 200, 500);
+
+    private final GradientParam colors = GradientParam.createUniformWhite();
+
     private final RangeParam threshold = new RangeParam("Threshold (%)", 0, 25, 100);
     private final BooleanParam raysOnly = new BooleanParam("Rays Only", false, IGNORE_RANDOMIZE);
 
@@ -64,6 +68,7 @@ public class JHRays extends ParametrizedFilter {
             length,
             threshold,
             strength,
+            colors,
             opacity,
             rotation,
             raysOnly
@@ -81,6 +86,7 @@ public class JHRays extends ParametrizedFilter {
         filter.setStrength((float) strength.getPercentage());
         filter.setRotation(rotation.getValueInRadians());
         filter.setThreshold((float) threshold.getPercentage());
+        filter.setColormap(colors.getColorMap());
 
         // this value should not be divided by resizeFactor because
         // this is a scale and not really a length
@@ -114,7 +120,7 @@ public class JHRays extends ParametrizedFilter {
                 dest = filter.createCompatibleDestImage(src, null);
             }
             Graphics2D g = dest.createGraphics();
-            g.setComposite(MiscComposite.getInstance(MiscComposite.ADD, (float) opacity.getPercentage()));
+            g.setComposite(new AddComposite((float) opacity.getPercentage()));
             g.drawRenderedImage(rays, null);
             g.dispose();
 
@@ -127,7 +133,7 @@ public class JHRays extends ParametrizedFilter {
         // add the rays on top of the source
         dest = ImageUtils.copyImage(src);
         Graphics2D g = dest.createGraphics();
-        g.setComposite(MiscComposite.getInstance(MiscComposite.ADD, (float) opacity.getPercentage()));
+        g.setComposite(new AddComposite((float) opacity.getPercentage()));
         g.drawRenderedImage(rays, null);
         g.dispose();
 

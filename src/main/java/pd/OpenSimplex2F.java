@@ -13,14 +13,13 @@ package pd;
  * documentation above each, for more info.
  */
 public class OpenSimplex2F {
-
     private static final int PSIZE = 2048;
     private static final int PMASK = 2047;
 
-    private short[] perm;
-    private Grad2[] permGrad2;
-    private Grad3[] permGrad3;
-    private Grad4[] permGrad4;
+    private final short[] perm;
+    private final Grad2[] permGrad2;
+    private final Grad3[] permGrad3;
+    private final Grad4[] permGrad4;
 
     public OpenSimplex2F(long seed) {
         perm = new short[PSIZE];
@@ -28,13 +27,15 @@ public class OpenSimplex2F {
         permGrad3 = new Grad3[PSIZE];
         permGrad4 = new Grad4[PSIZE];
         short[] source = new short[PSIZE];
-        for (short i = 0; i < PSIZE; i++)
+        for (short i = 0; i < PSIZE; i++) {
             source[i] = i;
+        }
         for (int i = PSIZE - 1; i >= 0; i--) {
             seed = seed * 6364136223846793005L + 1442695040888963407L;
             int r = (int)((seed + 31) % (i + 1));
-            if (r < 0)
+            if (r < 0) {
                 r += (i + 1);
+            }
             perm[i] = source[r];
             permGrad2[i] = GRADIENTS_2D[perm[i]];
             permGrad3[i] = GRADIENTS_3D[perm[i]];
@@ -51,7 +52,6 @@ public class OpenSimplex2F {
      * 2D Simplex noise, standard lattice orientation.
      */
     public double noise2(double x, double y) {
-
         // Get points for A2* lattice
         double s = 0.366025403784439 * (x + y);
         double xs = x + s, ys = y + s;
@@ -61,7 +61,9 @@ public class OpenSimplex2F {
 
     public double turbulence2(double x, double y, int octaves) {
         double t = 0.0f;
-        for (int f = 1; f <= octaves; f *= 2) t += Math.abs(noise2(f * x, f * y)) / f;
+        for (int f = 1; f <= octaves; f *= 2) {
+            t += Math.abs(noise2(f * x, f * y)) / f;
+        }
         return t;
     }
 
@@ -71,7 +73,6 @@ public class OpenSimplex2F {
      * Probably slightly less optimal for heightmaps or continent maps.
      */
     public double noise2_XBeforeY(double x, double y) {
-
         // Skew transform and rotation baked into one.
         double xx = x * 0.7071067811865476;
         double yy = y * 1.224744871380249;
@@ -102,7 +103,9 @@ public class OpenSimplex2F {
 
             double dx = xi + c.dx, dy = yi + c.dy;
             double attn = 0.5 - dx * dx - dy * dy;
-            if (attn <= 0) continue;
+            if (attn <= 0) {
+                continue;
+            }
 
             int pxm = (xsb + c.xsv) & PMASK, pym = (ysb + c.ysv) & PMASK;
             Grad2 grad = permGrad2[perm[pxm] ^ pym];
@@ -121,7 +124,6 @@ public class OpenSimplex2F {
      * Use noise3_XYBeforeZ or noise3_XZBeforeY instead, wherever appropriate.
      */
     public double noise3_Classic(double x, double y, double z) {
-
         // Re-orient the cubic lattices via rotation, to produce the expected look on cardinal planar slices.
         // If texturing objects that don't tend to have cardinal plane faces, you could even remove this.
         // Orthonormal rotation. Not a skew transform.
@@ -134,7 +136,9 @@ public class OpenSimplex2F {
 
     public double turbulence3(double x, double y, double z, int octaves) {
         double t = 0.0f;
-        for (int f = 1; f <= octaves; f *= 2) t += Math.abs(noise3_Classic(f * x, f * y, f * z)) / f;
+        for (int f = 1; f <= octaves; f *= 2) {
+            t += Math.abs(noise3_Classic(f * x, f * y, f * z)) / f;
+        }
         return t;
     }
 
@@ -147,7 +151,6 @@ public class OpenSimplex2F {
      * For a time varied animation, call noise3_XYBeforeZ(x, y, T).
      */
     public double noise3_XYBeforeZ(double x, double y, double z) {
-
         // Re-orient the cubic lattices without skewing, to make X and Y triangular like 2D.
         // Orthonormal rotation. Not a skew transform.
         double xy = x + y;
@@ -169,7 +172,6 @@ public class OpenSimplex2F {
      * For a time varied animation, call noise3_XZBeforeY(x, T, y) or use noise3_XYBeforeZ.
      */
     public double noise3_XZBeforeY(double x, double y, double z) {
-
         // Re-orient the cubic lattices without skewing, to make X and Z triangular like 2D.
         // Orthonormal rotation. Not a skew transform.
         double xz = x + z;
@@ -189,7 +191,6 @@ public class OpenSimplex2F {
      * than to build up the index with enough info to isolate 4 points.
      */
     private double noise3_BCC(double xr, double yr, double zr) {
-
         // Get base and offsets inside cube of first lattice.
         int xrb = fastFloor(xr), yrb = fastFloor(yr), zrb = fastFloor(zr);
         double xri = xr - xrb, yri = yr - yrb, zri = zr - zrb;
@@ -224,7 +225,6 @@ public class OpenSimplex2F {
      * 4D OpenSimplex2F noise, classic lattice orientation.
      */
     public double noise4_Classic(double x, double y, double z, double w) {
-
         // Get points for A4 lattice
         double s = -0.138196601125011 * (x + y + z + w);
         double xs = x + s, ys = y + s, zs = z + s, ws = w + s;
@@ -238,7 +238,6 @@ public class OpenSimplex2F {
      * Recommended for noise(x, y, sin(time), cos(time)) trick.
      */
     public double noise4_XYBeforeZW(double x, double y, double z, double w) {
-
         double s2 = (x + y) * -0.178275657951399372 + (z + w) * 0.215623393288842828;
         double t2 = (z + w) * -0.403949762580207112 + (x + y) * -0.375199083010075342;
         double xs = x + s2, ys = y + s2, zs = z + t2, ws = w + t2;
@@ -251,7 +250,6 @@ public class OpenSimplex2F {
      * Recommended for 3D terrain, where X and Z (or Y and W) are horizontal.
      */
     public double noise4_XZBeforeYW(double x, double y, double z, double w) {
-
         double s2 = (x + z) * -0.178275657951399372 + (y + w) * 0.215623393288842828;
         double t2 = (y + w) * -0.403949762580207112 + (x + z) * -0.375199083010075342;
         double xs = x + s2, ys = y + t2, zs = z + s2, ws = w + t2;
@@ -265,7 +263,6 @@ public class OpenSimplex2F {
      * Recommended for time-varied animations which texture a 3D object (W=time)
      */
     public double noise4_XYZBeforeW(double x, double y, double z, double w) {
-
         double xyz = x + y + z;
         double ww = w * 0.2236067977499788;
         double s2 = xyz * -0.16666666666666666 + ww;
@@ -342,7 +339,6 @@ public class OpenSimplex2F {
 
         // Five points to add, total, from five copies of the A4 lattice.
         for (int i = 0; i < 5; i++) {
-
             // Update xsb/etc. and add the lattice point's contribution.
             LatticePoint4D c = VERTICES_4D[vertexIndex];
             xsb += c.xsv; ysb += c.ysv; zsb += c.zsv; wsb += c.wsv;
@@ -359,7 +355,9 @@ public class OpenSimplex2F {
             }
 
             // Maybe this helps the compiler/JVM/LLVM/etc. know we can end the loop here. Maybe not.
-            if (i == 4) break;
+            if (i == 4) {
+                break;
+            }
 
             // Update the relative skewed coordinates to reference the vertex we just added.
             // Rather, reference its counterpart on the lattice copy that is shifted down by
@@ -390,7 +388,6 @@ public class OpenSimplex2F {
     /*
      * Utility
      */
-
     private static int fastFloor(double x) {
         int xi = (int)x;
         return x < xi ? xi - 1 : xi;
@@ -399,7 +396,6 @@ public class OpenSimplex2F {
     /*
      * Definitions
      */
-
     private static final LatticePoint2D[] LOOKUP_2D;
     private static final LatticePoint3D[] LOOKUP_3D;
     private static final LatticePoint4D[] VERTICES_4D;
@@ -456,8 +452,11 @@ public class OpenSimplex2F {
     }
 
     private static class LatticePoint2D {
-        int xsv, ysv;
-        double dx, dy;
+        final int xsv;
+        final int ysv;
+        final double dx;
+        final double dy;
+
         public LatticePoint2D(int xsv, int ysv) {
             this.xsv = xsv; this.ysv = ysv;
             double ssv = (xsv + ysv) * -0.211324865405187;
@@ -467,9 +466,14 @@ public class OpenSimplex2F {
     }
 
     private static class LatticePoint3D {
-        public double dxr, dyr, dzr;
-        public int xrv, yrv, zrv;
+        public final double dxr;
+        public final double dyr;
+        public final double dzr;
+        public final int xrv;
+        public final int yrv;
+        public final int zrv;
         LatticePoint3D nextOnFailure, nextOnSuccess;
+
         public LatticePoint3D(int xrv, int yrv, int zrv, int lattice) {
             this.dxr = -xrv + lattice * 0.5; this.dyr = -yrv + lattice * 0.5; this.dzr = -zrv + lattice * 0.5;
             this.xrv = xrv + lattice * 1024; this.yrv = yrv + lattice * 1024; this.zrv = zrv + lattice * 1024;
@@ -477,10 +481,20 @@ public class OpenSimplex2F {
     }
 
     private static class LatticePoint4D {
-        int xsv, ysv, zsv, wsv;
-        double dx, dy, dz, dw;
-        double xsi, ysi, zsi, wsi;
-        double ssiDelta;
+        final int xsv;
+        final int ysv;
+        final int zsv;
+        final int wsv;
+        final double dx;
+        final double dy;
+        final double dz;
+        final double dw;
+        final double xsi;
+        final double ysi;
+        final double zsi;
+        final double wsi;
+        final double ssiDelta;
+
         public LatticePoint4D(int xsv, int ysv, int zsv, int wsv) {
             this.xsv = xsv + 409; this.ysv = ysv + 409; this.zsv = zsv + 409; this.wsv = wsv + 409;
             double ssv = (xsv + ysv + zsv + wsv) * 0.309016994374947;
@@ -499,7 +513,6 @@ public class OpenSimplex2F {
     /*
      * Gradients
      */
-
     private static class Grad2 {
         double dx, dy;
         public Grad2(double dx, double dy) {
@@ -528,7 +541,6 @@ public class OpenSimplex2F {
     private static final Grad3[] GRADIENTS_3D;
     private static final Grad4[] GRADIENTS_4D;
     static {
-
         GRADIENTS_2D = new Grad2[PSIZE];
         Grad2[] grad2 = {
                 new Grad2( 0.130526192220052,  0.99144486137381),
@@ -556,8 +568,9 @@ public class OpenSimplex2F {
                 new Grad2(-0.38268343236509,   0.923879532511287),
                 new Grad2(-0.130526192220052,  0.99144486137381)
         };
-        for (int i = 0; i < grad2.length; i++) {
-            grad2[i].dx /= N2; grad2[i].dy /= N2;
+        for (Grad2 gr : grad2) {
+            gr.dx /= N2;
+            gr.dy /= N2;
         }
         for (int i = 0; i < PSIZE; i++) {
             GRADIENTS_2D[i] = grad2[i % grad2.length];
@@ -614,8 +627,10 @@ public class OpenSimplex2F {
                 new Grad3( 3.0862664687972017,  1.1721513422464978,  0.0),
                 new Grad3( 1.1721513422464978,  3.0862664687972017,  0.0)
         };
-        for (int i = 0; i < grad3.length; i++) {
-            grad3[i].dx /= N3; grad3[i].dy /= N3; grad3[i].dz /= N3;
+        for (Grad3 gr : grad3) {
+            gr.dx /= N3;
+            gr.dy /= N3;
+            gr.dz /= N3;
         }
         for (int i = 0; i < PSIZE; i++) {
             GRADIENTS_3D[i] = grad3[i % grad3.length];
@@ -784,8 +799,11 @@ public class OpenSimplex2F {
                 new Grad4( 0.7821684431180708,    0.4321472685365301,    0.4321472685365301,   -0.12128480194602098),
                 new Grad4( 0.753341017856078,     0.37968289875261624,   0.37968289875261624,   0.37968289875261624)
         };
-        for (int i = 0; i < grad4.length; i++) {
-            grad4[i].dx /= N4; grad4[i].dy /= N4; grad4[i].dz /= N4; grad4[i].dw /= N4;
+        for (Grad4 value : grad4) {
+            value.dx /= N4;
+            value.dy /= N4;
+            value.dz /= N4;
+            value.dw /= N4;
         }
         for (int i = 0; i < PSIZE; i++) {
             GRADIENTS_4D[i] = grad4[i % grad4.length];
