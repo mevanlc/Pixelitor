@@ -3082,19 +3082,11 @@ public class MainGuiTest {
         View view = EDT.getActiveView();
 
         robot.rotateMouseWheel(view, 2);
-        if (JVM.isLinux) {
-            EDT.assertActiveZoomIs(startingZoom.zoomOut().zoomOut());
-        } else {
-            EDT.assertActiveZoomIs(startingZoom.zoomOut());
-        }
+        EDT.assertActiveZoomIs(startingZoom.zoomOut().zoomOut());
 
         robot.rotateMouseWheel(view, -2);
 
-        if (JVM.isLinux) {
-            EDT.assertActiveZoomIs(startingZoom.zoomOut().zoomOut().zoomIn().zoomIn());
-        } else {
-            EDT.assertActiveZoomIs(startingZoom.zoomOut().zoomIn());
-        }
+        EDT.assertActiveZoomIs(startingZoom.zoomOut().zoomOut().zoomIn().zoomIn());
 
         pw.releaseKey(VK_CONTROL);
     }

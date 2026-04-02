@@ -102,6 +102,16 @@ public class Pixelitor {
 
 //        System.setProperty("sun.java2d.uiScale", "1.5");
 
+        if (JVM.isMac) {
+            // Work around a Java2D Metal pipeline rendering artifact on macOS where
+            // frequent small repaints (for example, brush hover overlays) can leave
+            // behind stale pixels in the backing buffer.
+            // Users can opt back in with: -Dsun.java2d.metal=true
+            if (System.getProperty("sun.java2d.metal") == null) {
+                System.setProperty("sun.java2d.metal", "false");
+            }
+        }
+
         if (JVM.isLinux) {
             // doesn't seem to pick up good defaults
             System.setProperty("awt.useSystemAAFontSettings", "lcd");

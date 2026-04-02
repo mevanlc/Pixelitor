@@ -409,21 +409,46 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         // apply canvas zoom
         g2.scale(zoomScale, zoomScale);
 
-        // paint the content in image space
-        if (showMask) {
-            // paint the mask
-            LayerMask mask = comp.getActiveLayer().getMask();
-            assert mask != null : "no mask in " + maskViewMode;
-            mask.paint(g2, true);
-        } else {
-            // paint the composite image if the composition
-            g2.drawImage(comp.getCompositeImage(), 0, 0, null);
+        // At high zoom levels we want crisp, stable pixel rendering. On macOS in particular,
+        // fractional sampling during incremental repaints can produce "wobble"/trails when a
+        // tool overlay causes frequent small repaints. Nearest-neighbor avoids sub-pixel blends.
+        Object origInterpolation = g2.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        boolean interpolationHintChanged = false;
+        if (zoomScale >= 2.0) { // 200%+
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            interpolationHintChanged = true;
+        } else if (zoomScale < 1.0) { // downscaling: keep it smooth
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            interpolationHintChanged = true;
+        }
 
-            if (maskViewMode.isShowingRubylith()) {
-                // paint the mask as a red "rubylith" overlay over the composite image
+        // paint the content in image space
+        try {
+            if (showMask) {
+                // paint the mask
                 LayerMask mask = comp.getActiveLayer().getMask();
                 assert mask != null : "no mask in " + maskViewMode;
-                mask.paintAsRubylith(g2);
+                mask.paint(g2, true);
+            } else {
+                // paint the composite image
+                g2.drawImage(comp.getCompositeImage(), 0, 0, null);
+
+                if (maskViewMode.isShowingRubylith()) {
+                    // paint the mask as a red "rubylith" overlay over the composite image
+                    LayerMask mask = comp.getActiveLayer().getMask();
+                    assert mask != null : "no mask in " + maskViewMode;
+                    mask.paintAsRubylith(g2);
+                }
+            }
+        } finally {
+            if (interpolationHintChanged) {
+                if (origInterpolation != null) {
+                    g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, origInterpolation);
+                } else {
+                    g2.getRenderingHints().remove(RenderingHints.KEY_INTERPOLATION);
+                }
             }
         }
 

@@ -35,6 +35,7 @@ import pixelitor.tools.brushes.*;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.tools.util.PPoint;
 import pixelitor.utils.Shapes;
+import pixelitor.utils.debug.Debug;
 import pixelitor.utils.debug.DebugNode;
 
 import javax.swing.*;
@@ -115,6 +116,12 @@ public abstract class AbstractBrushTool extends Tool {
 
     // tracks whether the brush outline should be painted
     private boolean paintBrushOutline = false;
+
+    // used only when Debug.isShowBrushOutlineRepaintDebug() is enabled
+    private Rectangle outlineDebugRepaintRect;
+    private Rectangle outlineDebugPrevBounds;
+    private Rectangle outlineDebugNewBounds;
+    private Rectangle outlineDebugLastOverlayBounds;
 
     AbstractBrushTool(String name, char hotkey, String toolMessage,
                       Cursor cursor, boolean supportsSymmetry) {
@@ -331,23 +338,63 @@ public abstract class AbstractBrushTool extends Tool {
         int prevX = outlineCoX;
         int prevY = outlineCoY;
 
+        boolean debugOutline = Debug.isShowBrushOutlineRepaintDebug();
+        if (debugOutline) {
+            outlineDebugPrevBounds = brushPainter.getCoBoundsAt(prevX, prevY);
+        }
+
         outlineCoX = x;
         outlineCoY = y;
 
+        if (debugOutline) {
+            outlineDebugNewBounds = brushPainter.getCoBoundsAt(outlineCoX, outlineCoY);
+        }
+
         // calculate the rectangle encompassing both old and new positions
         var repaintRect = Shapes.toPositiveRect(prevX, outlineCoX, prevY, outlineCoY);
+        // include the end pixels too, because Rectangle width/height are exclusive
+        repaintRect.width++;
+        repaintRect.height++;
 
         // add padding to account for brush radius and repaint delay
         int growth = brushPainter.getCoRadius() + REPAINT_EXTRA_SPACE;
         repaintRect.grow(growth, growth);
-        view.repaint(repaintRect);
+        if (debugOutline) {
+            outlineDebugRepaintRect = new Rectangle(repaintRect);
+        }
+        if (debugOutline && outlineDebugLastOverlayBounds != null) {
+            repaintRect.add(outlineDebugLastOverlayBounds);
+        }
+
+        if (Debug.isForceFullRepaintOnBrushHover()) {
+            view.repaint();
+        } else {
+            view.repaint(repaintRect);
+        }
     }
 
     // repaints the area currently occupied by the brush outline
     private void repaintOutline(View view) {
         int growth = brushPainter.getCoRadius() + REPAINT_EXTRA_SPACE;
 
-        view.repaint(outlineCoX - growth, outlineCoY - growth, 2 * growth, 2 * growth);
+        int x = outlineCoX - growth;
+        int y = outlineCoY - growth;
+        int w = 2 * growth + 1;
+        int h = 2 * growth + 1;
+        if (Debug.isShowBrushOutlineRepaintDebug()) {
+            outlineDebugRepaintRect = new Rectangle(x, y, w, h);
+            outlineDebugPrevBounds = brushPainter.getCoBoundsAt(outlineCoX, outlineCoY);
+            outlineDebugNewBounds = outlineDebugPrevBounds;
+        }
+        if (Debug.isForceFullRepaintOnBrushHover()) {
+            view.repaint();
+        } else if (Debug.isShowBrushOutlineRepaintDebug() && outlineDebugLastOverlayBounds != null) {
+            Rectangle r = new Rectangle(x, y, w, h);
+            r.add(outlineDebugLastOverlayBounds);
+            view.repaint(r);
+        } else {
+            view.repaint(x, y, w, h);
+        }
     }
 
     private void showOutline(View view) {
@@ -655,9 +702,71 @@ public abstract class AbstractBrushTool extends Tool {
 
     @Override
     public void paintOverCanvas(Graphics2D g2, Composition comp) {
-        if (paintBrushOutline) {
+        if (paintBrushOutline && !Debug.isDisableBrushOutlinePainting()) {
             brushPainter.paint(g2, outlineCoX, outlineCoY);
         }
+        if (Debug.isShowBrushOutlineRepaintDebug()) {
+            paintBrushOutlineDebugOverlay(g2);
+        }
+    }
+
+    private void paintBrushOutlineDebugOverlay(Graphics2D g2) {
+        Stroke origStroke = g2.getStroke();
+        Color origColor = g2.getColor();
+        Object origAA = g2.getRenderingHint(KEY_ANTIALIASING);
+
+        g2.setRenderingHint(KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g2.setStroke(new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
+            10.0f, new float[]{4.0f, 4.0f}, 0.0f));
+        Rectangle overlayBounds = null;
+        if (outlineDebugRepaintRect != null) {
+            g2.setColor(new Color(255, 0, 0, 200)); // red = requested repaint
+            drawDebugRect(g2, outlineDebugRepaintRect);
+            overlayBounds = unionNullable(overlayBounds, outlineDebugRepaintRect);
+        }
+        if (outlineDebugPrevBounds != null) {
+            g2.setColor(new Color(255, 0, 255, 200)); // magenta = previous outline bounds
+            drawDebugRect(g2, outlineDebugPrevBounds);
+            overlayBounds = unionNullable(overlayBounds, outlineDebugPrevBounds);
+        }
+        if (outlineDebugNewBounds != null) {
+            g2.setColor(new Color(0, 255, 0, 200)); // green = current outline bounds
+            drawDebugRect(g2, outlineDebugNewBounds);
+            overlayBounds = unionNullable(overlayBounds, outlineDebugNewBounds);
+        }
+
+        g2.setColor(new Color(255, 255, 0, 220));
+        g2.drawLine(outlineCoX - 5, outlineCoY, outlineCoX + 5, outlineCoY);
+        g2.drawLine(outlineCoX, outlineCoY - 5, outlineCoX, outlineCoY + 5);
+        overlayBounds = unionNullable(overlayBounds, new Rectangle(outlineCoX - 6, outlineCoY - 6, 13, 13));
+        if (overlayBounds != null) {
+            overlayBounds.grow(2, 2); // account for stroke width and AA differences
+        }
+        outlineDebugLastOverlayBounds = overlayBounds;
+
+        g2.setRenderingHint(KEY_ANTIALIASING, origAA);
+        g2.setColor(origColor);
+        g2.setStroke(origStroke);
+    }
+
+    private static Rectangle unionNullable(Rectangle acc, Rectangle add) {
+        if (add == null) {
+            return acc;
+        }
+        if (acc == null) {
+            return new Rectangle(add);
+        }
+        acc.add(add);
+        return acc;
+    }
+
+    private static void drawDebugRect(Graphics2D g2, Rectangle r) {
+        int w = r.width - 1;
+        int h = r.height - 1;
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        g2.drawRect(r.x, r.y, w, h);
     }
 
     @Override
@@ -835,13 +944,37 @@ public abstract class AbstractBrushTool extends Tool {
             var origTransform = g2.getTransform();
 
             g2.translate(x - coRadius - 1, y - coRadius - 1);
-            super.paint(g2, null, 3 + (int) coDiameter, 3 + (int) coDiameter);
+            int size = 3 + (int) coDiameter;
+            if (Debug.isDisableBrushOutlineCache()) {
+                Object origAA = g2.getRenderingHint(KEY_ANTIALIASING);
+                Stroke origStroke = g2.getStroke();
+                Color origColor = g2.getColor();
+                doPaint(g2, size, size);
+                g2.setRenderingHint(KEY_ANTIALIASING, origAA);
+                g2.setStroke(origStroke);
+                g2.setColor(origColor);
+            } else {
+                super.paint(g2, null, size, size);
+            }
 
             g2.setTransform(origTransform);
         }
 
+        public Rectangle getCoBoundsAt(double x, double y) {
+            if (view == null) {
+                return null;
+            }
+            int size = 3 + (int) coDiameter;
+            int topLeftX = (int) Math.floor(x - coRadius - 1);
+            int topLeftY = (int) Math.floor(y - coRadius - 1);
+            return new Rectangle(topLeftX, topLeftY, size, size);
+        }
+
         public int getCoRadius() {
-            return (int) coRadius;
+            // The outline is painted with strokes and antialiasing, and can be positioned
+            // with subpixel translation when zoom is not an integer. Use a conservative
+            // radius for repaint calculations to avoid leaving visual artifacts behind.
+            return (int) Math.ceil(coRadius + 2.0);
         }
     }
 }

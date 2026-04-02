@@ -66,8 +66,49 @@ import static pixelitor.utils.Threads.calledOutsideEDT;
  * Debugging-related static utility methods
  */
 public class Debug {
+    private static volatile boolean showBrushOutlineRepaintDebug = false;
+    private static volatile boolean disableBrushOutlineCache = false;
+    private static volatile boolean disableBrushOutlinePainting = false;
+    private static volatile boolean forceFullRepaintOnBrushHover = false;
+
     private Debug() {
         // shouldn't be instantiated
+    }
+
+    public static boolean isShowBrushOutlineRepaintDebug() {
+        return showBrushOutlineRepaintDebug;
+    }
+
+    public static void setShowBrushOutlineRepaintDebug(boolean show) {
+        showBrushOutlineRepaintDebug = show;
+        Views.repaintVisible();
+    }
+
+    public static boolean isDisableBrushOutlineCache() {
+        return disableBrushOutlineCache;
+    }
+
+    public static void setDisableBrushOutlineCache(boolean disable) {
+        disableBrushOutlineCache = disable;
+        Views.repaintVisible();
+    }
+
+    public static boolean isDisableBrushOutlinePainting() {
+        return disableBrushOutlinePainting;
+    }
+
+    public static void setDisableBrushOutlinePainting(boolean disable) {
+        disableBrushOutlinePainting = disable;
+        Views.repaintVisible();
+    }
+
+    public static boolean isForceFullRepaintOnBrushHover() {
+        return forceFullRepaintOnBrushHover;
+    }
+
+    public static void setForceFullRepaintOnBrushHover(boolean force) {
+        forceFullRepaintOnBrushHover = force;
+        Views.repaintVisible();
     }
 
     public static String dataBufferTypeToString(int type) {

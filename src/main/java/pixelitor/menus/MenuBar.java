@@ -1205,6 +1205,30 @@ public class MenuBar extends JMenuBar {
 
         sub.addViewEnabled("Enable Mouse Debugging", comp -> GlobalEvents.enableMouseEventDebugging());
 
+        var outlineDebugItem = new JCheckBoxMenuItem("Show Brush Outline Debug Overlay");
+        outlineDebugItem.setSelected(Debug.isShowBrushOutlineRepaintDebug());
+        outlineDebugItem.addActionListener(e ->
+            Debug.setShowBrushOutlineRepaintDebug(outlineDebugItem.isSelected()));
+        sub.add(outlineDebugItem);
+
+        var outlineCacheItem = new JCheckBoxMenuItem("Disable Brush Outline Cache");
+        outlineCacheItem.setSelected(Debug.isDisableBrushOutlineCache());
+        outlineCacheItem.addActionListener(e ->
+            Debug.setDisableBrushOutlineCache(outlineCacheItem.isSelected()));
+        sub.add(outlineCacheItem);
+
+        var outlinePaintingItem = new JCheckBoxMenuItem("Disable Brush Outline Painting");
+        outlinePaintingItem.setSelected(Debug.isDisableBrushOutlinePainting());
+        outlinePaintingItem.addActionListener(e ->
+            Debug.setDisableBrushOutlinePainting(outlinePaintingItem.isSelected()));
+        sub.add(outlinePaintingItem);
+
+        var brushFullRepaintItem = new JCheckBoxMenuItem("Force Full Repaint on Brush Hover");
+        brushFullRepaintItem.setSelected(Debug.isForceFullRepaintOnBrushHover());
+        brushFullRepaintItem.addActionListener(e ->
+            Debug.setForceFullRepaintOnBrushHover(brushFullRepaintItem.isSelected()));
+        sub.add(brushFullRepaintItem);
+
         sub.add(new RestrictedLayerAction("Debug Layer Mask", HAS_LAYER_MASK, layer -> {
             ImageLayer imageLayer = (ImageLayer) layer;
             Debug.debugImage(imageLayer.getImage(), "layer image");

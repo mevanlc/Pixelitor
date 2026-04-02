@@ -77,11 +77,7 @@ public enum MouseZoomMethod {
     public abstract void installOnOther(JComponent component);
 
     private static void viewZoomed(View view, MouseWheelEvent e) {
-        if (e.getWheelRotation() < 0) { // up, away from the user
-            view.zoomIn(e.getPoint());
-        } else {  // down, towards the user
-            view.zoomOut(e.getPoint());
-        }
+        zoom(view, e, e.getPoint());
     }
 
     private static void otherZoomed(MouseWheelEvent e) {
@@ -89,11 +85,107 @@ public enum MouseZoomMethod {
         if (view == null) {
             return; // all views are closed
         }
-        if (e.getWheelRotation() < 0) { // up, away from the user
-            view.zoomIn();
-        } else {  // down, towards the user
-            view.zoomOut();
+        zoom(view, e, null);
+    }
+
+    private static final String ACCUM_CLIENT_PROPERTY = "pixelitor.mouseZoomAccum";
+    private static final String LAST_WHEN_CLIENT_PROPERTY = "pixelitor.mouseZoomLastWhen";
+
+    // Trackpads generate a lot of small wheel deltas. Scaling them down makes zooming feel
+    // less jumpy and gives finer control without changing the discrete zoom levels.
+    private static final double TRACKPAD_ROTATION_SCALE = 0.25;
+    private static final long TRACKPAD_ACCUM_RESET_MS = 250;
+    private static final int MAX_TRACKPAD_STEPS_PER_EVENT = 3;
+
+    /**
+     * Performs discrete zoom steps based on the (possibly fractional) wheel delta.
+     * <p>
+     * Trackpads typically generate many small wheel events. Using
+     * {@link MouseWheelEvent#getWheelRotation()} would collapse them to -1/0/1 and
+     * make zooming extremely fast and jittery. Instead, use
+     * {@link MouseWheelEvent#getPreciseWheelRotation()} and accumulate deltas until
+     * they add up to a whole "notch".
+     */
+    private static void zoom(View view, MouseWheelEvent e, java.awt.Point coFocusPoint) {
+        double preciseRotation = e.getPreciseWheelRotation();
+        int wheelRotation = e.getWheelRotation();
+
+        boolean hasPreciseRotation = preciseRotation != 0.0;
+        double rotation = hasPreciseRotation ? preciseRotation : wheelRotation;
+        if (rotation == 0.0) {
+            return;
         }
+
+        // prevent JScrollPane from also scrolling (which feels glitchy while zooming)
+        e.consume();
+
+        JComponent source = (e.getComponent() instanceof JComponent jc) ? jc : view;
+        boolean looksLikeTrackpad = hasPreciseRotation && (wheelRotation == 0
+            || Math.abs(preciseRotation - Math.rint(preciseRotation)) > 1e-6);
+
+        if (looksLikeTrackpad) {
+            long when = e.getWhen();
+            long lastWhen = getLastWhen(source);
+            if (lastWhen != 0 && when - lastWhen > TRACKPAD_ACCUM_RESET_MS) {
+                // avoid carrying over tiny remainder deltas to a later gesture
+                setAccumulatedRotation(source, 0.0);
+            }
+            setLastWhen(source, when);
+
+            rotation *= TRACKPAD_ROTATION_SCALE;
+        }
+
+        double accum = getAccumulatedRotation(source) + rotation;
+
+        int steps = (int) Math.floor(Math.abs(accum));
+        if (looksLikeTrackpad) {
+            steps = Math.min(steps, MAX_TRACKPAD_STEPS_PER_EVENT);
+        }
+        if (steps == 0) {
+            setAccumulatedRotation(source, accum);
+            return;
+        }
+
+        if (accum < 0) { // up, away from the user
+            for (int i = 0; i < steps; i++) {
+                view.zoomIn(coFocusPoint);
+            }
+            accum += steps;
+        } else { // down, towards the user
+            for (int i = 0; i < steps; i++) {
+                view.zoomOut(coFocusPoint);
+            }
+            accum -= steps;
+        }
+
+        if (Math.abs(accum) < 1e-9) {
+            accum = 0.0;
+        }
+        setAccumulatedRotation(source, accum);
+    }
+
+    private static double getAccumulatedRotation(JComponent c) {
+        Object value = c.getClientProperty(ACCUM_CLIENT_PROPERTY);
+        if (value instanceof Double d) {
+            return d;
+        }
+        return 0.0;
+    }
+
+    private static void setAccumulatedRotation(JComponent c, double value) {
+        c.putClientProperty(ACCUM_CLIENT_PROPERTY, value);
+    }
+
+    private static long getLastWhen(JComponent c) {
+        Object value = c.getClientProperty(LAST_WHEN_CLIENT_PROPERTY);
+        if (value instanceof Long l) {
+            return l;
+        }
+        return 0L;
+    }
+
+    private static void setLastWhen(JComponent c, long when) {
+        c.putClientProperty(LAST_WHEN_CLIENT_PROPERTY, when);
     }
 
     private static void removeExistingListeners(JComponent c) {
