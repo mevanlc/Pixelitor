@@ -160,6 +160,11 @@ public class ColorFillLayer extends Layer {
     }
 
     @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        // do nothing, a color fill has no spatial extent
+    }
+
+    @Override
     public String getTypeString() {
         return "Color Fill Layer";
     }

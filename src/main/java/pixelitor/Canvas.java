@@ -45,8 +45,8 @@ import java.io.Serializable;
  * The saved images always have the size of the canvas.
  */
 public class Canvas implements Serializable, Debuggable {
-    public static final int MAX_WIDTH = 9_999;
-    public static final int MAX_HEIGHT = 9_999;
+    public static final int MAX_WIDTH = 46_340;
+    public static final int MAX_HEIGHT = 46_340;
 
     // size in image space
     private int width;

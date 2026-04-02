@@ -196,6 +196,21 @@ public abstract class ContentLayer extends Layer {
         }
     }
 
+    @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        if (horizontal) {
+            int bandBottom = removedBand.y + removedBand.height;
+            if (translationY >= bandBottom) {
+                translationY -= removedBand.height;
+            }
+        } else {
+            int bandRight = removedBand.x + removedBand.width;
+            if (translationX >= bandRight) {
+                translationX -= removedBand.width;
+            }
+        }
+    }
+
     /**
      * Flips the layer content horizontally or vertically.
      */

@@ -646,6 +646,68 @@ public class ImageUtils {
         return output;
     }
 
+    /**
+     * Removes a band of rows or columns from an image and stitches
+     * the remaining parts together. For a horizontal band, rows from
+     * bandStart to bandStart+bandSize are removed. For a vertical
+     * band, columns from bandStart to bandStart+bandSize are removed.
+     */
+    public static BufferedImage stitch(BufferedImage input,
+                                       int bandStart, int bandSize,
+                                       boolean horizontal) {
+        int imgW = input.getWidth();
+        int imgH = input.getHeight();
+
+        int newW, newH;
+        if (horizontal) {
+            newW = imgW;
+            newH = imgH - bandSize;
+        } else {
+            newW = imgW - bandSize;
+            newH = imgH;
+        }
+
+        if (newW <= 0 || newH <= 0) {
+            throw new IllegalArgumentException(
+                "Stitch would produce empty image: %dx%d".formatted(newW, newH));
+        }
+
+        BufferedImage output = createImageWithSameCM(input, newW, newH);
+        Graphics2D g = output.createGraphics();
+
+        int bandEnd = bandStart + bandSize;
+        if (horizontal) {
+            // draw top part
+            if (bandStart > 0) {
+                g.drawImage(input,
+                    0, 0, imgW, bandStart,
+                    0, 0, imgW, bandStart, null);
+            }
+            // draw bottom part shifted up
+            if (bandEnd < imgH) {
+                g.drawImage(input,
+                    0, bandStart, imgW, newH,
+                    0, bandEnd, imgW, imgH, null);
+            }
+        } else {
+            // draw left part
+            if (bandStart > 0) {
+                g.drawImage(input,
+                    0, 0, bandStart, imgH,
+                    0, 0, bandStart, imgH, null);
+            }
+            // draw right part shifted left
+            if (bandEnd < imgW) {
+                g.drawImage(input,
+                    bandStart, 0, newW, imgH,
+                    bandEnd, 0, imgW, imgH, null);
+            }
+        }
+
+        g.dispose();
+        return output;
+    }
+
     public static int lerpAndPremultiply(float t, int[] color1, int[] color2) {
         int alpha = color1[0] + (int) (t * (color2[0] - color1[0]));
         int red;

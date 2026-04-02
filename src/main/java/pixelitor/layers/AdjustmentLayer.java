@@ -91,6 +91,11 @@ public class AdjustmentLayer extends Layer implements Filterable {
     }
 
     @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        // do nothing, as an adjustment layer has no content of its own
+    }
+
+    @Override
     public BufferedImage transformImage(BufferedImage src) {
         return filter.transformImage(src);
     }

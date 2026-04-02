@@ -255,6 +255,11 @@ public class LayerGroup extends CompositeLayer {
     }
 
     @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        // do nothing for the group itself (children handled by forEachNestedLayerAndMask)
+    }
+
+    @Override
     public void flip(FlipDirection direction, boolean layerTransform) {
         // do nothing for the group itself
     }

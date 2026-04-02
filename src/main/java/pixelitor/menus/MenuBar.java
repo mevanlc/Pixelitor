@@ -576,6 +576,7 @@ public class MenuBar extends JMenuBar {
 
         // selection crop
         imageMenu.add(SelectionActions.getCrop());
+        imageMenu.add(SelectionActions.getInverseCrop(), CTRL_ALT_C);
 
         String cropToContentText = i18n.getString("crop_to_content");
         imageMenu.addViewEnabled(cropToContentText, Crop::contentCrop);

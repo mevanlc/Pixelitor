@@ -837,6 +837,63 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         setTranslation(0, 0);
     }
 
+    @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        int tx = getTx();
+        int ty = getTy();
+        int imgW = image.getWidth();
+        int imgH = image.getHeight();
+
+        // convert band to layer-local coordinates
+        int localBandStart, localBandEnd, layerExtent;
+        if (horizontal) {
+            localBandStart = removedBand.y - ty;
+            localBandEnd = removedBand.y + removedBand.height - ty;
+            layerExtent = imgH;
+        } else {
+            localBandStart = removedBand.x - tx;
+            localBandEnd = removedBand.x + removedBand.width - tx;
+            layerExtent = imgW;
+        }
+
+        // clamp to image bounds
+        int clampedStart = Math.max(0, localBandStart);
+        int clampedEnd = Math.min(layerExtent, localBandEnd);
+        int overlap = Math.max(0, clampedEnd - clampedStart);
+
+        if (overlap == 0) {
+            // band doesn't overlap this layer's image, just adjust translation
+            super.inverseCrop(removedBand, horizontal);
+            return;
+        }
+
+        if (overlap >= layerExtent) {
+            // entire image is within the removed band
+            BufferedImage tiny = ImageUtils.createImageWithSameCM(image, 1, 1);
+            setImage(tiny);
+            setTranslation(-1, -1);
+            return;
+        }
+
+        // stitch the image around the removed band
+        BufferedImage stitched = ImageUtils.stitch(image, clampedStart, overlap, horizontal);
+        setImage(stitched);
+
+        // adjust translation: layer parts before the band stay in place,
+        // but if the layer starts after the band, shift it
+        if (horizontal) {
+            if (ty >= removedBand.y + removedBand.height) {
+                setTranslation(tx, ty - removedBand.height);
+            }
+        } else {
+            if (tx >= removedBand.x + removedBand.width) {
+                setTranslation(tx - removedBand.width, ty);
+            }
+        }
+
+        invalidateMaskedImageCache();
+    }
+
     /**
      * Crops the layer to the canvas size and records the action in history.
      */

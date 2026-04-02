@@ -825,6 +825,16 @@ public abstract class Layer implements Serializable, Debuggable {
                               boolean allowGrowing);
 
     /**
+     * Removes a band from the layer and stitches the remaining parts.
+     * The band spans the full canvas on the other dimension.
+     *
+     * @param removedBand the band rectangle in image space (canvas-relative)
+     * @param horizontal  true if removing a horizontal band (full width),
+     *                    false if removing a vertical band (full height)
+     */
+    public abstract void inverseCrop(Rectangle removedBand, boolean horizontal);
+
+    /**
      * Changes the stacking order of this layer.
      */
     public void changeStackIndex(int newIndex) {

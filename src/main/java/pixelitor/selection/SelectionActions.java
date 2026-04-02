@@ -54,6 +54,9 @@ public final class SelectionActions {
     private static final Action crop = new TaskAction(i18n("crop_selection"),
         Crop::selectionCropActiveComp);
 
+    private static final Action inverseCrop = new TaskAction(i18n("inverse_crop"),
+        Crop::inverseCropActiveComp);
+
     private static final Action deselect = new TaskAction(i18n("deselect"), () ->
         getActiveComp().deselect(true));
 
@@ -202,6 +205,7 @@ public final class SelectionActions {
         boolean hasSelection = selection != null;
 
         crop.setEnabled(hasSelection);
+        inverseCrop.setEnabled(hasSelection);
         deselect.setEnabled(hasSelection);
         invert.setEnabled(hasSelection);
         showHide.setEnabled(hasSelection);
@@ -229,6 +233,10 @@ public final class SelectionActions {
 
     public static Action getCrop() {
         return crop;
+    }
+
+    public static Action getInverseCrop() {
+        return inverseCrop;
     }
 
     public static Action getDeselect() {

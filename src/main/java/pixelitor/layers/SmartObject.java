@@ -1129,6 +1129,11 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void enlargeCanvas(Outsets out) {
         throw new UnsupportedOperationException();
     }
