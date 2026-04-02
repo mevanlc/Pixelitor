@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -26,7 +26,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Video Feedback filter based on the JHLabs FeedbackFilter
+ * Video Feedback filter based on the JHLabs {@link FeedbackFilter}.
  */
 public class JHVideoFeedback extends ParametrizedFilter {
     public static final String NAME = "Video Feedback";
@@ -40,8 +40,6 @@ public class JHVideoFeedback extends ParametrizedFilter {
     private final RangeParam zoom = new RangeParam("Zoom (Percent/Iteration)", -100, -10, -4);
     private final RangeParam startOpacity = new RangeParam("Start Opacity (%)", 0, 100, 100);
     private final RangeParam endOpacity = new RangeParam("End Opacity (%)", 0, 100, 100);
-
-    private FeedbackFilter filter;
 
     public JHVideoFeedback() {
         super(true);
@@ -62,16 +60,17 @@ public class JHVideoFeedback extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new FeedbackFilter(NAME);
-        }
-
-        filter.setRotation(rotation.getValueInRadians());
-        filter.setZoom((float) zoom.getPercentage());
-        filter.setCenter(center.getRelativePoint());
-        filter.setIterations(iterations.getValue());
-        filter.setStartAlpha((float) startOpacity.getPercentage());
-        filter.setEndAlpha((float) endOpacity.getPercentage());
+        FeedbackFilter filter = new FeedbackFilter(
+            NAME,
+            center.getRelativePoint(),
+            0,
+            0,
+            rotation.getValueInRadians(),
+            (float) zoom.getPercentage(),
+            (float) startOpacity.getPercentage(),
+            (float) endOpacity.getPercentage(),
+            iterations.getValue()
+        );
 
         return filter.filter(src, dest);
     }

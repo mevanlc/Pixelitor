@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -25,7 +25,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Glow filter based on the JHLabs GlowFilter
+ * Glow filter based on the JHLabs {@link GlowFilter}.
  */
 public class JHGlow extends ParametrizedFilter {
     public static final String NAME = "Glow";
@@ -35,8 +35,6 @@ public class JHGlow extends ParametrizedFilter {
 
     private final RangeParam amount = new RangeParam("Amount", 0, 15, 100);
     private final RangeParam softness = new RangeParam("Softness Radius", 0, 20, 100);
-
-    private GlowFilter filter;
 
     public JHGlow() {
         super(true);
@@ -59,18 +57,18 @@ public class JHGlow extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new GlowFilter(NAME);
-        }
-
-        filter.setAmount(amountValue);
-        filter.setRadius(softness.getValueAsFloat());
+        GlowFilter filter = new GlowFilter(NAME, amountValue, softness.getValueAsFloat());
 
         return filter.filter(src, dest);
     }
 
     @Override
     public boolean supportsGray() {
+        return false;
+    }
+
+    @Override
+    protected boolean createDefaultDestImg() {
         return false;
     }
 }

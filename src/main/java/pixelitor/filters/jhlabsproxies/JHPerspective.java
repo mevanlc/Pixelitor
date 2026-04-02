@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -29,7 +29,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Perspective filter based on the JHLabs PerspectiveFilter
+ * Perspective filter based on the JHLabs {@link PerspectiveFilter}.
  */
 public class JHPerspective extends ParametrizedFilter {
     public static final String NAME = "Perspective";
@@ -64,11 +64,11 @@ public class JHPerspective extends ParametrizedFilter {
         float southEastX = (float) southEast.getRelativeX();
         float southEastY = (float) southEast.getRelativeY();
 
-        var filter = new PerspectiveFilter(northWestX, northWestY, northEastX, northEastY,
-            southEastX, southEastY, southWestX, southWestY, NAME);
-
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        var filter = new PerspectiveFilter(NAME,
+            edgeAction.getValue(), interpolation.getValue(),
+            northWestX, northWestY, northEastX, northEastY,
+            southEastX, southEastY, southWestX, southWestY,
+            src.getWidth(), src.getHeight());
 
         return filter.filter(src, dest);
     }

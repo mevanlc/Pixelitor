@@ -734,7 +734,7 @@ public class MenuBar extends JMenuBar {
         filterMenu.add(createDistortSubmenu());
         filterMenu.add(createFindEdgesSubmenu());
 
-        File gmicExe = FileUtils.findExecutable(AppPreferences.gmicDirName, "gmic");
+        File gmicExe = FileUtils.findExecutableInDir(AppPreferences.gmicDirName, "gmic");
         if (gmicExe != null) {
             GMICFilter.GMIC_PATH = gmicExe;
             filterMenu.add(createGMICSubmenu());
@@ -759,6 +759,7 @@ public class MenuBar extends JMenuBar {
         sub.addFilter(Orton.NAME, Orton::new);
         sub.addFilter(PhotoCollage.NAME, PhotoCollage::new);
         sub.addFilter(JHPointillize.NAME, JHPointillize::new);
+        sub.addFilter(RadialMosaic.NAME, RadialMosaic::new);
         sub.addFilter(JHSmear.NAME, JHSmear::new);
         sub.addFilter(Spheres.NAME, Spheres::new);
         sub.addFilter(JHStamp.NAME, JHStamp::new);

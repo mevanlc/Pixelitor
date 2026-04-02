@@ -21,6 +21,7 @@ public class CurvesFilter extends TransferFilter {
 
     public CurvesFilter(String filterName) {
         super(filterName);
+
         curves = new Curve[4];
         curves[0] = new Curve();
         curves[1] = new Curve();
@@ -67,10 +68,4 @@ public class CurvesFilter extends TransferFilter {
     public Curve[] getCurves() {
         return curves;
     }
-
-    @Override
-    public String toString() {
-        return "Colors/Curves...";
-    }
 }
-

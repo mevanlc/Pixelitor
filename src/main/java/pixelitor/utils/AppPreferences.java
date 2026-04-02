@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -30,9 +30,9 @@ import pixelitor.gui.utils.Themes;
 import pixelitor.guides.GuideStrokeType;
 import pixelitor.guides.GuideStyle;
 import pixelitor.history.History;
-import pixelitor.io.Dirs;
 import pixelitor.io.FileChoosers;
 import pixelitor.io.FileFormat;
+import pixelitor.io.RecentDirs;
 import pixelitor.layers.LayerGUILayout;
 import pixelitor.menus.file.BoundedUniqueList;
 import pixelitor.menus.file.RecentFileEntry;
@@ -45,7 +45,6 @@ import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.Locale;
@@ -111,6 +110,9 @@ public final class AppPreferences {
 
     private static final String UI_FONT_SIZE_KEY = "ui_font_size";
     private static final String UI_FONT_TYPE_KEY = "ui_font_type";
+
+    private static int customUIFontSize = -1;
+    private static String customUIFontType = null;
 
     // each bit of the "flags" represents a boolean flag in the app
     private static final String FLAGS_KEY = "flags";
@@ -251,13 +253,24 @@ public final class AppPreferences {
     }
 
     private static void saveRecentFiles(BoundedUniqueList<RecentFileEntry> recentFiles) {
+        // overwrite the beginning keys with the active items
         for (int i = 0; i < recentFiles.size(); i++) {
             String key = RECENT_FILE_PREFS_KEY + i;
             String filePath = recentFiles.get(i).getFullPath();
             recentFilesPrefs.put(key, filePath);
         }
+
+        // erase any stale keys left over from previous runs
+        for (int i = recentFiles.size(); i < MAX_RECENT_FILES; i++) {
+            recentFilesPrefs.remove(RECENT_FILE_PREFS_KEY + i);
+        }
     }
 
+    /**
+     * Wipes out all recent files from the preferences.
+     * This method is called when the user clears the recent
+     * files menu, not during application shutdown.
+     */
     public static void removeRecentFiles() {
         for (int i = 0; i < MAX_RECENT_FILES; i++) {
             recentFilesPrefs.remove(RECENT_FILE_PREFS_KEY + i);
@@ -290,18 +303,18 @@ public final class AppPreferences {
     }
 
     private static void saveLastOpenDir() {
-        saveDir(Dirs.getLastOpen(), LAST_OPEN_DIR_KEY);
+        saveDir(RecentDirs.getLastOpen(), LAST_OPEN_DIR_KEY);
     }
 
     private static void saveLastSaveDir() {
-        saveDir(Dirs.getLastSave(), LAST_SAVE_DIR_KEY);
+        saveDir(RecentDirs.getLastSave(), LAST_SAVE_DIR_KEY);
     }
 
     private static void saveDir(File f, String key) {
         if (f != null) {
             mainPrefs.put(key, f.getAbsolutePath());
         } else {
-            mainPrefs.put(key, null);
+            mainPrefs.remove(key);
         }
     }
 
@@ -328,7 +341,7 @@ public final class AppPreferences {
     public static int loadUndoLevels() {
         int retVal = mainPrefs.getInt(UNDO_LEVELS_KEY, -1);
         if (retVal == -1) {
-            return Math.min(5, calcDefaultUndoLevels());
+            return 5;
         }
         return retVal;
     }
@@ -434,14 +447,6 @@ public final class AppPreferences {
         return mainPrefs;
     }
 
-    private static int calcDefaultUndoLevels() {
-        int sizeInMegaBytes = MemoryInfo.getMaxHeapMb();
-        int retVal = 1 + sizeInMegaBytes / 50;
-
-        // rounds up to the nearest multiple of 5
-        return ((retVal + 4) / 5) * 5;
-    }
-
     public static ImageAreaConfig loadDesktopMode() {
         String value = mainPrefs.get(UI_KEY, "TabsN");
         if (value.startsWith("Tabs")) {
@@ -504,27 +509,33 @@ public final class AppPreferences {
     }
 
     public static int loadUIFontSize() {
-        return mainPrefs.getInt(UI_FONT_SIZE_KEY, 0);
+        if (customUIFontSize == -1) {
+            customUIFontSize = mainPrefs.getInt(UI_FONT_SIZE_KEY, 0);
+        }
+        return customUIFontSize;
     }
 
     public static String loadUIFontType() {
-        return mainPrefs.get(UI_FONT_TYPE_KEY, "");
+        if (customUIFontType == null) {
+            //noinspection NonThreadSafeLazyInitialization
+            customUIFontType = mainPrefs.get(UI_FONT_TYPE_KEY, "");
+        }
+        return customUIFontType;
+    }
+
+    public static void setUIFont(String type, int size) {
+        customUIFontType = type;
+        customUIFontSize = size;
     }
 
     private static void saveUIFont() {
-        Font font = UIManager.getFont("defaultFont");
-        String type;
-        int size;
-        if (font == null) {
-            type = "";
-            size = 0;
-        } else {
-            type = font.getName();
-            size = font.getSize();
-        }
+        mainPrefs.putInt(UI_FONT_SIZE_KEY, customUIFontSize);
 
-        mainPrefs.putInt(UI_FONT_SIZE_KEY, size);
-        mainPrefs.put(UI_FONT_TYPE_KEY, type);
+        if (customUIFontType == null) { // should not happen
+            mainPrefs.remove(UI_FONT_TYPE_KEY);
+        } else {
+            mainPrefs.put(UI_FONT_TYPE_KEY, customUIFontType);
+        }
     }
 
     public static String loadLanguageCode() {

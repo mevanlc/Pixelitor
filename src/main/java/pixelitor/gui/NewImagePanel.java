@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -22,7 +22,7 @@ import pixelitor.filters.gui.DialogMenuOwner;
 import pixelitor.filters.gui.UserPreset;
 import pixelitor.gui.utils.DimensionHelper;
 import pixelitor.gui.utils.GridBagHelper;
-import pixelitor.gui.utils.ValidatedPanel;
+import pixelitor.gui.utils.Validated;
 import pixelitor.gui.utils.ValidationResult;
 import pixelitor.utils.ImageUtils;
 import pixelitor.utils.Messages;
@@ -39,12 +39,12 @@ import java.awt.event.KeyListener;
 
 import static java.lang.String.format;
 import static javax.swing.BorderFactory.createEmptyBorder;
-import static pixelitor.utils.MemoryInfo.NUM_BYTES_IN_MEGABYTE;
+import static pixelitor.utils.MemoryInfo.BYTES_PER_MEGABYTE;
 
 /**
  * The panel in the "New Image" dialog.
  */
-public class NewImagePanel extends ValidatedPanel implements DialogMenuOwner, KeyListener, ItemListener, DimensionHelper.DimensionChangeCallback {
+public class NewImagePanel extends JPanel implements Validated, DialogMenuOwner, KeyListener, ItemListener, DimensionHelper.DimensionChangeCallback {
     private static final int PANEL_PADDING = 7;
 
     private final JTextField nameTF;
@@ -186,8 +186,8 @@ public class NewImagePanel extends ValidatedPanel implements DialogMenuOwner, Ke
                         "<br>An image of %dx%d pixels needs at least %d megabytes." +
                         "<br>Available memory is at most %d megabytes.",
                     width, height,
-                    requiredMemory / NUM_BYTES_IN_MEGABYTE,
-                    availableMemory / NUM_BYTES_IN_MEGABYTE));
+                    requiredMemory / BYTES_PER_MEGABYTE,
+                    availableMemory / BYTES_PER_MEGABYTE));
             }
         }
 
@@ -225,7 +225,7 @@ public class NewImagePanel extends ValidatedPanel implements DialogMenuOwner, Ke
     public void saveStateTo(UserPreset preset) {
         dimensions.saveStateTo(preset);
 
-        preset.put("Fill", getSelectedFill().toString());
+        preset.put("Fill", getSelectedFill().name());
     }
 
     @Override

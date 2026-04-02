@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -28,7 +28,7 @@ import java.awt.image.*;
 
 /**
  * Performs 4-5 times faster than {@link LookupOp} if
- * the image has packed ints
+ * the image has packed ints.
  */
 public class FastLookupOp implements BufferedImageOp {
     private final ShortLookupTable lut;
@@ -40,7 +40,7 @@ public class FastLookupOp implements BufferedImageOp {
     @Override
     public BufferedImage filter(BufferedImage src, BufferedImage dst) {
         if (ImageUtils.hasPackedIntArray(src)) {
-            return filterIntPacked(src, dst);
+            return filterPackedIntImg(src, dst);
         }
 
         if (src.getColorModel() instanceof IndexColorModel) {
@@ -54,7 +54,7 @@ public class FastLookupOp implements BufferedImageOp {
         return dst;
     }
 
-    private BufferedImage filterIntPacked(BufferedImage src, BufferedImage dst) {
+    private BufferedImage filterPackedIntImg(BufferedImage src, BufferedImage dst) {
         if (dst == null) {
             dst = ImageUtils.createImageWithSameCM(src);
         }
@@ -73,7 +73,7 @@ public class FastLookupOp implements BufferedImageOp {
 
         for (int i = 0; i < numPixels; i++) {
             int rgb = srcPixels[i];
-            int a = (rgb >>> 24) & 0xFF;
+            int a = rgb >>> 24;
             int r = (rgb >>> 16) & 0xFF;
             int g = (rgb >>> 8) & 0xFF;
             int b = rgb & 0xFF;

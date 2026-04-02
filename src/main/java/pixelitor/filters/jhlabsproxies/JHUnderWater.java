@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -27,7 +27,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Underwater filter based on JHLabs SwimFilter
+ * Underwater filter based on JHLabs {@link SwimFilter}.
  */
 public class JHUnderWater extends ParametrizedFilter {
     public static final String NAME = "Underwater";
@@ -42,8 +42,6 @@ public class JHUnderWater extends ParametrizedFilter {
     private final AngleParam angle = new AngleParam("Angle", 0);
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction(true);
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
-
-    private SwimFilter filter;
 
     public JHUnderWater() {
         super(true);
@@ -69,17 +67,16 @@ public class JHUnderWater extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new SwimFilter(NAME);
-        }
-
-        filter.setAmount(amount.getValueAsFloat());
-        filter.setScale(scale.getValueAsFloat());
-        filter.setStretch((float) Math.pow(10.0, stretch.getPercentage()));
-        filter.setTime((float) time.getPercentage());
-        filter.setAngle((float) (angle.getValueInRadians() + Math.PI / 2.0));
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        SwimFilter filter = new SwimFilter(
+            NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            amount.getValueAsFloat(),
+            scale.getValueAsFloat(),
+            (float) Math.pow(10.0, stretch.getPercentage()),
+            (float) (angle.getValueInRadians() + Math.PI / 2.0),
+            (float) time.getPercentage()
+        );
 
         return filter.filter(src, dest);
     }

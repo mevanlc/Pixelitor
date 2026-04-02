@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -18,8 +18,8 @@
 package pixelitor.automate;
 
 import pixelitor.gui.utils.*;
-import pixelitor.io.Dirs;
 import pixelitor.io.FileFormat;
+import pixelitor.io.RecentDirs;
 
 import javax.swing.*;
 import java.awt.BorderLayout;
@@ -35,7 +35,7 @@ import static pixelitor.gui.utils.BrowseFilesSupport.SelectionMode.DIRECTORY;
  * A panel that can be used to select a directory and optionally
  * specify an output format.
  */
-public class DirectoryChooser extends ValidatedPanel {
+public class DirectoryChooser extends JPanel implements Validated {
     private final BrowseFilesSupport directoryBrowser;
     private JComboBox<FileFormat> formatComboBox;
 
@@ -43,7 +43,7 @@ public class DirectoryChooser extends ValidatedPanel {
                              String chooserDialogTitle,
                              FileFormat defaultOutputFormat) {
         directoryBrowser = new BrowseFilesSupport(defaultPath, chooserDialogTitle, DIRECTORY);
-        JTextField dirTF = directoryBrowser.getPathTextField();
+        JTextField dirTF = directoryBrowser.getTextField();
         JButton browseButton = directoryBrowser.getBrowseButton();
 
         boolean includeFormatSelector = defaultOutputFormat != null;
@@ -106,7 +106,7 @@ public class DirectoryChooser extends ValidatedPanel {
      */
     public static boolean selectOutputDir(FileFormat defaultFormat) {
         var chooserPanel = new DirectoryChooser("Output Folder:",
-            Dirs.getLastSavePath(),
+            RecentDirs.getLastSavePath(),
             "Select Output Folder", defaultFormat);
 
         boolean[] selectionConfirmed = {false};
@@ -115,7 +115,7 @@ public class DirectoryChooser extends ValidatedPanel {
             .title("Select Output Folder")
             .okAction(() -> {
                 File dir = chooserPanel.getSelectedDir();
-                Dirs.setLastSave(dir);
+                RecentDirs.setLastSave(dir);
                 selectionConfirmed[0] = true;
             })
             .show();

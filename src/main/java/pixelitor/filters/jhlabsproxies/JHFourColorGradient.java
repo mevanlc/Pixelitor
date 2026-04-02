@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -32,7 +32,7 @@ import java.io.Serial;
 import static pixelitor.filters.gui.TransparencyMode.MANUAL_ALPHA_ONLY;
 
 /**
- * Four Color Gradient filter based on the JHLabs FourColorFilter
+ * Four Color Gradient filter based on the JHLabs {@link FourColorFilter}.
  */
 public class JHFourColorGradient extends ParametrizedFilter {
     public static final String NAME = "Four Color Gradient";
@@ -49,6 +49,8 @@ public class JHFourColorGradient extends ParametrizedFilter {
     private final ColorParam southEastParam =
         new ColorParam("Southeast", new Color(200, 20, 20), MANUAL_ALPHA_ONLY);
 
+    private final ImagePositionParam midpoint = new ImagePositionParam("Midpoint");
+
     private final IntChoiceParam interpolation = new IntChoiceParam("Interpolation", new Item[]{
         new Item("Linear", FourColorFilter.INTERPOLATION_LINEAR),
         new Item("Cubic", FourColorFilter.INTERPOLATION_CUBIC),
@@ -61,8 +63,6 @@ public class JHFourColorGradient extends ParametrizedFilter {
         new Item("Linear RGB", FourColorFilter.SPACE_LINEAR_RGB),
         new Item("sRGB", FourColorFilter.SPACE_SRGB)
     });
-
-    private FourColorFilter filter;
 
     public JHFourColorGradient() {
         super(false);
@@ -77,6 +77,7 @@ public class JHFourColorGradient extends ParametrizedFilter {
             northEastParam,
             southWestParam,
             southEastParam,
+            midpoint,
             interpolation,
             space
         ).withActionsAtFront(darkenAll, brightenAll);
@@ -98,16 +99,17 @@ public class JHFourColorGradient extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new FourColorFilter(NAME);
-        }
-
-        filter.setColorNW(northWestParam.getColor().getRGB());
-        filter.setColorNE(northEastParam.getColor().getRGB());
-        filter.setColorSW(southWestParam.getColor().getRGB());
-        filter.setColorSE(southEastParam.getColor().getRGB());
-        filter.setInterpolation(interpolation.getValue());
-        filter.setColorSpace(space.getValue());
+        FourColorFilter filter = new FourColorFilter(
+            NAME,
+            northWestParam.getColor().getRGB(),
+            northEastParam.getColor().getRGB(),
+            southWestParam.getColor().getRGB(),
+            southEastParam.getColor().getRGB(),
+            interpolation.getValue(),
+            space.getValue(),
+            midpoint.getRelativeX(),
+            midpoint.getRelativeY()
+        );
 
         return filter.filter(src, dest);
     }

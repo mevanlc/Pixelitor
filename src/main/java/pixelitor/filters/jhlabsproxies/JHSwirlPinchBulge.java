@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -31,7 +31,7 @@ import java.io.Serial;
 import static pixelitor.gui.GUIText.ZOOM;
 
 /**
- * A Swirl, Pinch, Bulge filter based on the JHLabs PinchFilter
+ * A Swirl, Pinch, Bulge filter based on the JHLabs {@link PinchFilter}.
  */
 public class JHSwirlPinchBulge extends ParametrizedFilter {
     public static final String NAME = "Swirl, Pinch, Bulge";
@@ -48,8 +48,6 @@ public class JHSwirlPinchBulge extends ParametrizedFilter {
 
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction();
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
-
-    private PinchFilter filter;
 
     public JHSwirlPinchBulge() {
         super(true);
@@ -69,19 +67,18 @@ public class JHSwirlPinchBulge extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new PinchFilter();
-        }
-
-        filter.setPinchBulgeAmount((float) pinchBulgeAmount.getPercentage());
-        filter.setSwirlAmount(swirlAmount.getValueInRadians());
-        filter.setRadius(radius.getValueAsFloat());
-        filter.setCenter(center.getRelativePoint());
-        filter.setZoom((float) zoom.getPercentage());
-        filter.setRotateResultAngle((float) rotateResult.getValueInIntuitiveRadians());
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
-
+        PinchFilter filter = new PinchFilter(
+            NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            swirlAmount.getValueInRadians(),
+            (float) pinchBulgeAmount.getPercentage(),
+            radius.getValueAsFloat(),
+            center.getAbsolutePoint(src),
+            (float) zoom.getPercentage(),
+            (float) rotateResult.getValueInIntuitiveRadians()
+        );
+        
         dest = filter.filter(src, dest);
 //        setAffectedAreaShapes(filter.getAffectedAreaShapes());
         return dest;

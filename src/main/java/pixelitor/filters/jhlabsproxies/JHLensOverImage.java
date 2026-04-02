@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,6 +17,7 @@
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.SphereFilter;
+import com.jhlabs.image.TransformFilter;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.gui.GroupedRangeParam;
 import pixelitor.filters.gui.ImagePositionParam;
@@ -28,7 +29,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * "Lens over image" filter based on the JHLabs SphereFilter
+ * "Lens over image" filter based on the JHLabs {@link SphereFilter}.
  */
 public class JHLensOverImage extends ParametrizedFilter {
     public static final String NAME = "Lens Over Image";
@@ -44,8 +45,6 @@ public class JHLensOverImage extends ParametrizedFilter {
 
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
 
-    private SphereFilter filter;
-
     public JHLensOverImage() {
         super(true);
 
@@ -60,25 +59,23 @@ public class JHLensOverImage extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        float refraction = (float) refractionIndex.getPercentage();
-        int hRadius = radius.getValue(0);
-        int vRadius = radius.getValue(1);
+        double refraction = refractionIndex.getPercentage();
+        double hRadius = radius.getValueAsDouble(0);
+        double vRadius = radius.getValueAsDouble(1);
 
-        if (refraction == 1.0f || hRadius == 0 || vRadius == 0) {
+        if (refraction == 1.0 || hRadius == 0.0 || vRadius == 0.0) {
             return src;
         }
 
-        if (filter == null) {
-            filter = new SphereFilter(NAME);
-        }
-
-        filter.setCenter(center.getRelativePoint());
-
-        filter.setA(hRadius);
-        filter.setB(vRadius);
-
-        filter.setRefractionIndex(refraction);
-        filter.setInterpolation(interpolation.getValue());
+        SphereFilter filter = new SphereFilter(
+            NAME,
+            TransformFilter.REPEAT_EDGE, // hardcode the default
+            interpolation.getValue(),
+            center.getAbsolutePoint(src),
+            hRadius,
+            vRadius,
+            refraction
+        );
 
         dest = filter.filter(src, dest);
 //        setAffectedAreaShapes(filter.getAffectedAreaShapes());

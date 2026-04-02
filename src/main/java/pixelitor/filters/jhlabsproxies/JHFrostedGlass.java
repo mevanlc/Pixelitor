@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Pixelitor. If not, see <http://www.gnu.org/licenses/>.
  */
+
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.DiffuseFilter;
@@ -27,7 +28,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Frosted Glass filter based on the JHLabs DiffuseFilter
+ * Frosted Glass filter based on the JHLabs {@link DiffuseFilter}.
  */
 public class JHFrostedGlass extends ParametrizedFilter {
     public static final String NAME = "Frosted Glass";
@@ -39,7 +40,6 @@ public class JHFrostedGlass extends ParametrizedFilter {
 
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction();
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
-    private DiffuseFilter filter;
 
     public JHFrostedGlass() {
         super(true);
@@ -56,13 +56,12 @@ public class JHFrostedGlass extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new DiffuseFilter(NAME);
-        }
-
-        filter.setScale(amount.getValueAsFloat());
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        DiffuseFilter filter = new DiffuseFilter(
+            NAME,
+            amount.getValueAsFloat(),
+            edgeAction.getValue(),
+            interpolation.getValue()
+        );
 
         return filter.filter(src, dest);
     }

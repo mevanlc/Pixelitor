@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -135,7 +135,7 @@ public class LayerAnimation {
         encoder.finish();
     }
 
-    public static class ConfigPanel extends ValidatedPanel {
+    public static class ConfigPanel extends JPanel implements Validated {
         private final JTextField delayTF;
         private final JCheckBox pingPongCB;
 
@@ -150,7 +150,7 @@ public class LayerAnimation {
             settingsPanel.add(new JLabel("Delay Between Frames (Milliseconds):"));
             delayTF = new JTextField(String.valueOf(DEFAULT_DELAY_MS), 4);
             settingsPanel.add(TextFieldValidator.createPositiveIntLayer(
-                "Delay", delayTF));
+                delayTF, "Delay"));
 
             add(settingsPanel);
 

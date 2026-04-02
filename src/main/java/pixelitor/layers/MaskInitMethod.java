@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -132,11 +132,11 @@ public enum MaskInitMethod {
                 @Override
                 public int processPixel(int x, int y, int rgb) {
                     // map alpha (0-255) to RGB grayscale (R=a, G=a, B=a)
-                    int a = (rgb >>> 24) & 0xFF;
+                    int a = rgb >>> 24;
                     return 0xFF_00_00_00 | a << 16 | a << 8 | a;
                 }
             };
-            transparencyToGrayFilter.setProgressTracker(ProgressTracker.NULL_TRACKER);
+            transparencyToGrayFilter.setProgressTracker(ProgressTracker.NO_OP_TRACKER);
             BufferedImage argbMaskImage = transparencyToGrayFilter.filter(image, null);
             g.drawImage(argbMaskImage, 0, 0, null);
         } else {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Pixelitor. If not, see <http://www.gnu.org/licenses/>.
  */
+
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.WaterFilter;
@@ -27,7 +28,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Water Ripple filter based on the JHLabs WaterFilter
+ * Water Ripple filter based on the JHLabs {@link WaterFilter}.
  */
 public class JHWaterRipple extends ParametrizedFilter {
     public static final String NAME = "Water Ripple";
@@ -44,8 +45,6 @@ public class JHWaterRipple extends ParametrizedFilter {
 
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction();
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
-
-    private WaterFilter filter;
 
     public JHWaterRipple() {
         super(true);
@@ -67,20 +66,18 @@ public class JHWaterRipple extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new WaterFilter(NAME);
-        }
-
-        filter.setCenter(center.getRelativePoint());
-        filter.setRadius(radius.getValueAsFloat());
-        filter.setWavelength(wavelength.getValueAsFloat());
-        filter.setAmplitude((float) amplitude.getPercentage());
-        filter.setPhase(phase.getValueInRadians());
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        WaterFilter filter = new WaterFilter(NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            center.getAbsolutePoint(src),
+            radius.getValueAsFloat(),
+            wavelength.getValueAsFloat(),
+            (float) amplitude.getPercentage(),
+            phase.getValueInRadians()
+        );
 
         dest = filter.filter(src, dest);
-//        setAffectedAreaShapes(filter.getAffectedAreaShapes());
+//    setAffectedAreaShapes(filter.getAffectedAreaShapes());
         return dest;
     }
 }

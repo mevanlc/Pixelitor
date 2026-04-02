@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -22,7 +22,7 @@ import pixelitor.filters.gui.*;
 import pixelitor.filters.gui.IntChoiceParam.Item;
 import pixelitor.gui.utils.GridBagHelper;
 import pixelitor.gui.utils.SliderSpinner.LabelPosition;
-import pixelitor.gui.utils.ValidatedPanel;
+import pixelitor.gui.utils.Validated;
 import pixelitor.gui.utils.ValidationResult;
 import pixelitor.tools.AbstractBrushTool;
 
@@ -35,7 +35,7 @@ import static pixelitor.gui.utils.TextFieldValidator.createPositiveIntLayer;
 /**
  * Configuration panel for the "Auto Paint".
  */
-public class AutoPaintPanel extends ValidatedPanel implements DialogMenuOwner {
+public class AutoPaintPanel extends JPanel implements Validated, DialogMenuOwner {
     private static final String COLOR_MODE_FOREGROUND = "Foreground";
     private static final String COLOR_MODE_INTERPOLATED = "Foreground-Background Mix";
     private static final String COLOR_MODE_RANDOM = "Random";
@@ -75,11 +75,11 @@ public class AutoPaintPanel extends ValidatedPanel implements DialogMenuOwner {
         strokeCountTF.setName("strokeCountTF");
         gbh.addLabelAndControl(STROKE_COUNT_TEXT + ":",
             createPositiveIntLayer(
-                STROKE_COUNT_TEXT, strokeCountTF));
+                strokeCountTF, STROKE_COUNT_TEXT));
 
         strokeLengthTF = new JTextField("100");
         gbh.addLabelAndControl(STROKE_LENGTH_TEXT + ":",
-            createPositiveIntLayer(STROKE_LENGTH_TEXT, strokeLengthTF));
+            createPositiveIntLayer(strokeLengthTF, STROKE_LENGTH_TEXT));
 
         gbh.addParam(lengthVariation);
         gbh.addParam(curvature);
@@ -160,8 +160,22 @@ public class AutoPaintPanel extends ValidatedPanel implements DialogMenuOwner {
         colorMode.loadStateFrom(preset);
 
         if (AutoPaint.useColors(getSelectedTool())) {
-            FgBgColors.loadStateFrom(preset);
+            FgBgColors.loadStateFrom(preset, true);
         }
+    }
+
+    @Override
+    public UserPreset createUserPreset(String presetName) {
+        ValidationResult validation = validateSettings();
+        if (!validation.isValid()) {
+            validation.showErrorDialog(this);
+
+            // abort the save process
+            return null;
+        }
+
+        // settings are valid, proceed with default preset creation
+        return DialogMenuOwner.super.createUserPreset(presetName);
     }
 
     @Override

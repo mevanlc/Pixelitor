@@ -156,7 +156,7 @@ public class PreferencesPanel extends JTabbedPane {
     private void addFontChoosers(GridBagHelper gbh) {
         Font font = UIManager.getFont("defaultFont");
         if (font == null) {
-            return;
+            return; // the look and feel doesn't support changing the font
         }
 
         int currentSize = font.getSize();
@@ -166,17 +166,45 @@ public class PreferencesPanel extends JTabbedPane {
         RangeParam fontSize = new RangeParam("Font Size", minSize, currentSize, maxSize, true, LabelPosition.NONE);
         gbh.addParam(fontSize);
 
-        ChoiceParam<String> fontType = new ChoiceParam<>("Font Type", Utils.getAvailableFontNames(), font.getName());
+        // prepend "Default" to the standard array of system font names
+        String[] availableFonts = Utils.getAvailableFontNames();
+        String[] fontChoices = new String[availableFonts.length + 1];
+        fontChoices[0] = "Default";
+        System.arraycopy(availableFonts, 0, fontChoices, 1, availableFonts.length);
+
+        // load currently saved type; if empty, show "Default" in the UI
+        String currentType = AppPreferences.loadUIFontType();
+        String initialChoice = currentType.isEmpty() ? "Default" : currentType;
+
+        ChoiceParam<String> fontType = new ChoiceParam<>("Font Type", fontChoices, initialChoice);
         gbh.addParam(fontType);
 
-        fontSize.setAdjustmentListener(() -> {
-            Font currentFont = UIManager.getFont("defaultFont");
-            Font newFont = currentFont.deriveFont(fontSize.getValueAsFloat());
-            changeFont(newFont);
-        });
+        // a single callback for both listeners
+        Runnable updateFont = () -> {
+            String selectedType = fontType.getSelected();
+            int newSize = fontSize.getValue();
 
-        fontType.setAdjustmentListener(() ->
-            changeFont(new Font(fontType.getSelected(), Font.PLAIN, fontSize.getValue())));
+            // map the "Default" UI selection to an empty string internally
+            String typeToSave = "Default".equals(selectedType) ? "" : selectedType;
+            AppPreferences.setUIFont(typeToSave, newSize);
+
+            // execute live UI preview
+            Font newFont;
+            if (typeToSave.isEmpty()) {
+                // derive size off the original LAF font if returning to default
+                Font baseFont = Themes.getOriginalDefaultFont();
+                if (baseFont == null) {
+                    baseFont = UIManager.getFont("defaultFont"); // fallback just in case
+                }
+                newFont = baseFont.deriveFont((float) newSize);
+            } else {
+                newFont = new Font(typeToSave, Font.PLAIN, newSize);
+            }
+            changeFont(newFont);
+        };
+
+        fontSize.setAdjustmentListener(updateFont::run);
+        fontType.setAdjustmentListener(updateFont::run);
     }
 
     private void changeFont(Font newFont) {
@@ -328,8 +356,8 @@ public class PreferencesPanel extends JTabbedPane {
         undoLevelsTF.setName("undoLevelsTF");
         undoLevelsTF.setText(String.valueOf(History.getUndoLevels()));
         gbh.addLabelAndControl(UNDO_LEVELS_LABEL + ": ",
-            TextFieldValidator.createNonNegativeIntLayer(UNDO_LEVELS_LABEL,
-                undoLevelsTF));
+            TextFieldValidator.createNonNegativeIntLayer(undoLevelsTF, UNDO_LEVELS_LABEL
+            ));
     }
 
     private void addMagickDirField(GridBagHelper gbh) {
@@ -352,7 +380,7 @@ public class PreferencesPanel extends JTabbedPane {
     // validates and applies settings that are not handled by immediate action listeners
     private boolean validateAndApply(JDialog d) {
         // validate all fields first
-        ValidationResult result = TextFieldValidator.hasNonNegativeInt(undoLevelsTF, UNDO_LEVELS_LABEL)
+        ValidationResult result = TextFieldValidator.requireNonNegativeInt(undoLevelsTF, UNDO_LEVELS_LABEL)
             .checkOptionalDir(magickDirTF.getText(), IMAGEMAGICK_FOLDER_LABEL)
             .checkOptionalDir(gmicDirTF.getText(), GMIC_FOLDER_LABEL);
 
@@ -375,7 +403,11 @@ public class PreferencesPanel extends JTabbedPane {
         AppPreferences.gmicDirName = gmicDirTF.getText().trim();
         MouseZoomMethod.changeTo((MouseZoomMethod) zoomMethodCB.getSelectedItem());
         PanMethod.changeTo((PanMethod) panMethodCB.getSelectedItem());
-        View.snappingSettingChanged(snapCB.isSelected());
+
+        boolean newSnapping = snapCB.isSelected();
+        AppPreferences.setFlag(AppPreferences.FLAG_PIXEL_SNAP, newSnapping);
+        View.snappingSettingChanged(newSnapping);
+
         FileChoosers.setUseNativeDialogs(nativeChoosersCB.isSelected());
         AppPreferences.setFlag(AppPreferences.FLAG_PREFER_RETINA_PASTE,
             retinaResolutionCB.isSelected());

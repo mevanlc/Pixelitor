@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -27,7 +27,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Waves filter based on the JHLabs RippleFilter
+ * Waves filter based on the JHLabs {@link RippleFilter}.
  */
 public class JHWaves extends ParametrizedFilter {
     public static final String NAME = "Waves";
@@ -42,8 +42,6 @@ public class JHWaves extends ParametrizedFilter {
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction();
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
     private final IntChoiceParam waveType = IntChoiceParam.forWaveType();
-
-    private RippleFilter filter;
 
     public JHWaves() {
         super(true);
@@ -61,31 +59,29 @@ public class JHWaves extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        int xAmplitude = amplitudeParam.getValue(0);
-        int yAmplitude = amplitudeParam.getValue(1);
+        int xAmplitude = amplitudeParam.getHorizontal();
+        int yAmplitude = amplitudeParam.getVertical();
 
         if (xAmplitude == 0 && yAmplitude == 0) {
             return src;
         }
 
-        if (filter == null) {
-            filter = new RippleFilter(NAME);
-        }
-
         float xWavelength = wavelengthParam.getValueAsFloat(0);
         float yWavelength = wavelengthParam.getValueAsFloat(1);
 
-        filter.setXAmplitude(xAmplitude);
-        filter.setXWavelength(xWavelength);
-        filter.setYAmplitude(yAmplitude);
-        filter.setYWavelength(yWavelength);
-        filter.setAngle(angleParam.getValueInIntuitiveRadians());
-        filter.setWaveType(waveType.getValue());
-        filter.setPhaseX(phaseParam.getPercentage(0));
-        filter.setPhaseY(phaseParam.getPercentage(1));
-
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        RippleFilter filter = new RippleFilter(
+            NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            angleParam.getValueInIntuitiveRadians(),
+            xAmplitude,
+            xWavelength,
+            yAmplitude,
+            yWavelength,
+            waveType.getValue(),
+            phaseParam.getHorPercentage(),
+            phaseParam.getVerPercentage()
+        );
 
         return filter.filter(src, dest);
     }

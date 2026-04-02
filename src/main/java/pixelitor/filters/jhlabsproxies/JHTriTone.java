@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -30,7 +30,7 @@ import static java.awt.Color.YELLOW;
 import static pixelitor.filters.gui.TransparencyMode.OPAQUE_ONLY;
 
 /**
- * Tritone filter based on the JHLabs TritoneFilter
+ * Tritone filter based on the JHLabs {@link TritoneFilter}.
  */
 public class JHTriTone extends ParametrizedFilter {
     public static final String NAME = "Tritone";
@@ -42,8 +42,6 @@ public class JHTriTone extends ParametrizedFilter {
     private final ColorParam midtonesColor = new ColorParam("Midtones Color", RED, OPAQUE_ONLY);
     private final ColorParam highlightsColor = new ColorParam("Highlights Color", YELLOW, OPAQUE_ONLY);
 
-    private TritoneFilter filter;
-
     public JHTriTone() {
         super(true);
 
@@ -52,13 +50,10 @@ public class JHTriTone extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new TritoneFilter(NAME);
-        }
-
-        filter.setShadowColor(shadowColor.getColor().getRGB());
-        filter.setHighColor(highlightsColor.getColor().getRGB());
-        filter.setMidColor(midtonesColor.getColor().getRGB());
+        TritoneFilter filter = new TritoneFilter(NAME,
+            shadowColor.getColor().getRGB(),
+            midtonesColor.getColor().getRGB(),
+            highlightsColor.getColor().getRGB());
 
         return filter.filter(src, dest);
     }

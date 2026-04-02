@@ -25,7 +25,7 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.Future;
 
 /**
- * A filter which produces motion blur the slow, but higher-quality way.
+ * A filter which produces motion blur the slower, but higher-quality way.
  */
 public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionBlur {
     private float angle = 0.0f;
@@ -39,14 +39,14 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     private float centerY = 0.5f;
 
     /**
-     * Construct a MotionBlurFilter.
+     * Constructs a MotionBlurFilter.
      */
     public MotionBlurFilter(String filterName) {
         super(filterName);
     }
 
     /**
-     * Set the center of the effect in the X direction as a proportion of the image size.
+     * Sets the center of the effect in the X direction as a proportion of the image size.
      *
      * @param centerX the center
      */
@@ -56,7 +56,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set the center of the effect in the Y direction as a proportion of the image size.
+     * Sets the center of the effect in the Y direction as a proportion of the image size.
      *
      * @param centerY the center
      */
@@ -66,7 +66,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set the center of the effect as a proportion of the image size.
+     * Sets the center of the effect as a proportion of the image size.
      *
      * @param center the center
      */
@@ -80,7 +80,6 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
      * Sets the angle of blur.
      *
      * @param angle the angle of blur.
-     * @angle
      */
     @Override
     public void setAngle(float angle) {
@@ -91,7 +90,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set the distance of blur.
+     * Sets the distance of blur.
      *
      * @param distance the distance of blur.
      */
@@ -101,7 +100,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set the blur rotation.
+     * Sets the blur rotation.
      *
      * @param rotation the angle of rotation.
      */
@@ -111,7 +110,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set the blur zoom.
+     * Sets the blur zoom.
      *
      * @param zoom the zoom factor.
      */
@@ -121,7 +120,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set whether to wrap at the image edges.
+     * Sets whether to wrap at the image edges.
      *
      * @param wrapEdges true if it should wrap.
      */
@@ -130,7 +129,7 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
     }
 
     /**
-     * Set whether to premultiply the alpha channel.
+     * Sets whether to premultiply the alpha channel.
      *
      * @param premultiplyAlpha true to premultiply the alpha
      */
@@ -153,17 +152,8 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
         int[] outPixels = new int[width * height];
         getRGB(src, 0, 0, width, height, inPixels);
 
-//		float sinAngle = (float)Math.sin(angle);
-//		float cosAngle = (float)Math.cos(angle);
-//
-//		float total;
-
-//		int cx = width/2;
-//		int cy = height/2;
         int cx = (int) (width * centerX);
         int cy = (int) (height * centerY);
-
-//        int index = 0;
 
         float imageRadius = (float) Math.sqrt(cx * cx + cy * cy);
         float translateX = (float) (distance * Math.cos(angle));
@@ -222,14 +212,14 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
                 }
                 if (newX < 0 || newX >= width) {
                     if (wrapEdges) {
-                        newX = ImageMath.mod(newX, width);
+                        newX = Math.floorMod(newX, width);
                     } else {
                         break;
                     }
                 }
                 if (newY < 0 || newY >= height) {
                     if (wrapEdges) {
-                        newY = ImageMath.mod(newY, height);
+                        newY = Math.floorMod(newY, height);
                     } else {
                         break;
                     }
@@ -237,10 +227,10 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
 
                 count++;
                 int rgb = inPixels[newY * width + newX];
-                a += (rgb >> 24) & 0xff;
-                r += (rgb >> 16) & 0xff;
-                g += (rgb >> 8) & 0xff;
-                b += rgb & 0xff;
+                a += (rgb >>> 24);
+                r += (rgb >> 16) & 0xFF;
+                g += (rgb >> 8) & 0xFF;
+                b += rgb & 0xFF;
             }
             if (count == 0) {
                 outPixels[index] = inPixels[index];
@@ -253,11 +243,6 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
             }
             index++;
         }
-    }
-
-    @Override
-    public String toString() {
-        return "Blur/Motion Blur...";
     }
 
     // an affine transform optimized for this specific filter
@@ -307,4 +292,3 @@ public class MotionBlurFilter extends AbstractBufferedImageOp implements MotionB
         }
     }
 }
-

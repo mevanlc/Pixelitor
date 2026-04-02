@@ -29,9 +29,9 @@ import pixelitor.layers.Drawable;
 import pixelitor.tools.brushes.*;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.tools.util.PPoint;
+import pixelitor.utils.CloneMirror;
 import pixelitor.utils.Cursors;
 import pixelitor.utils.Messages;
-import pixelitor.utils.Mirror;
 import pixelitor.utils.debug.DebugNode;
 import pixelitor.utils.test.RandomGUITest;
 
@@ -79,8 +79,8 @@ public class CloneTool extends BlendingModeBrushTool {
         "Scale (%)", 10, 100, 400, true, NONE);
     private final RangeParam rotationParam = new RangeParam(
         "Rotate (Degrees)", -180, 0, 180, true, NONE);
-    private final EnumParam<Mirror> mirrorParam = new EnumParam<>(
-        "Mirror", Mirror.class);
+    private final EnumParam<CloneMirror> mirrorParam = new EnumParam<>(
+        "Mirror", CloneMirror.class);
 
     protected CloneTool() {
         super("Clone Stamp", 'S',
@@ -198,7 +198,7 @@ public class CloneTool extends BlendingModeBrushTool {
 
         // apply transform settings to the brush
         double scaleAbs = scaleParam.getPercentage();
-        Mirror mirror = mirrorParam.getSelected();
+        CloneMirror mirror = mirrorParam.getSelected();
         cloneBrush.setScale(
             mirror.getScaleX(scaleAbs),
             mirror.getScaleY(scaleAbs));
@@ -282,7 +282,7 @@ public class CloneTool extends BlendingModeBrushTool {
     public void saveStateTo(UserPreset preset) {
         super.saveStateTo(preset);
 
-        preset.put("Brush Type", brushModel.getSelectedItem().toString());
+        preset.put(CopyBrushType.PRESET_KEY, brushModel.getSelectedItem().name());
         preset.putBoolean(ALIGNED_TEXT, alignedCB.isSelected());
         preset.putBoolean(SAMPLE_ALL_LAYERS_TEXT, sampleAllCB.isSelected());
         scaleParam.saveStateTo(preset);
@@ -294,7 +294,7 @@ public class CloneTool extends BlendingModeBrushTool {
     public void loadUserPreset(UserPreset preset) {
         super.loadUserPreset(preset);
 
-        brushModel.setSelectedItem(preset.getEnum("Brush Type", CopyBrushType.class));
+        brushModel.setSelectedItem(preset.getEnum(CopyBrushType.PRESET_KEY, CopyBrushType.class));
         alignedCB.setSelected(preset.getBoolean(ALIGNED_TEXT));
         sampleAllCB.setSelected(preset.getBoolean(SAMPLE_ALL_LAYERS_TEXT));
         scaleParam.loadStateFrom(preset);

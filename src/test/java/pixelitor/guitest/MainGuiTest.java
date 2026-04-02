@@ -42,10 +42,10 @@ import pixelitor.gui.*;
 import pixelitor.guides.GuideStrokeType;
 import pixelitor.history.History;
 import pixelitor.history.HistoryChecker;
-import pixelitor.io.Dirs;
 import pixelitor.io.FileChoosers;
 import pixelitor.io.FileFormat;
 import pixelitor.io.FileUtils;
+import pixelitor.io.RecentDirs;
 import pixelitor.layers.*;
 import pixelitor.menus.view.ZoomControl;
 import pixelitor.menus.view.ZoomLevel;
@@ -955,8 +955,8 @@ public class MainGuiTest {
         maskMode.apply(this);
 
         EDT.run(() -> {
-            Dirs.setLastOpen(inputDir);
-            Dirs.setLastSave(batchResizeOutputDir);
+            RecentDirs.setLastOpen(inputDir);
+            RecentDirs.setLastSave(batchResizeOutputDir);
             FileFormat.setLastSaved(FileFormat.JPG);
         });
 
@@ -977,8 +977,8 @@ public class MainGuiTest {
     private void testBatchFilter() {
         log(1, "testing batch filter");
 
-        Dirs.setLastOpen(inputDir);
-        Dirs.setLastSave(batchFilterOutputDir);
+        RecentDirs.setLastOpen(inputDir);
+        RecentDirs.setLastSave(batchFilterOutputDir);
 
         assertThat(EDT.getNumViews()).isGreaterThan(0);
         maskMode.apply(this);
@@ -1013,7 +1013,7 @@ public class MainGuiTest {
     private void testExportLayerToPNG() {
         log(1, "testing export layer to png");
 
-        Dirs.setLastSave(baseDir);
+        RecentDirs.setLastSave(baseDir);
 
         app.duplicateLayer(ImageLayer.class);
         app.invert();
@@ -1629,6 +1629,7 @@ public class MainGuiTest {
         testFilterWithDialog("Orton Effect", FilterOptions.STANDARD);
         testFilterWithDialog("Photo Collage", FilterOptions.STANDARD_RESEED);
         testFilterWithDialog("Pointillize", FilterOptions.STANDARD_RESEED);
+        testFilterWithDialog("Radial Mosaic", FilterOptions.STANDARD);
         testFilterWithDialog("Smear", FilterOptions.STANDARD);
         testFilterWithDialog("Spheres", FilterOptions.STANDARD);
         testFilterWithDialog("Stamp", FilterOptions.STANDARD);
@@ -1718,9 +1719,9 @@ public class MainGuiTest {
         // Curves
         testFilterWithDialog("Circle Weave", FilterOptions.SHAPES);
         testFilterWithDialog("Flower of Life", FilterOptions.SHAPES);
-        testFilterWithDialog("L-Systems", FilterOptions.SHAPES);
         testFilterWithDialog("Grid", FilterOptions.SHAPES);
         testFilterWithDialog("Lissajous Curve", FilterOptions.SHAPES);
+        testFilterWithDialog("L-Systems", FilterOptions.SHAPES);
         testFilterWithDialog("Spider Web", FilterOptions.SHAPES);
         testFilterWithDialog("Spiral", FilterOptions.SHAPES);
         testFilterWithDialog("Spirograph", FilterOptions.SHAPES);
