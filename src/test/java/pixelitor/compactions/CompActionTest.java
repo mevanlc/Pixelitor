@@ -438,6 +438,71 @@ class CompActionTest {
         checkTranslationOfNonActiveLayer(expectedTranslation);
     }
 
+    @Test
+    void inverseCropHorizontal() {
+        // remove a horizontal band spanning the full canvas width
+        var removedBand = new Rectangle(0, CROP_Y, ORIG_CANVAS_WIDTH, CROP_HEIGHT);
+
+        Crop.performInverseCrop(origComp, removedBand, true);
+
+        Composition result = view.getComp();
+        int expectedHeight = ORIG_CANVAS_HEIGHT - CROP_HEIGHT;
+
+        assertThat(result)
+            .isNotSameAs(origComp)
+            .canvasSizeIs(ORIG_CANVAS_WIDTH, expectedHeight)
+            .doesNotHaveSelection()
+            .invariantsAreOK();
+
+        // verify the active layer image was stitched
+        ImageLayer activeLayer = (ImageLayer) result.getActiveLayer();
+        assertThat(activeLayer)
+            .imageSizeIs(origImageWidth, origImageHeight - CROP_HEIGHT);
+
+        // undo and verify original state is restored
+        History.undo("Inverse Crop");
+        checkOriginalState();
+
+        // redo and verify the inverse crop is re-applied
+        History.redo("Inverse Crop");
+        Composition redoResult = view.getComp();
+        assertThat(redoResult)
+            .canvasSizeIs(ORIG_CANVAS_WIDTH, expectedHeight)
+            .invariantsAreOK();
+    }
+
+    @Test
+    void inverseCropVertical() {
+        // remove a vertical band spanning the full canvas height
+        int bandX = 5;
+        int bandWidth = 4;
+        var removedBand = new Rectangle(bandX, 0, bandWidth, ORIG_CANVAS_HEIGHT);
+
+        Crop.performInverseCrop(origComp, removedBand, false);
+
+        Composition result = view.getComp();
+        int expectedWidth = ORIG_CANVAS_WIDTH - bandWidth;
+
+        assertThat(result)
+            .isNotSameAs(origComp)
+            .canvasSizeIs(expectedWidth, ORIG_CANVAS_HEIGHT)
+            .doesNotHaveSelection()
+            .invariantsAreOK();
+
+        ImageLayer activeLayer = (ImageLayer) result.getActiveLayer();
+        assertThat(activeLayer)
+            .imageSizeIs(origImageWidth - bandWidth, origImageHeight);
+
+        History.undo("Inverse Crop");
+        checkOriginalState();
+
+        History.redo("Inverse Crop");
+        Composition redoResult = view.getComp();
+        assertThat(redoResult)
+            .canvasSizeIs(expectedWidth, ORIG_CANVAS_HEIGHT)
+            .invariantsAreOK();
+    }
+
     private void checkTranslationOfNonActiveLayer(Point expectedValue) {
         if (layerCount == LayerCount.TWO) {
             var activeComp = view.getComp();

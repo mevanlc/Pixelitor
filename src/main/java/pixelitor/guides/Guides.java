@@ -194,6 +194,45 @@ public class Guides implements Serializable, Debuggable {
         return copyEnlarged(margin, view, canvas);
     }
 
+    public Guides copyInverseCropped(Rectangle removedBand, boolean horizontal, View view) {
+        Canvas canvas = view.getCanvas();
+        Guides copy = createEmptyCopy();
+
+        if (horizontal) {
+            int canvasH = canvas.getHeight();
+            int bandY = removedBand.y;
+            int bandEnd = bandY + removedBand.height;
+            int newH = canvasH - removedBand.height;
+            for (double ratio : horizontals) {
+                double absPos = ratio * canvasH;
+                if (absPos < bandY) {
+                    copy.horizontals.add(absPos / newH);
+                } else if (absPos >= bandEnd) {
+                    copy.horizontals.add((absPos - removedBand.height) / newH);
+                }
+                // guides inside the band are dropped
+            }
+            copy.verticals.addAll(verticals);
+        } else {
+            int canvasW = canvas.getWidth();
+            int bandX = removedBand.x;
+            int bandEnd = bandX + removedBand.width;
+            int newW = canvasW - removedBand.width;
+            for (double ratio : verticals) {
+                double absPos = ratio * canvasW;
+                if (absPos < bandX) {
+                    copy.verticals.add(absPos / newW);
+                } else if (absPos >= bandEnd) {
+                    copy.verticals.add((absPos - removedBand.width) / newW);
+                }
+            }
+            copy.horizontals.addAll(horizontals);
+        }
+
+        copy.regenerateLines(view);
+        return copy;
+    }
+
     public void addHorRelative(double rel) {
         horizontals.add(rel);
     }

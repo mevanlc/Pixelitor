@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,22 +17,12 @@
 
 package pixelitor.gui.utils;
 
-import javax.swing.*;
-import java.awt.LayoutManager;
-
 /**
- * A panel with validity check
+ * A UI element that can validate its own settings.
  */
-public abstract class ValidatedPanel extends JPanel {
-    protected ValidatedPanel() {
-    }
-
-    protected ValidatedPanel(LayoutManager layoutManager) {
-        super(layoutManager);
-    }
-
+public interface Validated {
     /**
-     * Performs the validation
+     * Performs the validation.
      */
-    public abstract ValidationResult validateSettings();
+    ValidationResult validateSettings();
 }

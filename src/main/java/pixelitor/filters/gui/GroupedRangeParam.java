@@ -293,12 +293,32 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
         return children[index].getValue();
     }
 
+    public int getHorizontal() {
+        return getValue(0);
+    }
+
+    public int getVertical() {
+        return getValue(1);
+    }
+
     public float getValueAsFloat(int index) {
         return children[index].getValueAsFloat();
     }
 
     public double getValueAsDouble(int index) {
         return children[index].getValueAsDouble();
+    }
+
+    public double getPercentage(int index) {
+        return children[index].getPercentage();
+    }
+
+    public double getHorPercentage() {
+        return getPercentage(0);
+    }
+
+    public double getVerPercentage() {
+        return getPercentage(1);
     }
 
     public void setValue(int childIndex, int newValue) {
@@ -383,10 +403,6 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
             child.withAdjustedRange(ratio);
         }
         return this;
-    }
-
-    public double getPercentage(int index) {
-        return children[index].getPercentage();
     }
 
     public int getNumChildren() {
@@ -513,7 +529,7 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
         public String toSaveString() {
             StringBuilder sb = new StringBuilder();
             for (double value : values) {
-                sb.append(String.format(Locale.ENGLISH, "%.2f,", value));
+                sb.append(String.format(Locale.ROOT, "%.2f,", value));
             }
             sb.append(linked);
             return sb.toString();

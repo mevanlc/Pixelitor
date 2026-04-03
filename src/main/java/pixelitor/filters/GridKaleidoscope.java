@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -43,8 +43,6 @@ public class GridKaleidoscope extends ParametrizedFilter {
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction(true);
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
 
-    private GridKaleidoscopeFilter filter;
-
     public GridKaleidoscope() {
         super(true);
 
@@ -61,19 +59,18 @@ public class GridKaleidoscope extends ParametrizedFilter {
 
     @Override
     protected BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new GridKaleidoscopeFilter(NAME);
-        }
-
-        filter.setGridAngle((float) angle.getValueInRadians());
-        filter.setGridSizeX(src.getWidth() * gridSize.getPercentage(0));
-        filter.setGridSizeY(src.getHeight() * gridSize.getPercentage(1));
-        filter.setDistortionX(distortion.getValue(0));
-        filter.setDistortionY(distortion.getValue(1));
-        filter.setCenter(center.getRelativePoint());
-        filter.setStyle(style.getValue());
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        GridKaleidoscopeFilter filter = new GridKaleidoscopeFilter(
+            NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            src.getWidth() * gridSize.getPercentage(0),
+            src.getHeight() * gridSize.getPercentage(1),
+            angle.getValueInRadians(),
+            distortion.getHorizontal(),
+            distortion.getVertical(),
+            center.getRelativePoint(),
+            style.getValue()
+        );
 
         return filter.filter(src, dest);
     }

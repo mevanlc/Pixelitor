@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Pixelitor. If not, see <http://www.gnu.org/licenses/>.
  */
+
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.MarbleFilter;
@@ -26,7 +27,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Turbulent Distortion filter based on the JHLabs MarbleFilter
+ * Turbulent Distortion filter based on the JHLabs {@link MarbleFilter}.
  */
 public class JHTurbulentDistortion extends ParametrizedFilter {
     public static final String NAME = "Turbulent Distortion";
@@ -41,8 +42,6 @@ public class JHTurbulentDistortion extends ParametrizedFilter {
 
     private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction();
     private final IntChoiceParam interpolation = IntChoiceParam.forInterpolation();
-
-    private MarbleFilter filter;
 
     public JHTurbulentDistortion() {
         super(true);
@@ -63,16 +62,15 @@ public class JHTurbulentDistortion extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new MarbleFilter(NAME);
-        }
-
-        filter.setTurbulence((float) turbulence.getPercentage());
-        filter.setScale(scale.getValueAsFloat());
-        filter.setAmount(amount.getValueAsFloat());
-        filter.setTime((float) (time.getPercentage() * 5));
-        filter.setEdgeAction(edgeAction.getValue());
-        filter.setInterpolation(interpolation.getValue());
+        MarbleFilter filter = new MarbleFilter(
+            NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            scale.getValueAsFloat(),
+            amount.getValueAsFloat(),
+            (float) turbulence.getPercentage(),
+            (float) (time.getPercentage() * 5)
+        );
 
         return filter.filter(src, dest);
     }

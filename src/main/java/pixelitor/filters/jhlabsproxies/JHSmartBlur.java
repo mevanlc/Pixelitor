@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -28,7 +28,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Smart Blur filter based on the JHLabs SmartBlurFilter
+ * Smart Blur filter based on the JHLabs {@link SmartBlurFilter}.
  */
 public class JHSmartBlur extends ParametrizedFilter {
     public static final String NAME = "Smart Blur";
@@ -63,8 +63,6 @@ public class JHSmartBlur extends ParametrizedFilter {
             filter = new SmartBlurFilter(NAME);
         }
 
-        // The SmartBlurFilter API allows setting the horizontal and vertical
-        // radii separately, but the implementation seems to be buggy
         filter.setRadius(radius);
 
         filter.setThreshold(threshold.getValue());

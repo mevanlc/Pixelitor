@@ -198,10 +198,10 @@ public abstract class Layer implements Serializable, Debuggable {
      */
     public final Layer copy(CopyType copyType, boolean copyMask, Composition newComp) {
         Layer copy = createTypeSpecificCopy(copyType, newComp);
+        assert copy.comp == newComp : "layer type = " + getClass().getSimpleName();
 
         copyCommonPropertiesTo(copy);
 
-        copy.comp = newComp;
         if (newComp != comp && isActive()) {
             newComp.setActiveLayerRef(copy);
         }
@@ -604,8 +604,10 @@ public abstract class Layer implements Serializable, Debuggable {
         MaskViewMode prevMode = view.getMaskViewMode();
         mask = null;
 
-        ui.removeMaskIcon();
-        LayerEvents.fireMaskDeleted(this); // notify global mask listeners
+        if (hasUI()) {
+            ui.removeMaskIcon();
+            LayerEvents.fireMaskDeleted(this); // notify global mask listeners
+        }
 
         // call this only after AddLayerMaskAction is notified,
         // because in some cases it might trigger a consistency check
@@ -823,6 +825,16 @@ public abstract class Layer implements Serializable, Debuggable {
                               boolean allowGrowing);
 
     /**
+     * Removes a band from the layer and stitches the remaining parts.
+     * The band spans the full canvas on the other dimension.
+     *
+     * @param removedBand the band rectangle in image space (canvas-relative)
+     * @param horizontal  true if removing a horizontal band (full width),
+     *                    false if removing a vertical band (full height)
+     */
+    public abstract void inverseCrop(Rectangle removedBand, boolean horizontal);
+
+    /**
      * Changes the stacking order of this layer.
      */
     public void changeStackIndex(int newIndex) {
@@ -839,7 +851,7 @@ public abstract class Layer implements Serializable, Debuggable {
 
     /**
      * Configures the composite of the given Graphics,
-     * according to the blending mode and opacity of the layer
+     * according to the blending mode and opacity of the layer.
      */
     public void setupComposite(Graphics2D g, boolean firstVisibleLayer) {
         if (firstVisibleLayer) {

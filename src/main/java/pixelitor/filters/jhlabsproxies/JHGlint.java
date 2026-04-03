@@ -19,6 +19,7 @@ package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.GlintFilter;
 import pixelitor.filters.ParametrizedFilter;
+import pixelitor.filters.gui.BooleanParam;
 import pixelitor.filters.gui.GradientParam;
 import pixelitor.filters.gui.RangeParam;
 
@@ -26,7 +27,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Glint filter based on the JHLabs GlintFilter
+ * Glint filter based on the JHLabs {@link GlintFilter}.
  */
 public class JHGlint extends ParametrizedFilter {
     public static final String NAME = "Glint";
@@ -40,11 +41,9 @@ public class JHGlint extends ParametrizedFilter {
 
     private final RangeParam lengthParam = new RangeParam("Length", 0, 20, 100);
     private final RangeParam blur = new RangeParam("Blur", 0, 1, 20);
-//    private BooleanParam glintOnly = new BooleanParam("Glint Only", false);
+    private final BooleanParam glintOnly = new BooleanParam("Glint Only", false);
 
-    private final GradientParam colors = GradientParam.createUniformWhite();
-
-    private GlintFilter filter;
+    private final GradientParam colors = GradientParam.createWhiteToBlack("Colors");
 
     public JHGlint() {
         super(true);
@@ -55,8 +54,8 @@ public class JHGlint extends ParametrizedFilter {
             intensity,
             lengthParam, // slow for large images if it's adjusted to the image size
             blur,
-            colors
-//                glintOnly
+            colors,
+            glintOnly
         );
     }
 
@@ -64,20 +63,20 @@ public class JHGlint extends ParametrizedFilter {
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
         int length = lengthParam.getValue();
         if (length == 0) {
-            // mot just for performance, a 0 length would cause division by 0
+            // a 0 length would cause division by 0
             return src;
         }
 
-        if (filter == null) {
-            filter = new GlintFilter(NAME);
-        }
-
-        filter.setThreshold((float) threshold.getPercentage());
-        filter.setCoverage((float) coverage.getPercentage());
-        filter.setAmount((float) intensity.getPercentage());
-        filter.setLength(length);
-        filter.setBlur(blur.getValueAsFloat());
-        filter.setColormap(colors.getColorMap());
+        GlintFilter filter = new GlintFilter(
+            NAME,
+            (float) threshold.getPercentage(),
+            (float) coverage.getPercentage(),
+            (float) intensity.getPercentage(),
+            length,
+            blur.getValueAsFloat(),
+            colors.getColorMap(),
+            glintOnly.isChecked()
+        );
 
         return filter.filter(src, dest);
     }

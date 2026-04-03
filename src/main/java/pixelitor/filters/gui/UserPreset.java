@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -30,6 +30,7 @@ import java.awt.Color;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Function;
 
 /**
  * Usually represents a user-created preset that stores configuration
@@ -43,15 +44,25 @@ public class UserPreset implements Preset {
     private final String name;
     private File file; // can be null for new or built-in presets
     private final String directoryName; // subdirectory for this type of preset
-    private boolean loaded; // whether the preset is in the memory
+    private boolean contentLoaded; // whether the preset content is loaded in memory
     private final Map<String, String> content = new LinkedHashMap<>();
 
     public static final String PRESETS_DIR = initPresetsDirectory();
 
     private static String initPresetsDirectory() {
-        String baseDir = JVM.isWindows
-            ? System.getenv("APPDATA") + File.separator + "Pixelitor"
-            : System.getProperty("user.home") + File.separator + ".pixelitor";
+        String baseDir = null;
+
+        if (JVM.isWindows) {
+            String appData = System.getenv("APPDATA");
+            if (appData != null && !appData.isBlank()) {
+                baseDir = appData + File.separator + "Pixelitor";
+            }
+        }
+
+        if (baseDir == null) { // Linux, macOS, and Windows with missing APPDATA
+            baseDir = System.getProperty("user.home") + File.separator + ".pixelitor";
+        }
+
         return baseDir + File.separator + "presets";
     }
 
@@ -69,7 +80,7 @@ public class UserPreset implements Preset {
     public UserPreset(String name, String directoryName) {
         this.name = name;
         this.directoryName = directoryName;
-        loaded = true;
+        contentLoaded = true;
     }
 
     /**
@@ -77,10 +88,10 @@ public class UserPreset implements Preset {
      * The preset's content is not loaded until it's first accessed.
      */
     public UserPreset(File file, String directoryName) {
-        this.name = FileUtils.removeExtension(file.getName());
+        this.name = FileUtils.stripExtension(file.getName());
         this.file = file;
         this.directoryName = directoryName;
-        loaded = false;
+        contentLoaded = false;
     }
 
     public String getName() {
@@ -105,9 +116,7 @@ public class UserPreset implements Preset {
             if (AppMode.isDevelopment()) {
                 System.out.println("UserPreset::get: no value found for the key " + key);
             }
-        }
-
-        else {
+        } else {
             // sept 2023: migration in Truchet Tiles
             if (Truchet.migration_helper.containsKey(value)) {
                 value = Truchet.migration_helper.get(value);
@@ -178,7 +187,7 @@ public class UserPreset implements Preset {
     }
 
     public void putFloat(String key, float f) {
-        put(key, String.format(Locale.ENGLISH, "%.4f", f));
+        put(key, String.format(Locale.ROOT, "%.4f", f));
     }
 
     public double getDouble(String key) {
@@ -195,7 +204,7 @@ public class UserPreset implements Preset {
     }
 
     public void putDouble(String key, double d) {
-        put(key, String.format(Locale.ENGLISH, "%.4f", d));
+        put(key, String.format(Locale.ROOT, "%.4f", d));
     }
 
     public Color getColor(String key) {
@@ -205,7 +214,7 @@ public class UserPreset implements Preset {
     public Color getColor(String key, Color defaultValue) {
         String color = get(key);
         try {
-            return (color != null) ? Colors.fromHTMLHex(color) : defaultValue;
+            return (color != null) ? Colors.fromHtmlHexRgba(color) : defaultValue;
         } catch (IllegalArgumentException e) {
             return defaultValue;
         }
@@ -218,13 +227,27 @@ public class UserPreset implements Preset {
     /**
      * Finds an enum constant by matching its toString() value.
      */
+    public <T extends Enum<T>> T getEnumByToString(String key, Class<T> clazz) {
+        return getEnumHelper(key, clazz, T::toString);
+    }
+
+    /**
+     * Finds an enum constant by matching its name() value. This method
+     * should be preferred to {@link #getEnumByToString(String, Class<T>)}
+     * if the enum's toString() is localized.
+     */
     public <T extends Enum<T>> T getEnum(String key, Class<T> clazz) {
+        return getEnumHelper(key, clazz, Enum::name);
+    }
+
+    private <T extends Enum<T>> T getEnumHelper(String key, Class<T> clazz,
+                                                Function<T, String> valueExtractor) {
         String storedValue = get(key);
         T[] enumConstants = clazz.getEnumConstants();
 
         if (storedValue != null) {
             for (T constant : enumConstants) {
-                if (constant.toString().equals(storedValue)) {
+                if (valueExtractor.apply(constant).equals(storedValue)) {
                     return constant;
                 }
             }
@@ -234,16 +257,19 @@ public class UserPreset implements Preset {
         return enumConstants[0];
     }
 
-    // we use a simple key=value format; not using
-    // java.util.Properties to avoid escaping spaces in keys
+    //  uses a simple key=value format instead of
+    //  java.util.Properties to avoid escaping spaces in keys
     private void loadFromFile() throws IOException {
-        assert !loaded;
-        InputStream input = new FileInputStream(file);
-        Reader reader = new InputStreamReader(input, StandardCharsets.UTF_8);
-        try (BufferedReader br = new BufferedReader(reader)) {
+        assert !contentLoaded;
+
+        try (InputStream input = new FileInputStream(file);
+             Reader reader = new InputStreamReader(input, StandardCharsets.UTF_8);
+             BufferedReader br = new BufferedReader(reader)) {
+
             loadFromReader(br);
         }
-        loaded = true;
+
+        contentLoaded = true;
     }
 
     private void loadFromReader(BufferedReader br) throws IOException {
@@ -272,7 +298,7 @@ public class UserPreset implements Preset {
      */
     public void save() {
         assert file == null;
-        assert loaded;
+        assert contentLoaded;
 
         File presetFile = getSaveFile(true);
         try (PrintWriter writer = new PrintWriter(presetFile, StandardCharsets.UTF_8)) {
@@ -302,7 +328,7 @@ public class UserPreset implements Preset {
     @Override
     public Action createAction(PresetOwner owner) {
         return new TaskAction(name, () -> {
-            if (!loaded) {
+            if (!contentLoaded) {
                 try {
                     loadFromFile();
                 } catch (IOException ex) {
@@ -328,12 +354,11 @@ public class UserPreset implements Preset {
             return List.of();
         }
 
-        List<UserPreset> list = new ArrayList<>();
-        for (String fileName : fileNames) {
-            File presetFile = new File(presetsDir, fileName);
-            list.add(new UserPreset(presetFile, presetDirName));
-        }
-        return list;
+        return Arrays.stream(fileNames)
+            .sorted()
+            .map(fileName -> new File(presetsDir, fileName))
+            .map(file -> new UserPreset(file, presetDirName))
+            .toList();
     }
 
     public boolean fileExists() {

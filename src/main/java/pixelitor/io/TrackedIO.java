@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -44,7 +44,6 @@ import static pixelitor.utils.Thumbnails.createThumbnail;
  * Utility class for image input/output with progress tracking.
  */
 public class TrackedIO {
-
     private TrackedIO() {
         // prevent instantiation
     }
@@ -58,14 +57,14 @@ public class TrackedIO {
                              Consumer<ImageWriteParam> customizer) throws IOException {
         var tracker = new StatusBarProgressTracker(
             "Writing " + outputFile.getName(), 100);
-        // the creation of FileOutputStream is necessary, because if the
+        // creating a FileOutputStream is necessary, because if the
         // ImageOutputStream is created directly from the File, then existing files
-        // are not truncated, and small files don't completely overwrite bigger files.
+        // are not truncated, and small files don't completely overwrite bigger files
         try (FileOutputStream fos = new FileOutputStream(outputFile);
              ImageOutputStream ios = ImageIO.createImageOutputStream(fos)) {
 
             if (ios != null) {
-                writeToIOS(img, ios, formatName, tracker, customizer);
+                writeToImageStream(img, ios, formatName, tracker, customizer);
             } else {
                 // createImageOutputStream swallows the original IO exception
                 // for IO errors like "Access is denied" and returns null,
@@ -84,7 +83,7 @@ public class TrackedIO {
                                      ProgressTracker tracker) throws IOException {
         try (ImageOutputStream ios = ImageIO.createImageOutputStream(os)) {
             if (ios != null) {
-                writeToIOS(img, ios, formatName, tracker, null);
+                writeToImageStream(img, ios, formatName, tracker, null);
             } else {
                 throw new IOException("could not open ImageOutputStream");
             }
@@ -94,11 +93,11 @@ public class TrackedIO {
     /**
      * Writes an image to an image output stream with progress tracking.
      */
-    public static void writeToIOS(BufferedImage img,
-                                  ImageOutputStream ios,
-                                  String formatName,
-                                  ProgressTracker tracker,
-                                  Consumer<ImageWriteParam> customizer) throws IOException {
+    public static void writeToImageStream(BufferedImage img,
+                                          ImageOutputStream ios,
+                                          String formatName,
+                                          ProgressTracker tracker,
+                                          Consumer<ImageWriteParam> customizer) throws IOException {
         assert calledOutsideEDT() : callInfo();
         assert ios != null;
 
@@ -126,7 +125,7 @@ public class TrackedIO {
     }
 
     /**
-     * Reads an image from a file, and throws only runtime exceptions
+     * Reads an image from a file and throws only runtime exceptions.
      */
     public static BufferedImage uncheckedRead(File file) {
         try {
@@ -143,7 +142,7 @@ public class TrackedIO {
             if (isGif) {
                 // perhaps this is issue #40, try another decoder
                 // also see https://stackoverflow.com/questions/22259714/arrayindexoutofboundsexception-4096-while-reading-gif-file
-                return alternativeGifRead(file);
+                return readGifWithFallbackDecoder(file);
             } else {
                 throw DecodingException.forImageIORead(file, e);
             }
@@ -153,17 +152,13 @@ public class TrackedIO {
     // Currently using https://github.com/DhyanB/Open-Imaging
     // Apache Imaging also has a fix, but they have not released yet a version with it
     // see https://issues.apache.org/jira/browse/IMAGING-130
-    private static BufferedImage alternativeGifRead(File file) {
-        BufferedImage img;
-        try {
-            var dataStream = new FileInputStream(file);
+    private static BufferedImage readGifWithFallbackDecoder(File file) {
+        try (InputStream dataStream = new FileInputStream(file)) {
             GifDecoder.GifImage gif = GifDecoder.read(dataStream);
-            img = gif.getFrame(0);
+            return gif.getFrame(0);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-
-        return img;
     }
 
     /**
@@ -175,9 +170,9 @@ public class TrackedIO {
 
         BufferedImage image;
         try (ImageInputStream iis = ImageIO.createImageInputStream(file)) {
-            image = readFromIIS(iis, tracker);
+            image = readFromImageStream(iis, tracker);
         } catch (Exception e) {
-            // an IIOException exception is thrown for example by
+            // an IIOException is thrown for example by
             // Java's JPEG reader when reading a CMYK JPEG.
             throw DecodingException.forImageIORead(file, e);
         }
@@ -192,7 +187,7 @@ public class TrackedIO {
                                                ProgressTracker tracker) throws IOException {
         BufferedImage image;
         try (ImageInputStream iis = ImageIO.createImageInputStream(is)) {
-            image = readFromIIS(iis, tracker);
+            image = readFromImageStream(iis, tracker);
         }
         return image;
     }
@@ -200,9 +195,9 @@ public class TrackedIO {
     /**
      * Reads an image from an image input stream with progress tracking.
      */
-    public static BufferedImage readFromIIS(ImageInputStream iis,
-                                            ProgressTracker tracker) throws IOException {
-        assert calledOutsideEDT() : "on EDT";
+    public static BufferedImage readFromImageStream(ImageInputStream iis,
+                                                    ProgressTracker tracker) throws IOException {
+        assert calledOutsideEDT() : callInfo();
 
         Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
         if (!readers.hasNext()) {
@@ -254,7 +249,9 @@ public class TrackedIO {
         }
     }
 
-    // reads a thumbnail from an image reader
+    /**
+     * Reads a thumbnail from an image reader.
+     */
     private static ThumbInfo readThumbnail(ImageReader reader, int maxThumbWidth, int maxThumbHeight) throws IOException {
         int imgWidth = reader.getWidth(0);
         int imgHeight = reader.getHeight(0);
@@ -295,12 +292,12 @@ public class TrackedIO {
      * number is used for the horizontal and vertical subsampling.
      */
     public static int calcSubsampling(int imgWidth, int imgHeight,
-                                      int thumbMaxWidth, int thumbMaxHeight) {
-        assert imgWidth >= thumbMaxWidth * 2;
-        assert imgHeight >= thumbMaxHeight * 2;
+                                      int maxThumbWidth, int maxThumbHeight) {
+        assert imgWidth >= maxThumbWidth * 2;
+        assert imgHeight >= maxThumbHeight * 2;
 
-        int cols = (int) Math.ceil(imgWidth / (double) thumbMaxWidth);
-        int rows = (int) Math.ceil(imgHeight / (double) thumbMaxHeight);
+        int cols = (int) Math.ceil(imgWidth / (double) maxThumbWidth);
+        int rows = (int) Math.ceil(imgHeight / (double) maxThumbHeight);
 
         return Math.max(cols, rows);
     }

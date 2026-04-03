@@ -81,6 +81,9 @@ public class ShapesTool extends DragTool {
     public static final String EDIT_TYPE_SETTINGS = "Change Shape Settings";
     public static final String EDIT_COLORS = "Change Shape Colors";
 
+    private static final String FILL_PRESET_KEY = "Fill";
+    private static final String STROKE_PRESET_KEY = "Stroke";
+
     private final Map<ShapeType, ShapeTypeSettings> typeSettingsMap;
 
     // flag to prevent unnecessary shape updates
@@ -627,12 +630,12 @@ public class ShapesTool extends DragTool {
 
         setIdleState();
 
-        Composition comp = Views.getActiveComp();
-        if (comp != null) {
+        View view = Views.getActive();
+        if (view != null) {
             if (hadShape) {
-                comp.getActiveLayer().update();
+                view.getComp().getActiveLayer().update();
             } else {
-                comp.repaint();
+                view.repaint();
             }
         }
         shapesLayer = null;
@@ -900,14 +903,14 @@ public class ShapesTool extends DragTool {
     @Override
     public void saveStateTo(UserPreset preset) {
         ShapeType type = getSelectedType();
-        preset.put(ShapeType.PRESET_KEY, type.toString());
+        preset.put(ShapeType.PRESET_KEY, type.name());
 
         if (type.hasSettings()) {
             getSettingsOf(type).saveStateTo(preset);
         }
 
-        preset.put("Fill", getSelectedFillPaint().toString());
-        preset.put("Stroke", getSelectedStrokePaint().toString());
+        preset.put(FILL_PRESET_KEY, getSelectedFillPaint().name());
+        preset.put(STROKE_PRESET_KEY, getSelectedStrokePaint().name());
 
         strokeParam.saveStateTo(preset);
         effectsParam.saveStateTo(preset);
@@ -931,9 +934,9 @@ public class ShapesTool extends DragTool {
         }
 
         fillPaintModel.setSelectedItem(
-            preset.getEnum("Fill", TwoPointPaintType.class));
+            preset.getEnum(FILL_PRESET_KEY, TwoPointPaintType.class));
         strokePaintModel.setSelectedItem(
-            preset.getEnum("Stroke", TwoPointPaintType.class));
+            preset.getEnum(STROKE_PRESET_KEY, TwoPointPaintType.class));
 
         strokeParam.loadStateFrom(preset);
         updateStrokeFromSettings();
@@ -941,7 +944,7 @@ public class ShapesTool extends DragTool {
         effectsParam.loadStateFrom(preset);
         updateEffects();
 
-        FgBgColors.loadStateFrom(preset);
+        FgBgColors.loadStateFrom(preset, false);
 
         shouldRegenerateShape = true;
         if (styledShape != null && regenerateStyledShape) {

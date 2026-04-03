@@ -103,12 +103,12 @@ public class DitherFilter extends PointFilter {
         169, 105, 153, 89, 165, 101, 149, 85, 170, 106, 154, 90, 166, 102, 150, 86,
         3, 233, 57, 217, 13, 229, 53, 213, 0, 234, 58, 218, 14, 230, 54, 214,
         131, 67, 185, 121, 141, 77, 181, 117, 128, 64, 186, 122, 142, 78, 182, 118,
-            35, 195, 19, 249, 45, 205, 29, 245, 32, 192, 16, 250, 46, 206, 30, 246,
-            163, 99, 147, 83, 173, 109, 157, 93, 160, 96, 144, 80, 174, 110, 158, 94,
-            11, 227, 51, 211, 7, 237, 61, 221, 8, 224, 48, 208, 4, 238, 62, 222,
-            139, 75, 179, 115, 135, 71, 189, 125, 136, 72, 176, 112, 132, 68, 190, 126,
-            43, 203, 27, 243, 39, 199, 23, 253, 40, 200, 24, 240, 36, 196, 20, 254,
-            171, 107, 155, 91, 167, 103, 151, 87, 168, 104, 152, 88, 164, 100, 148, 84};
+        35, 195, 19, 249, 45, 205, 29, 245, 32, 192, 16, 250, 46, 206, 30, 246,
+        163, 99, 147, 83, 173, 109, 157, 93, 160, 96, 144, 80, 174, 110, 158, 94,
+        11, 227, 51, 211, 7, 237, 61, 221, 8, 224, 48, 208, 4, 238, 62, 222,
+        139, 75, 179, 115, 135, 71, 189, 125, 136, 72, 176, 112, 132, 68, 190, 126,
+        43, 203, 27, 243, 39, 199, 23, 253, 40, 200, 24, 240, 36, 196, 20, 254,
+        171, 107, 155, 91, 167, 103, 151, 87, 168, 104, 152, 88, 164, 100, 148, 84};
 
     /**
      * Order-3 clustered dither.
@@ -148,12 +148,12 @@ public class DitherFilter extends PointFilter {
         65, 72, 80, 90, 91, 81, 73, 66, 62, 55, 47, 37, 36, 46, 54, 61,
         63, 58, 50, 40, 41, 51, 59, 60, 64, 69, 77, 87, 86, 76, 68, 67,
         57, 33, 27, 18, 19, 28, 34, 52, 70, 94, 100, 109, 108, 99, 93, 75,
-            49, 26, 13, 11, 12, 15, 29, 44, 78, 101, 114, 116, 115, 112, 98, 83,
-            39, 17, 4, 3, 2, 9, 20, 42, 88, 110, 123, 124, 125, 118, 107, 85,
-            38, 16, 5, 0, 1, 10, 21, 43, 89, 111, 122, 127, 126, 117, 106, 84,
-            48, 25, 8, 6, 7, 14, 30, 45, 79, 102, 119, 121, 120, 113, 97, 82,
-            56, 32, 24, 23, 22, 31, 35, 53, 71, 95, 103, 104, 105, 96, 92, 74,
-            62, 55, 47, 37, 36, 46, 54, 61, 65, 72, 80, 90, 91, 81, 73, 66};
+        49, 26, 13, 11, 12, 15, 29, 44, 78, 101, 114, 116, 115, 112, 98, 83,
+        39, 17, 4, 3, 2, 9, 20, 42, 88, 110, 123, 124, 125, 118, 107, 85,
+        38, 16, 5, 0, 1, 10, 21, 43, 89, 111, 122, 127, 126, 117, 106, 84,
+        48, 25, 8, 6, 7, 14, 30, 45, 79, 102, 119, 121, 120, 113, 97, 82,
+        56, 32, 24, 23, 22, 31, 35, 53, 71, 95, 103, 104, 105, 96, 92, 74,
+        62, 55, 47, 37, 36, 46, 54, 61, 65, 72, 80, 90, 91, 81, 73, 66};
 
     public static final int MATRIX_2x2 = 1;
     public static final int MATRIX_4x4_SQUARE = 2;
@@ -166,8 +166,27 @@ public class DitherFilter extends PointFilter {
     public static final int MATRIX_CLUSTER4 = 9;
     public static final int MATRIX_CLUSTER8 = 10;
 
-    public void setMatrixMethod(int method) {
-        matrix = switch (method) {
+    private final int[] matrix;
+    private final int rows;
+    private final int cols;
+    private final int[] mod;
+    private final int[] div;
+    private final int[] map;
+    private final boolean colorDither;
+
+    /**
+     * Constructs a DitherFilter with all required configuration.
+     *
+     * @param filterName   the name of the filter
+     * @param matrixMethod the dithering matrix type.
+     * @param levels       the number of quantization levels used for dithering
+     * @param colorDither  whether to apply dithering independently to RGB channels
+     *                     (true) or use grayscale dithering (false)
+     */
+    public DitherFilter(String filterName, int matrixMethod, int levels, boolean colorDither) {
+        super(filterName);
+
+        matrix = switch (matrixMethod) {
             case MATRIX_2x2 -> ditherMagic2x2Matrix;
             case MATRIX_4x4_SQUARE -> ditherMagic4x4Matrix;
             case MATRIX_4x4_ORDERED -> ditherOrdered4x4Matrix;
@@ -178,67 +197,22 @@ public class DitherFilter extends PointFilter {
             case MATRIX_CLUSTER3 -> ditherCluster3Matrix;
             case MATRIX_CLUSTER4 -> ditherCluster4Matrix;
             case MATRIX_CLUSTER8 -> ditherCluster8Matrix;
-            default -> throw new IllegalStateException("Unexpected value: " + method);
+            default -> throw new IllegalStateException("Unexpected value: " + matrixMethod);
         };
-    }
 
-    private int[] matrix;
-    private int rows, cols, levels;
-    private int[] mod;
-    private int[] div;
-    private int[] map;
-    private boolean colorDither;
-
-    /**
-     * Constuct a DitherFilter.
-     */
-    public DitherFilter(String filterName) {
-        super(filterName);
-    }
-
-    /**
-     * Set the dither matrix.
-     *
-     * @param matrix the dither matrix
-     */
-    public void setMatrix(int[] matrix) {
-        this.matrix = matrix;
-    }
-
-    /**
-     * Set the number of dither levels.
-     *
-     * @param levels the number of levels
-     */
-    public void setLevels(int levels) {
-        this.levels = levels;
-    }
-
-
-    /**
-     * Set whether to use a color dither.
-     *
-     * @param colorDither whether to use a color dither
-     */
-    public void setColorDither(boolean colorDither) {
         this.colorDither = colorDither;
-    }
 
-    /**
-     * Must be called after all the properties have been set.
-     */
-    public void initialize() {
-        rows = cols = (int) Math.sqrt(matrix.length);
+        this.rows = this.cols = (int) Math.sqrt(matrix.length);
 
         // map maps the levels to actual 0..255 values
-        map = new int[levels];
+        this.map = new int[levels];
         for (int i = 0; i < levels; i++) {
             int v = 255 * i / (levels - 1);
             map[i] = v;
         }
 
-        div = new int[256]; // pre-calculates the level of a 0..255 value
-        mod = new int[256];
+        this.div = new int[256]; // pre-calculates the level of a 0..255 value
+        this.mod = new int[256];
         int rc = (rows * cols + 1);
         for (int i = 0; i < 256; i++) {
             div[i] = (levels - 1) * i / 256;
@@ -246,14 +220,16 @@ public class DitherFilter extends PointFilter {
         }
     }
 
-    // In orderd dithering each pixel is processed independently based
-    // on its position relative to the tiling of the threshold matrix.
+    /**
+     * In ordered dithering each pixel is processed independently based
+     * on its position relative to the tiling of the threshold matrix.
+     */
     @Override
     public int processPixel(int x, int y, int rgb) {
-        int a = rgb & 0xff000000;
-        int r = (rgb >> 16) & 0xff;
-        int g = (rgb >> 8) & 0xff;
-        int b = rgb & 0xff;
+        int a = rgb & 0xFF_00_00_00;
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
 
         int col = x % cols;
         int row = y % rows;
@@ -272,10 +248,4 @@ public class DitherFilter extends PointFilter {
         }
         return a | (r << 16) | (g << 8) | b;
     }
-
-    @Override
-    public String toString() {
-        return "Colors/Dither...";
-    }
 }
-

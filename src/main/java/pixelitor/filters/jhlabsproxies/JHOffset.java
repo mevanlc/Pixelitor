@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,15 +17,15 @@
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.OffsetFilter;
-import com.jhlabs.image.TransformFilter;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.gui.ImagePositionParam;
+import pixelitor.filters.gui.IntChoiceParam;
 
 import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Offset filter based on the JHLabs OffsetFilter
+ * Offset filter based on the JHLabs {@link OffsetFilter}.
  */
 public class JHOffset extends ParametrizedFilter {
     public static final String NAME = "Offset";
@@ -36,25 +36,18 @@ public class JHOffset extends ParametrizedFilter {
     private final ImagePositionParam center =
         new ImagePositionParam("Translate Top Left Point To");
 
-    private OffsetFilter filter;
+    private final IntChoiceParam edgeAction = IntChoiceParam.forEdgeAction();
 
     public JHOffset() {
         super(true);
 
-        initParams(center);
+        initParams(center, edgeAction);
     }
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new OffsetFilter(NAME);
-        }
-
-        filter.setRelativeX(center.getRelativeX());
-        filter.setRelativeY(center.getRelativeY());
-        filter.setUseRelative(true);
-
-        filter.setInterpolation(TransformFilter.NEAREST_NEIGHBOUR);
+        OffsetFilter filter = new OffsetFilter(NAME,
+            edgeAction.getValue(), center.getAbsolutePoint(src));
 
         return filter.filter(src, dest);
     }

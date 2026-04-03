@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -19,11 +19,8 @@ package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.CellularFilter;
 import pixelitor.filters.ParametrizedFilter;
-import pixelitor.filters.gui.AngleParam;
-import pixelitor.filters.gui.GradientParam;
-import pixelitor.filters.gui.IntChoiceParam;
+import pixelitor.filters.gui.*;
 import pixelitor.filters.gui.IntChoiceParam.Item;
-import pixelitor.filters.gui.RangeParam;
 import pixelitor.gui.GUIText;
 
 import java.awt.image.BufferedImage;
@@ -32,7 +29,7 @@ import java.io.Serial;
 import static pixelitor.gui.GUIText.ZOOM;
 
 /**
- * Cells filter based on the JHLabs CellularFilter
+ * Cells filter based on the JHLabs {@link CellularFilter}.
  */
 public class JHCells extends ParametrizedFilter {
     public static final String NAME = "Cells";
@@ -51,7 +48,7 @@ public class JHCells extends ParametrizedFilter {
     private final RangeParam stretch = new RangeParam("Stretch (%)", 100, 100, 999);
 
     private final RangeParam gridRandomness = new RangeParam("Grid Randomness", 1, 1, 100);
-    private final IntChoiceParam gridType = IntChoiceParam.forGridType("Grid Type", gridRandomness);
+    private final EnumParam<CellularFilter.GridType> gridType = EnumParam.forGridType("Grid Type", gridRandomness);
 
     private final IntChoiceParam type = new IntChoiceParam(GUIText.TYPE, new Item[]{
         new Item("Cells", TYPE_CELLS),
@@ -123,7 +120,7 @@ public class JHCells extends ParametrizedFilter {
         filter.setF1(f1);
         filter.setF2(f2);
         filter.setF3(f3);
-        filter.setGridType(gridType.getValue());
+        filter.setGridType(gridType.getSelected());
         filter.setRandomness((float) gridRandomness.getPercentage());
         filter.setColormap(gradient.getColorMap());
 

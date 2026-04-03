@@ -22,10 +22,9 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 
 /**
- * A filter which uses a another image as a mask to produce a halftoning effect.
+ * A filter which uses another image as a mask to produce a halftoning effect.
  */
 public class HalftoneFilter extends AbstractBufferedImageOp {
-
     public static final int GRID_TRIANGLE = 0;
     public static final int GRID_SQUARE = 1;
     public static final int GRID_RINGS = 2;
@@ -124,8 +123,8 @@ public class HalftoneFilter extends AbstractBufferedImageOp {
         double r11 = Math.hypot(width - cx, height - cy); // distance to corner (width, height)
         int maxRadius = (int) Math.ceil(Math.max(Math.max(r00, r10), Math.max(r01, r11)));
 
-        double maxAdjustedRadius = maxRadius - firstRingRadius;
-        int numRings = (maxAdjustedRadius <= 0) ? 0 : (int) (maxAdjustedRadius / maskHeight) + 1;
+        double adjustedMaxRadius = maxRadius - firstRingRadius;
+        int numRings = (adjustedMaxRadius <= 0) ? 0 : (int) (adjustedMaxRadius / maskHeight) + 1;
 
         float[] thetaScales = new float[numRings];
         for (int i = 0; i < numRings; i++) {
@@ -202,50 +201,53 @@ public class HalftoneFilter extends AbstractBufferedImageOp {
      * Calculates the final halftone pixel color based on the input and mask values.
      */
     private int halftonePixel(int inRGB, int maskRGB, float softnessRange) {
-        int processedMaskRGB = invert ? (maskRGB ^ 0xffffff) : maskRGB;
+        int processedMaskRGB = invert ? (maskRGB ^ 0xFF_FF_FF) : maskRGB;
 
         if (monochrome) {
-            int v = PixelUtils.brightness(processedMaskRGB);
-            int iv = PixelUtils.brightness(inRGB);
+            float v = ImageMath.calcLuminance(processedMaskRGB);
+            float iv = ImageMath.calcLuminance(inRGB);
 
             // the mask image is used as a threshold map
             float f = 1 - ImageMath.smoothStep(iv - softnessRange, iv + softnessRange, v);
             int a = (int) (255 * f);
-            return (inRGB & 0xff000000) | (a << 16) | (a << 8) | a;
+            return (inRGB & 0xFF_00_00_00) | (a << 16) | (a << 8) | a;
         }
 
-        int ir = (inRGB >> 16) & 0xff;
-        int ig = (inRGB >> 8) & 0xff;
-        int ib = inRGB & 0xff;
-        int mr = (processedMaskRGB >> 16) & 0xff;
-        int mg = (processedMaskRGB >> 8) & 0xff;
-        int mb = processedMaskRGB & 0xff;
+        int ir = (inRGB >> 16) & 0xFF;
+        int ig = (inRGB >> 8) & 0xFF;
+        int ib = inRGB & 0xFF;
+        int mr = (processedMaskRGB >> 16) & 0xFF;
+        int mg = (processedMaskRGB >> 8) & 0xFF;
+        int mb = processedMaskRGB & 0xFF;
         int r = (int) (255 * (1 - ImageMath.smoothStep(ir - softnessRange, ir + softnessRange, mr)));
         int g = (int) (255 * (1 - ImageMath.smoothStep(ig - softnessRange, ig + softnessRange, mg)));
         int b = (int) (255 * (1 - ImageMath.smoothStep(ib - softnessRange, ib + softnessRange, mb)));
-        return (inRGB & 0xff000000) | (r << 16) | (g << 8) | b;
+        return (inRGB & 0xFF_00_00_00) | (r << 16) | (g << 8) | b;
     }
 
     /**
-     * Set the softness of the effect in the range 0..1.
+     * Sets the softness of the effect in the range [0, 1].
      */
     public void setSoftness(float softness) {
         this.softness = softness;
     }
 
     /**
-     * Set the halftone mask.
+     * Sets the halftone mask.
      */
     public void setMask(BufferedImage mask) {
         this.mask = mask;
     }
 
+    /**
+     * Sets whether to invert the halftone mask.
+     */
     public void setInvert(boolean invert) {
         this.invert = invert;
     }
 
     /**
-     * Set whether to do monochrome halftoning.
+     * Sets whether to do monochrome halftoning.
      */
     public void setMonochrome(boolean monochrome) {
         this.monochrome = monochrome;
@@ -261,10 +263,5 @@ public class HalftoneFilter extends AbstractBufferedImageOp {
     public void setCenter(Point2D center) {
         cx = center.getX();
         cy = center.getY();
-    }
-
-    @Override
-    public String toString() {
-        return "Stylize/Halftone...";
     }
 }

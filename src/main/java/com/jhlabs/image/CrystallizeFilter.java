@@ -24,12 +24,10 @@ import pixelitor.filters.jhlabsproxies.JHCrystallize;
 public class CrystallizeFilter extends CellularFilter {
     private float edgeThickness = 0.4f;
     private boolean fadeEdges = false;
-    private int edgeColor = 0xff000000;
+    private int edgeColor = 0xFF_00_00_00;
 
     public CrystallizeFilter() {
         super(JHCrystallize.NAME);
-        setScale(16);
-        setRandomness(0.0f);
     }
 
     public void setEdgeThickness(float edgeThickness) {
@@ -74,10 +72,5 @@ public class CrystallizeFilter extends CellularFilter {
             v = ImageMath.mixColors(f, edgeColor, v);
         }
         return v;
-    }
-
-    @Override
-    public String toString() {
-        return "Stylize/Crystallize...";
     }
 }

@@ -134,7 +134,7 @@ public class ColorFillLayer extends Layer {
     protected ColorFillLayer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
         String copyName = copyType.createLayerCopyName(name);
         // java.awt.Color is immutable => it can be shared
-        return new ColorFillLayer(comp, copyName, color);
+        return new ColorFillLayer(newComp, copyName, color);
     }
 
     @Override
@@ -157,6 +157,11 @@ public class ColorFillLayer extends Layer {
     @Override
     public void crop(Rectangle cropRect, boolean deleteCropped, boolean allowGrowing) {
         // do nothing
+    }
+
+    @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
+        // do nothing, a color fill has no spatial extent
     }
 
     @Override

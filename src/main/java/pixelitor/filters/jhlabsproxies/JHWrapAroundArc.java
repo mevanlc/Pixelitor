@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -28,15 +28,13 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 
 /**
- * Wrap Around Arc filter based on the JHLabs CircleFilter
+ * Wrap Around Arc filter based on the JHLabs {@link CircleFilter}.
  */
 public class JHWrapAroundArc extends ParametrizedFilter {
     public static final String NAME = "Wrap Around Arc";
 
     @Serial
     private static final long serialVersionUID = 3136221427173608186L;
-
-    private CircleFilter filter;
 
     private final RangeParam radius = new RangeParam(GUIText.RADIUS, 0, 50, 500);
     private final RangeParam thickness = new RangeParam("Thickness", 0, 150, 500);
@@ -63,22 +61,18 @@ public class JHWrapAroundArc extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new CircleFilter(NAME);
-        }
-
-        filter.setCenter(center.getRelativePoint());
-        filter.setRadius(radius.getValueAsFloat());
-        filter.setHeight(thickness.getValueAsFloat());
-        filter.setAngle((float) rotateResult.getValueInIntuitiveRadians());
-
         double spreadValue = spread.getValueAsDouble();
         float spreadRadians = (float) (2 * Math.PI / spreadValue);
-        filter.setSpreadAngle(spreadRadians);
 
-        filter.setInterpolation(interpolation.getValue());
-        filter.setEdgeAction(edgeAction.getValue());
-
+        CircleFilter filter = new CircleFilter(NAME,
+            edgeAction.getValue(),
+            interpolation.getValue(),
+            radius.getValueAsFloat(),
+            thickness.getValueAsFloat(),
+            (float) rotateResult.getValueInIntuitiveRadians(),
+            spreadRadians,
+            center.getAbsolutePoint(src));
+        
         return filter.filter(src, dest);
     }
 }

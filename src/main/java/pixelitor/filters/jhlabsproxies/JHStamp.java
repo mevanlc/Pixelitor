@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -33,7 +33,7 @@ import static pixelitor.filters.gui.RandomizeMode.IGNORE_RANDOMIZE;
 import static pixelitor.filters.gui.TransparencyMode.MANUAL_ALPHA_ONLY;
 
 /**
- * Stamp filter based on the JHLabs StampFilter
+ * Stamp filter based on the JHLabs {@link StampFilter}.
  */
 public class JHStamp extends ParametrizedFilter {
     public static final String NAME = "Stamp";
@@ -45,7 +45,7 @@ public class JHStamp extends ParametrizedFilter {
     private final RangeParam smoothness = new RangeParam("Smoothness", 0, 25, 50);
     private final RangeParam soften = new RangeParam("Soften", 0, 3, 100);
     private final ColorParam darkColor = new ColorParam("Dark Color", BLACK, MANUAL_ALPHA_ONLY);
-    private final ColorParam brightColor = new ColorParam("Bright Color", WHITE, MANUAL_ALPHA_ONLY);
+    private final ColorParam lightColor = new ColorParam("Light Color", WHITE, MANUAL_ALPHA_ONLY);
 
     private final IntChoiceParam blurMethod = new IntChoiceParam("Blur Method",
         new Item[]{
@@ -59,11 +59,14 @@ public class JHStamp extends ParametrizedFilter {
     public JHStamp() {
         super(true);
 
+        // for compatibility with 4.3.1 and earlier
+        lightColor.setPresetKey("Bright Color");
+
         initParams(
             lightDarkBalance,
             smoothness.withAdjustedRange(0.05),
             soften,
-            brightColor,
+            lightColor,
             darkColor,
             blurMethod
         );
@@ -75,8 +78,8 @@ public class JHStamp extends ParametrizedFilter {
             filter = new StampFilter(NAME);
         }
 
-        filter.setBlack(darkColor.getColor().getRGB());
-        filter.setWhite(brightColor.getColor().getRGB());
+        filter.setDark(darkColor.getColor().getRGB());
+        filter.setLight(lightColor.getColor().getRGB());
         filter.setRadius(smoothness.getValueAsFloat());
         filter.setSoftness((float) soften.getPercentage());
         filter.setThreshold((float) lightDarkBalance.getPercentage());

@@ -138,7 +138,7 @@ public class SmartObject extends CompositeLayer {
 
     // constructor for duplication.
     private SmartObject(SmartObject orig, CopyType copyType, Composition newComp) {
-        super(orig.comp, copyType.createLayerCopyName(orig.getName()));
+        super(newComp, copyType.createLayerCopyName(orig.getName()));
         assert orig.content.checkInvariants();
         if (copyType.isDeepContentCopy()) {
             Composition origContent = orig.content;
@@ -1125,6 +1125,11 @@ public class SmartObject extends CompositeLayer {
 
     @Override
     public void crop(Rectangle cropRect, boolean deleteCropped, boolean allowGrowing) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void inverseCrop(Rectangle removedBand, boolean horizontal) {
         throw new UnsupportedOperationException();
     }
 

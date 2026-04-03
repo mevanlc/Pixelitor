@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -31,16 +31,16 @@ import static pixelitor.utils.ImageUtils.isWithinBounds;
  * Used as the left panel in "Mask from Color Range",
  * to sample colors from the source image.
  */
-public class ColorPickerPanel extends ImagePanel {
-    public ColorPickerPanel(BufferedImage img,
-                            Consumer<Color> colorSelectionHandler) {
+public class ColorSamplingPanel extends ImagePanel {
+    public ColorSamplingPanel(BufferedImage img,
+                              Consumer<Color> colorSelectionHandler) {
         super(true);
 
-        replaceImage(img);
+        setImageWithoutRepaint(img);
         initMouseHandlers(colorSelectionHandler);
     }
 
-    private void initMouseHandlers(Consumer<Color> colorSelectionHandler) {
+    private void initMouseHandlers(Consumer<Color> colorConsumer) {
         var ma = new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -55,7 +55,7 @@ public class ColorPickerPanel extends ImagePanel {
             private void sampleColorAt(int x, int y) {
                 if (isWithinBounds(x, y, image)) {
                     int rgb = image.getRGB(x, y);
-                    colorSelectionHandler.accept(new Color(rgb));
+                    colorConsumer.accept(new Color(rgb));
                 }
             }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,11 +17,12 @@
 
 package pixelitor.filters.jhlabsproxies;
 
+import com.jhlabs.image.CellularFilter;
 import com.jhlabs.image.PointillizeFilter;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.gui.BooleanParam;
 import pixelitor.filters.gui.ColorParam;
-import pixelitor.filters.gui.IntChoiceParam;
+import pixelitor.filters.gui.EnumParam;
 import pixelitor.filters.gui.RangeParam;
 import pixelitor.utils.Texts;
 
@@ -32,7 +33,7 @@ import static java.awt.Color.BLACK;
 import static pixelitor.filters.gui.TransparencyMode.ALPHA_ENABLED;
 
 /**
- * Pointillize filter based on the JHLabs PointillizeFilter
+ * Pointillize filter based on the JHLabs {@link PointillizeFilter}.
  */
 public class JHPointillize extends ParametrizedFilter {
     @Serial
@@ -47,7 +48,7 @@ public class JHPointillize extends ParametrizedFilter {
     private final BooleanParam fadeEdges = new BooleanParam("Fade Instead of Fill", true);
 
     private final RangeParam randomness = new RangeParam("Grid Randomness (%)", 0, 0, 100);
-    private final IntChoiceParam gridType = IntChoiceParam.forGridType("Grid Type", randomness);
+    private final EnumParam<CellularFilter.GridType> gridType = EnumParam.forGridType("Grid Type", randomness);
 
     private PointillizeFilter filter;
 
@@ -80,7 +81,7 @@ public class JHPointillize extends ParametrizedFilter {
         filter.setRandomness((float) randomness.getPercentage());
         filter.setEdgeThickness((float) dotSize.getPercentage());
         filter.setFuzziness((float) fuzziness.getPercentage());
-        filter.setGridType(gridType.getValue());
+        filter.setGridType(gridType.getSelected());
         filter.setFadeEdges(fadeEdges.isChecked());
         filter.setEdgeColor(edgeColor.getColor().getRGB());
 

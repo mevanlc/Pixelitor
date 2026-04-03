@@ -57,6 +57,7 @@ public class SliderSpinner extends JPanel implements ChangeListener, ParamGUI {
     public enum LabelPosition {
         BORDER(true),
         WEST(false),
+        WEST_WITH_TICKS(true),
         NORTH(false),
         NONE(false),
         NONE_WITH_TICKS(true);
@@ -69,6 +70,10 @@ public class SliderSpinner extends JPanel implements ChangeListener, ParamGUI {
 
         boolean shouldShowTicks() {
             return showTicks;
+        }
+
+        public boolean isWest() {
+            return this == WEST || this == WEST_WITH_TICKS;
         }
     }
 
@@ -131,7 +136,7 @@ public class SliderSpinner extends JPanel implements ChangeListener, ParamGUI {
             }
         }
 
-        if (labelPosition == LabelPosition.WEST) {
+        if (labelPosition.isWest()) {
             label = new JLabel(model.getName() + ": ");
             add(label, WEST);
         } else if (labelPosition == LabelPosition.NORTH) {
@@ -456,22 +461,34 @@ public class SliderSpinner extends JPanel implements ChangeListener, ParamGUI {
      * Called when the model's range changes.
      */
     public void updateRange() {
-        // update spinner limits
-        SpinnerNumberModel spinnerModel = (SpinnerNumberModel) spinner.getModel();
-        spinnerModel.setMinimum(model.getMinimum());
-        spinnerModel.setMaximum(model.getMaximum());
+        // suppress stateChanged event feedback during programmatic range updates
+        boolean oldSliderAdjusting = isSliderAdjusting;
+        boolean oldSpinnerAdjusting = isSpinnerAdjusting;
+        isSliderAdjusting = true;
+        isSpinnerAdjusting = true;
 
-        // update ticks (recalculates spacing based on new range)
-        if (labelPosition.shouldShowTicks()) {
-            setupTicks();
-        }
+        try {
+            // update spinner limits
+            SpinnerNumberModel spinnerModel = (SpinnerNumberModel) spinner.getModel();
+            spinnerModel.setMinimum(model.getMinimum());
+            spinnerModel.setMaximum(model.getMaximum());
 
-        // update the value in the spinner to ensure it is within
-        // the new range and reflects any changes in the model
-        if (model.getDecimalPlaces() > 0) {
-            spinner.setValue(model.getValueAsDouble());
-        } else {
-            spinner.setValue(model.getValue());
+            // update ticks (recalculates spacing based on new range)
+            if (labelPosition.shouldShowTicks()) {
+                setupTicks();
+            }
+
+            // update the value in the spinner to ensure it is within
+            // the new range and reflects any changes in the model
+            if (model.getDecimalPlaces() > 0) {
+                spinner.setValue(model.getValueAsDouble());
+            } else {
+                spinner.setValue(model.getValue());
+            }
+        } finally {
+            // restore previous state
+            isSliderAdjusting = oldSliderAdjusting;
+            isSpinnerAdjusting = oldSpinnerAdjusting;
         }
 
         revalidate();

@@ -44,7 +44,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.lang.Integer.parseInt;
-import static java.lang.String.format;
 
 /**
  * Color-related static utility methods.
@@ -61,6 +60,11 @@ public class Colors {
     public static final Color CW_VIOLET = new Color(145, 37, 144);
     public static final Color CW_YELLOW = new Color(251, 240, 2);
 
+    // Oklab gradient colors
+    public static final Color OK_GREEN = new Color(0, 157, 113);
+    public static final Color OK_RED = new Color(213, 63, 63);
+    public static final Color OK_BLUE = new Color(66, 0, 254);
+    public static final Color OK_YELLOW = new Color(254, 157, 0);
 
     private Colors() {
     }
@@ -111,11 +115,11 @@ public class Colors {
     }
 
     public static String argbToString(int rgb) {
-        int a = (rgb >>> 24) & 0xFF;
+        int a = rgb >>> 24;
         int r = (rgb >>> 16) & 0xFF;
         int g = (rgb >>> 8) & 0xFF;
         int b = rgb & 0xFF;
-        return format("(%d, %d, %d, %d)", a, r, g, b);
+        return String.format("(%d, %d, %d, %d)", a, r, g, b);
     }
 
     public static int toPackedARGB(int a, int r, int g, int b) {
@@ -123,9 +127,8 @@ public class Colors {
     }
 
     public static Color toGray(Color c) {
-        int gray = (2 * c.getRed() + 3 * c.getGreen() + c.getBlue()) / 6;
-
-        return new Color(0xFF_00_00_00 | gray << 16 | gray << 8 | gray);
+        int gray = ImageMath.calcLuminanceInt(c.getRGB());
+        return new Color(gray, gray, gray, c.getAlpha());
     }
 
     public static float[] toHSB(Color c) {
@@ -140,28 +143,39 @@ public class Colors {
     public static String toHTMLHex(Color c, boolean includeAlpha) {
         if (includeAlpha) {
             // RRGGBBAA format
-            return format(Locale.ENGLISH, "%02X%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue(), c.getAlpha());
+            return String.format(Locale.ROOT, "%02X%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue(), c.getAlpha());
         } else {
             // RRGGBB format
-            return format(Locale.ENGLISH, "%06X", 0x00_FF_FF_FF & c.getRGB());
+            return String.format(Locale.ROOT, "%06X", 0x00_FF_FF_FF & c.getRGB());
         }
     }
 
-    public static Color fromHTMLHex(String text) {
-        int length = text.length();
-        if (length == 6) {
-            return new Color(
-                parseInt(text.substring(0, 2), 16),
-                parseInt(text.substring(2, 4), 16),
-                parseInt(text.substring(4, 6), 16));
-        } else if (length == 8) {
+    public static Color fromHtmlHexRgba(String text) {
+        if (text.length() != 8) {
+            throw new IllegalArgumentException("text = " + text);
+        }
+        try {
             return new Color(
                 parseInt(text.substring(0, 2), 16),
                 parseInt(text.substring(2, 4), 16),
                 parseInt(text.substring(4, 6), 16),
                 parseInt(text.substring(6, 8), 16));
-        } else {
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static Color fromHtmlHexRgb(String text) {
+        if (text.length() != 6) {
             throw new IllegalArgumentException("text = " + text);
+        }
+        try {
+            return new Color(
+                parseInt(text.substring(0, 2), 16),
+                parseInt(text.substring(2, 4), 16),
+                parseInt(text.substring(4, 6), 16));
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -179,6 +193,7 @@ public class Colors {
         if (RandomGUITest.isRunning()) {
             return false;
         }
+        assert colorChangeListener != null;
 
         Color prevColor = defaultColor;
         GlobalEvents.modalDialogOpened();
@@ -191,6 +206,8 @@ public class Colors {
             colorChangeListener.accept(prevColor);
             return false;
         } else {
+            // it's the color selector's responsibility to ensure that any
+            // valid color selection is already in passed to the change listener
             return true;
         }
     }
@@ -214,12 +231,14 @@ public class Colors {
         }
 
         // try HTML hex format (RRGGBB or RRGGBBAA)
-        if (text.length() == 6 || text.length() == 8) {
-            return fromHTMLHex(text);
+        if (text.length() == 6) {
+            return fromHtmlHexRgb(text);
+        } else if (text.length() == 8) {
+            return fromHtmlHexRgba(text);
         }
 
         // try rgb(163, 69, 151) format
-        if (text.toLowerCase(Locale.ENGLISH).startsWith("rgb(") && text.endsWith(")")) {
+        if (text.toLowerCase(Locale.ROOT).startsWith("rgb(") && text.endsWith(")")) {
             try {
                 String[] components = text.substring(4, text.length() - 1).split("\\s*,\\s*");
                 if (components.length == 3) {
@@ -228,7 +247,7 @@ public class Colors {
                         parseInt(components[1].trim()),
                         parseInt(components[2].trim()));
                 }
-            } catch (NumberFormatException e) {
+            } catch (Exception e) {
                 return null;
             }
         }
@@ -323,6 +342,9 @@ public class Colors {
     }
 
     public static void fillWith(Color color, Graphics2D g2, int width, int height) {
+        // ensure that transparent colors override the original content
+//        g2.setComposite(AlphaComposite.Src);
+
         g2.setColor(color);
         g2.fillRect(0, 0, width, height);
     }
@@ -347,7 +369,7 @@ public class Colors {
      * new alpha does not exceed the original alpha value.
      */
     public static int capAlpha(int rgb, int newAlpha) {
-        int origAlpha = (rgb >>> 24) & 0xFF;
+        int origAlpha = rgb >>> 24;
         return setAlpha(rgb, Math.min(origAlpha, newAlpha));
     }
 
@@ -355,7 +377,8 @@ public class Colors {
      * Format a color's value in the format expected by G'MIC.
      */
     public static String formatGMIC(Color color) {
-        return "%d,%d,%d,%d".formatted(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+        return String.format(Locale.ROOT, "%d,%d,%d,%d",
+            color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
     }
 
     public static String formatForDebugging(Color color) {

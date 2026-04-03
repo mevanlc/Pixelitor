@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -18,10 +18,12 @@
 package pixelitor.manual;
 
 import com.jhlabs.image.KaleidoscopeFilter;
+import com.jhlabs.image.TransformFilter;
 import pixelitor.utils.ImageUtils;
 import pixelitor.utils.ProgressTracker;
 
 import javax.imageio.ImageIO;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
 import java.io.File;
@@ -59,10 +61,11 @@ public class TestFilterPerformance {
 
     // a place to configure the tested filter
     private static BufferedImageOp getFilter() {
-        var f = new KaleidoscopeFilter("Kaleidoscope Test");
-        f.setZoom(1.0f);
+        var f = new KaleidoscopeFilter("Kaleidoscope Test",
+            TransformFilter.REFLECT, TransformFilter.NEAREST_NEIGHBOR,
+            0, 0, 3, new Point2D.Double(0, 0), 1.0f);
 
-        f.setProgressTracker(ProgressTracker.NULL_TRACKER);
+        f.setProgressTracker(ProgressTracker.NO_OP_TRACKER);
         return f;
     }
 

@@ -21,108 +21,56 @@ import net.jafama.FastMath;
 import java.awt.Shape;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
-import java.awt.image.BufferedImage;
 
 /**
  * A filter which produces a water ripple distortion.
  */
 public class WaterFilter extends TransformFilter {
-    private float wavelength = 16;
-    private float amplitude = 10;
-    private float phase = 0;
-    private float centerX = 0.5f;
-    private float centerY = 0.5f;
-    private float radius = 50;
+    private final float wavelength;
+    private final float amplitude;
+    private final float phase;
+    private final float radius;
 
-    private float radius2 = 0;
-    private float icenterX;
-    private float icenterY;
-
-    public WaterFilter(String filterName) {
-        super(filterName);
-    }
+    private final float radius2;
+    private final float cx;
+    private final float cy;
 
     /**
-     * Set the wavelength of the ripples.
+     * Constructs a WaterFilter.
      *
-     * @param wavelength the wavelength
+     * @param filterName    the name of the filter.
+     * @param edgeAction    the edge handling strategy
+     *                      (TRANSPARENT, REPEAT_EDGE, WRAP_AROUND, REFLECT).
+     * @param interpolation the interpolation method
+     *                      (NEAREST_NEIGHBOR, BILINEAR, BICUBIC).
+     * @param center        the center of the ripple effect in pixel coordinates.
+     * @param radius        the radius of the effect (must be >= 0).
+     * @param wavelength    the wavelength of the ripples.
+     * @param amplitude     the amplitude of the ripples.
+     * @param phase         the phase of the ripples.
      */
-    public void setWavelength(float wavelength) {
-        this.wavelength = wavelength;
-    }
+    public WaterFilter(String filterName, int edgeAction, int interpolation,
+                       Point2D center, float radius,
+                       float wavelength, float amplitude, float phase) {
+        super(filterName, edgeAction, interpolation);
 
-    /**
-     * Set the amplitude of the ripples.
-     *
-     * @param amplitude the amplitude
-     */
-    public void setAmplitude(float amplitude) {
-        this.amplitude = amplitude;
-    }
+        this.cx = (float) center.getX();
+        this.cy = (float) center.getY();
 
-    /**
-     * Set the phase of the ripples.
-     *
-     * @param phase the phase
-     */
-    public void setPhase(float phase) {
-        this.phase = phase;
-    }
-
-    /**
-     * Set the center of the effect in the X direction as a proportion of the image size.
-     *
-     * @param centerX the center
-     */
-    public void setCenterX(float centerX) {
-        this.centerX = centerX;
-    }
-
-    /**
-     * Set the center of the effect in the Y direction as a proportion of the image size.
-     *
-     * @param centerY the center
-     */
-    public void setCenterY(float centerY) {
-        this.centerY = centerY;
-    }
-
-    /**
-     * Set the center of the effect as a proportion of the image size.
-     *
-     * @param center the center
-     */
-    public void setCenter(Point2D center) {
-        centerX = (float) center.getX();
-        centerY = (float) center.getY();
-    }
-
-    /**
-     * Set the radius of the effect.
-     *
-     * @param radius the radius
-     * @min-value 0
-     */
-    public void setRadius(float radius) {
         this.radius = radius;
-    }
+        this.radius2 = radius * radius;
 
-    @Override
-    public BufferedImage filter(BufferedImage src, BufferedImage dst) {
-        icenterX = src.getWidth() * centerX;
-        icenterY = src.getHeight() * centerY;
-        if (radius == 0) {
-            radius = Math.min(icenterX, icenterY);
-        }
-        radius2 = radius * radius;
-        return super.filter(src, dst);
+        this.wavelength = wavelength;
+        this.amplitude = amplitude;
+        this.phase = phase;
     }
 
     @Override
     protected void transformInverse(int x, int y, float[] out) {
-        float dx = x - icenterX;
-        float dy = y - icenterY;
+        float dx = x - cx;
+        float dy = y - cy;
         float distance2 = dx * dx + dy * dy;
+
         if (distance2 > radius2) {
             out[0] = x;
             out[1] = y;
@@ -130,22 +78,19 @@ public class WaterFilter extends TransformFilter {
             float distance = (float) Math.sqrt(distance2);
             float amount = amplitude * (float) FastMath.sin(distance / wavelength * ImageMath.TWO_PI - phase);
             amount *= (radius - distance) / radius;
+
             if (distance != 0) {
                 amount *= wavelength / distance;
             }
+
             out[0] = x + dx * amount;
             out[1] = y + dy * amount;
         }
     }
 
-    @Override
-    public String toString() {
-        return "Distort/Water Ripples...";
-    }
-
     public Shape[] getAffectedAreaShapes() {
         return new Shape[]{
-            new Ellipse2D.Float(icenterX - radius, icenterY - radius, 2 * radius, 2 * radius)
+            new Ellipse2D.Float(cx - radius, cy - radius, 2 * radius, 2 * radius)
         };
     }
 }
