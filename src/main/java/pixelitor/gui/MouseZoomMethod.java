@@ -204,9 +204,32 @@ public enum MouseZoomMethod {
         return displayName;
     }
 
+    private static final int SCROLL_PAN_STEP = 20;
+
+    private static void panWithWheel(View view, MouseWheelEvent e) {
+        int rotation = e.getWheelRotation();
+        if (rotation == 0) {
+            return;
+        }
+        e.consume();
+        int delta = rotation * SCROLL_PAN_STEP;
+        if (e.isShiftDown()) {
+            view.panViewport(delta, 0);
+        } else {
+            view.panViewport(0, delta);
+        }
+    }
+
     private record ZoomListener(View view, boolean requiresCtrl) implements MouseWheelListener {
         @Override
         public void mouseWheelMoved(MouseWheelEvent e) {
+            if (GlobalEvents.isSpaceDown()) {
+                View target = view != null ? view : Views.getActive();
+                if (target != null) {
+                    panWithWheel(target, e);
+                }
+                return;
+            }
             if (requiresCtrl && !e.isControlDown()) {
                 return;
             }

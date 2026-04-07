@@ -33,6 +33,7 @@ import static pixelitor.utils.Keys.CTRL_NUMPAD_0;
 import static pixelitor.utils.Keys.CTRL_NUMPAD_MINUS;
 import static pixelitor.utils.Keys.CTRL_NUMPAD_PLUS;
 import static pixelitor.utils.Keys.CTRL_PLUS;
+import static pixelitor.utils.Keys.CTRL_EQUALS;
 import static pixelitor.utils.Keys.CTRL_SHIFT_EQUALS;
 import static pixelitor.utils.Keys.FIT_SPACE_KEY;
 import static pixelitor.utils.Texts.i18n;
@@ -74,6 +75,7 @@ public class ZoomMenu extends PMenu {
     public static void setupZoomKeys(JComponent c) {
         InputMap inputMap = c.getInputMap(WHEN_IN_FOCUSED_WINDOW);
         ActionMap actionMap = c.getActionMap();
+        inputMap.put(CTRL_EQUALS, ZOOM_IN_ACTION_KEY);         // = key (Cmd+= on macOS)
         inputMap.put(CTRL_SHIFT_EQUALS, ZOOM_IN_ACTION_KEY);  // + key in English keyboards
         inputMap.put(CTRL_NUMPAD_PLUS, ZOOM_IN_ACTION_KEY);  // + key on the numpad
         inputMap.put(CTRL_NUMPAD_MINUS, ZOOM_OUT_ACTION_KEY); // - key on the numpad

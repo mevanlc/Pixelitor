@@ -33,6 +33,7 @@ import pixelitor.menus.view.ZoomLevel;
 import pixelitor.selection.SelectionActions;
 import pixelitor.tools.Tool;
 import pixelitor.tools.Tools;
+import pixelitor.tools.util.ArrowKey;
 import pixelitor.tools.util.PPoint;
 import pixelitor.tools.util.PRectangle;
 import pixelitor.utils.AppPreferences;
@@ -926,6 +927,34 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         at.scale(s, s);
         at.translate(-canvasStartX, -canvasStartY);
         return at;
+    }
+
+    private static final int KEYBOARD_PAN_STEP = 20;
+
+    /**
+     * Pans the viewport in the direction indicated by the arrow key.
+     */
+    public void panViewport(ArrowKey key) {
+        panViewport(
+            Integer.signum(key.getDeltaX()) * KEYBOARD_PAN_STEP,
+            Integer.signum(key.getDeltaY()) * KEYBOARD_PAN_STEP);
+    }
+
+    /**
+     * Pans the viewport by the given pixel offsets in component space.
+     */
+    public void panViewport(int dx, int dy) {
+        JViewport viewport = viewContainer.getScrollPane().getViewport();
+        Point pos = viewport.getViewPosition();
+        Dimension viewSize = viewport.getViewSize();
+        Dimension extentSize = viewport.getExtentSize();
+
+        pos.translate(dx, dy);
+
+        pos.x = Math.clamp(pos.x, 0, viewSize.width - extentSize.width);
+        pos.y = Math.clamp(pos.y, 0, viewSize.height - extentSize.height);
+
+        viewport.setViewPosition(pos);
     }
 
     /**

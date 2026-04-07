@@ -17,6 +17,7 @@
 
 package pixelitor.gui;
 
+import pixelitor.Views;
 import pixelitor.gui.utils.TaskAction;
 import pixelitor.tools.Tools;
 import pixelitor.tools.util.ArrowKey;
@@ -172,7 +173,13 @@ public class GlobalEvents {
     }
 
     private static void arrowKeyPressed(KeyEvent e, ArrowKey key) {
-        if (activeTool.arrowKeyPressed(key)) {
+        if (spaceDown && key.isShiftDown()) {
+            View view = Views.getActive();
+            if (view != null) {
+                view.panViewport(key);
+                e.consume();
+            }
+        } else if (activeTool.arrowKeyPressed(key)) {
             e.consume();
         }
     }

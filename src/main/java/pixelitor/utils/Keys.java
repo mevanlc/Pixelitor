@@ -117,6 +117,7 @@ public class Keys {
 
     public static final KeyStroke CTRL_NUMPAD_PLUS = getKeyStroke(VK_ADD, CTRL);
     public static final KeyStroke CTRL_NUMPAD_MINUS = getKeyStroke(VK_SUBTRACT, CTRL);
+    public static final KeyStroke CTRL_EQUALS = getKeyStroke(VK_EQUALS, CTRL);
     public static final KeyStroke CTRL_SHIFT_EQUALS = getKeyStroke(VK_EQUALS, CTRL | SHIFT);
     public static final KeyStroke CTRL_NUMPAD_0 = getKeyStroke(VK_NUMPAD0, CTRL);
     public static final KeyStroke CTRL_ALT_NUMPAD_0 = getKeyStroke(VK_NUMPAD0, CTRL | ALT);
