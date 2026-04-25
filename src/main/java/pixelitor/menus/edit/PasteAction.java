@@ -35,6 +35,11 @@ import static pixelitor.utils.Texts.i18n;
 public class PasteAction extends NamedAction implements ViewActivationListener {
     private final PasteTarget pasteTarget;
 
+    // When true, this action stays enabled even when no view is open;
+    // invoking it with no view falls back to {@link PasteTarget#NEW_IMAGE}.
+    // Used so the Cmd/Ctrl+V shortcut keeps working with no document open.
+    private boolean primary;
+
     public PasteAction(PasteTarget pasteTarget) {
         super(i18n(pasteTarget.getResourceKey()));
 
@@ -46,10 +51,25 @@ public class PasteAction extends NamedAction implements ViewActivationListener {
         }
     }
 
+    public void setPrimary(boolean primary) {
+        this.primary = primary;
+        if (primary) {
+            setEnabled(true);
+        } else if (pasteTarget.requiresOpenView() && Views.getActive() == null) {
+            setEnabled(false);
+        }
+    }
+
     @Override
     protected void onClick(ActionEvent e) {
         switch (retrieveClipboardImage()) {
-            case Success<BufferedImage, ?>(BufferedImage img) -> pasteTarget.paste(img);
+            case Success<BufferedImage, ?>(BufferedImage img) -> {
+                PasteTarget effectiveTarget =
+                    (primary && pasteTarget.requiresOpenView() && Views.getActive() == null)
+                        ? PasteTarget.NEW_IMAGE
+                        : pasteTarget;
+                effectiveTarget.paste(img);
+            }
             case Error<?, String>(String errorMsg) -> Messages.showInfo("Paste Error", errorMsg);
         }
     }
@@ -77,6 +97,8 @@ public class PasteAction extends NamedAction implements ViewActivationListener {
     @Override
     public void allViewsClosed() {
         assert pasteTarget.requiresOpenView();
-        setEnabled(false);
+        if (!primary) {
+            setEnabled(false);
+        }
     }
 }

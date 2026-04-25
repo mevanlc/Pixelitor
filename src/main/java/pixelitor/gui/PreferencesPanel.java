@@ -30,6 +30,7 @@ import pixelitor.guides.GuideStrokeType;
 import pixelitor.guides.GuideStyle;
 import pixelitor.history.History;
 import pixelitor.io.FileChoosers;
+import pixelitor.menus.MenuBar;
 import pixelitor.utils.*;
 
 import javax.swing.*;
@@ -60,6 +61,7 @@ public class PreferencesPanel extends JTabbedPane {
     private JComboBox<MouseZoomMethod> zoomMethodCB;
     private JComboBox<PanMethod> panMethodCB;
     private JCheckBox snapCB;
+    private JCheckBox swapPasteCB;
     private JTextField magickDirTF;
     private JTextField gmicDirTF;
     private JCheckBox nativeChoosersCB;
@@ -74,6 +76,7 @@ public class PreferencesPanel extends JTabbedPane {
 
         add("UI", createUIPanel());
         add("Mouse", createMousePanel());
+        add("Keyboard", createKeyboardPanel());
         add("Guides", createGuidesPanel());
         add("Advanced", createAdvancedPanel());
 
@@ -288,6 +291,27 @@ public class PreferencesPanel extends JTabbedPane {
         return mousePanel;
     }
 
+    private JPanel createKeyboardPanel() {
+        var keyboardPanel = new JPanel(new BorderLayout());
+        var contents = new JPanel(new GridBagLayout());
+        keyboardPanel.add(contents, BorderLayout.NORTH);
+
+        var gbh = new GridBagHelper(contents);
+
+        swapPasteCB = new JCheckBox("",
+            AppPreferences.getFlag(AppPreferences.FLAG_SWAP_PASTE_KEYS));
+        swapPasteCB.setName("swapPasteCB");
+        swapPasteCB.setToolTipText(
+            "<html>When checked: Ctrl/Cmd+V pastes as a new layer," +
+                "<br>and Ctrl/Cmd+Shift+V pastes as a new image." +
+                "<br>When unchecked: Ctrl/Cmd+V pastes as a new image," +
+                "<br>and Ctrl/Cmd+Shift+V pastes as a new layer.");
+        gbh.addLabelAndControl("Swap Paste Target (Image vs. Layer):", swapPasteCB);
+
+        keyboardPanel.setBorder(PANEL_PADDING);
+        return keyboardPanel;
+    }
+
     private static JPanel createGuidesPanel() {
         var guidesPanel = new JPanel(new GridBagLayout());
         var gbh = new GridBagHelper(guidesPanel);
@@ -407,6 +431,10 @@ public class PreferencesPanel extends JTabbedPane {
         boolean newSnapping = snapCB.isSelected();
         AppPreferences.setFlag(AppPreferences.FLAG_PIXEL_SNAP, newSnapping);
         View.snappingSettingChanged(newSnapping);
+
+        AppPreferences.setFlag(AppPreferences.FLAG_SWAP_PASTE_KEYS,
+            swapPasteCB.isSelected());
+        MenuBar.updatePasteAccelerators();
 
         FileChoosers.setUseNativeDialogs(nativeChoosersCB.isSelected());
         AppPreferences.setFlag(AppPreferences.FLAG_PREFER_RETINA_PASTE,

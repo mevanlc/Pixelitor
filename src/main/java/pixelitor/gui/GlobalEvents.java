@@ -78,6 +78,14 @@ public class GlobalEvents {
         registerHotkey(key, action, false);
     }
 
+    /**
+     * Registers a hotkey for an explicit {@link KeyStroke}.
+     * Useful when case sensitivity is needed (e.g. distinguishing 'r' from 'R').
+     */
+    public static void registerHotkey(KeyStroke keyStroke, Action action) {
+        hotKeyMap.put(keyStroke, action);
+    }
+
     private static void registerHotkey(char key, Action action, boolean caseSensitive) {
         if (!caseSensitive) {
             assert Character.isUpperCase(key) : "Non-case-sensitive keys must be uppercase";

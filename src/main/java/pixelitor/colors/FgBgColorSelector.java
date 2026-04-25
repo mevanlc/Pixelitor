@@ -193,7 +193,7 @@ public class FgBgColorSelector extends JLayeredPane {
         randomizeColorsAction = new TaskAction(this::randomizeColors);
 
         JButton randomizeButton = new JButton();
-        initButton(randomizeButton, "Randomize Colors (R)",
+        initButton(randomizeButton, "Randomize Colors (Shift+R)",
             SMALL_BUTTON_SIZE, 1, RANDOMIZE_BUTTON_NAME, randomizeColorsAction);
         randomizeButton.setLocation(2 * SMALL_BUTTON_SIZE, 0);
     }
@@ -321,7 +321,12 @@ public class FgBgColorSelector extends JLayeredPane {
     private void setupKeyboardShortcuts() {
         GlobalEvents.registerHotkey('D', resetToDefaultAction);
         GlobalEvents.registerHotkey('X', swapColorsAction);
-        GlobalEvents.registerHotkey('R', randomizeColorsAction);
+        // Only Shift+R triggers randomize; lowercase 'r' is reserved
+        // for activating the Rectangle Selection tool.
+        GlobalEvents.registerHotkey(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R,
+                java.awt.event.InputEvent.SHIFT_DOWN_MASK),
+            randomizeColorsAction);
     }
 
     /**

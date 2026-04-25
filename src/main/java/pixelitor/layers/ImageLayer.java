@@ -654,6 +654,110 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     /**
+     * Applies one drag segment in "brush" trail mode: extends this layer's
+     * image to accommodate the segment, copies the existing cumulative
+     * content, and stamps the immutable {@code snapshot} at every integer
+     * sub-position from drag delta {@code (prevDx, prevDy)} (exclusive) to
+     * {@code (curDx, curDy)} (inclusive).
+     * <p>
+     * {@code (snapshotOrigTx, snapshotOrigTy)} is the canvas position of the
+     * snapshot's column 0 / row 0 at drag start (drag delta zero).
+     */
+    public void applyBrushSegment(BufferedImage snapshot,
+                                  int snapshotOrigTx, int snapshotOrigTy,
+                                  int prevDx, int prevDy, int curDx, int curDy) {
+        int stepDx = curDx - prevDx;
+        int stepDy = curDy - prevDy;
+        if (stepDx == 0 && stepDy == 0) {
+            return;
+        }
+
+        int oldW = image.getWidth();
+        int oldH = image.getHeight();
+        int newW = oldW + Math.abs(stepDx);
+        int newH = oldH + Math.abs(stepDy);
+
+        // place the existing cumulative content in the side opposite the motion
+        int oldContentX = Math.max(0, stepDx);
+        int oldContentY = Math.max(0, stepDy);
+
+        BufferedImage newImg = createEmptyLayerImage(newW, newH);
+        int newTx = getTx() + Math.min(0, stepDx);
+        int newTy = getTy() + Math.min(0, stepDy);
+
+        Graphics2D g = newImg.createGraphics();
+        try {
+            g.drawImage(image, oldContentX, oldContentY, null);
+
+            int absStepDx = Math.abs(stepDx);
+            int absStepDy = Math.abs(stepDy);
+            int subSteps = Math.max(absStepDx, absStepDy);
+            for (int i = 1; i <= subSteps; i++) {
+                int dx = prevDx + (int) Math.round((double) stepDx * i / subSteps);
+                int dy = prevDy + (int) Math.round((double) stepDy * i / subSteps);
+                int drawX = snapshotOrigTx + dx - newTx;
+                int drawY = snapshotOrigTy + dy - newTy;
+                g.drawImage(snapshot, drawX, drawY, null);
+            }
+        } finally {
+            g.dispose();
+        }
+
+        setTranslation(newTx, newTy);
+        setImage(newImg);
+    }
+
+    /**
+     * Replaces this layer's image with a "trail" rendering: the original image
+     * (snapshotted at drag start) is drawn at every integer-pixel position along
+     * the drag path from (0,0) to (totalDx, totalDy). The cumulative result
+     * leaves a trail of the original image content along the drag path.
+     * <p>
+     * The new image grows by {@code (|totalDx|, |totalDy|)}; translation shifts
+     * by {@code (min(0, totalDx), min(0, totalDy))} so the trail extends in
+     * the direction opposite the drag.
+     */
+    public void applyTrailMove(BufferedImage origImage, int origTx, int origTy,
+                               int totalDx, int totalDy) {
+        int origW = origImage.getWidth();
+        int origH = origImage.getHeight();
+        int newW = origW + Math.abs(totalDx);
+        int newH = origH + Math.abs(totalDy);
+
+        BufferedImage newImg = createEmptyLayerImage(newW, newH);
+        Graphics2D g = newImg.createGraphics();
+        try {
+            int absDx = Math.abs(totalDx);
+            int absDy = Math.abs(totalDy);
+            int steps = Math.max(absDx, absDy);
+
+            // The original image at drag delta (0, 0) lives at this offset
+            // within the new buffer (the side opposite the drag direction).
+            int baseX = -Math.min(0, totalDx); // = max(0, -totalDx)
+            int baseY = -Math.min(0, totalDy);
+
+            if (steps == 0) {
+                g.drawImage(origImage, baseX, baseY, null);
+            } else {
+                // Walk the integer path from (0,0) to (totalDx, totalDy) and
+                // draw the original image at every sub-step.
+                for (int i = 0; i <= steps; i++) {
+                    int subDx = (int) Math.round((double) totalDx * i / steps);
+                    int subDy = (int) Math.round((double) totalDy * i / steps);
+                    g.drawImage(origImage, baseX + subDx, baseY + subDy, null);
+                }
+            }
+        } finally {
+            g.dispose();
+        }
+
+        int newTx = origTx + Math.min(0, totalDx);
+        int newTy = origTy + Math.min(0, totalDy);
+        setTranslation(newTx, newTy);
+        setImage(newImg);
+    }
+
+    /**
      * Enlarges the image so that it covers the canvas completely.
      */
     private void enlargeImage(Rectangle canvasBounds) {

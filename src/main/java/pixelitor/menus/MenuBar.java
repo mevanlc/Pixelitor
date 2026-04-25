@@ -119,6 +119,10 @@ public class MenuBar extends JMenuBar {
     private final PixelitorWindow pw;
     private final ResourceBundle i18n;
 
+    // tracked so the paste accelerators can be swapped at runtime
+    private static JMenuItem pasteAsNewImageItem;
+    private static JMenuItem pasteAsNewLayerItem;
+
     public MenuBar(PixelitorWindow pw) {
         this.pw = pw;
         i18n = Texts.getResources();
@@ -139,6 +143,27 @@ public class MenuBar extends JMenuBar {
         add(createHelpMenu());
 
         Filters.finishedRegistering();
+    }
+
+    private static void applyPasteAccelerators() {
+        boolean swap = AppPreferences.getFlag(AppPreferences.FLAG_SWAP_PASTE_KEYS);
+        pasteAsNewImageItem.setAccelerator(swap ? CTRL_SHIFT_V : CTRL_V);
+        pasteAsNewLayerItem.setAccelerator(swap ? CTRL_V : CTRL_SHIFT_V);
+
+        // The action bound to Cmd/Ctrl+V is "primary": it stays enabled
+        // even when no document is open and falls back to paste-as-new-image.
+        ((PasteAction) pasteAsNewImageItem.getAction()).setPrimary(!swap);
+        ((PasteAction) pasteAsNewLayerItem.getAction()).setPrimary(swap);
+    }
+
+    /**
+     * Refreshes the paste menu accelerators based on the current
+     * {@link AppPreferences#FLAG_SWAP_PASTE_KEYS} preference.
+     */
+    public static void updatePasteAccelerators() {
+        if (pasteAsNewImageItem != null && pasteAsNewLayerItem != null) {
+            applyPasteAccelerators();
+        }
     }
 
     private JMenu createFileMenu() {
@@ -260,11 +285,11 @@ public class MenuBar extends JMenuBar {
         editMenu.add(CopyAction.COPY_COMPOSITE, CTRL_SHIFT_C);
 
         // paste
-        var pasteAsNewImage = new PasteAction(PasteTarget.NEW_IMAGE);
-        editMenu.add(pasteAsNewImage, CTRL_V);
-
-        var pasteAsNewLayer = new PasteAction(PasteTarget.NEW_LAYER);
-        editMenu.add(pasteAsNewLayer, CTRL_SHIFT_V);
+        pasteAsNewImageItem = new JMenuItem(new PasteAction(PasteTarget.NEW_IMAGE));
+        pasteAsNewLayerItem = new JMenuItem(new PasteAction(PasteTarget.NEW_LAYER));
+        applyPasteAccelerators();
+        editMenu.add(pasteAsNewImageItem);
+        editMenu.add(pasteAsNewLayerItem);
 
         var pasteAsMask = new PasteAction(PasteTarget.MASK);
         editMenu.add(pasteAsMask, CTRL_ALT_V);
@@ -709,7 +734,7 @@ public class MenuBar extends JMenuBar {
 
         sub.add(FOREGROUND.asFillFilterAction(), ALT_BACKSPACE);
         sub.add(BACKGROUND.asFillFilterAction(), CTRL_BACKSPACE);
-        sub.add(TRANSPARENT.asFillFilterAction());
+        sub.add(TRANSPARENT.asFillFilterAction(), BACKSPACE);
 
         sub.addFilter(ColorWheel.NAME, ColorWheel::new);
         sub.addFilter(JHFourColorGradient.NAME, JHFourColorGradient::new);

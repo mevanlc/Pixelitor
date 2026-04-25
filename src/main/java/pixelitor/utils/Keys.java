@@ -105,6 +105,7 @@ public class Keys {
     public static final KeyStroke ACTUAL_PIXELS_KEY = getKeyStroke(VK_0, CTRL);
 
     public static final KeyStroke DELETE = getKeyStroke(VK_DELETE, 0);
+    public static final KeyStroke BACKSPACE = getKeyStroke(VK_BACK_SPACE, 0);
     public static final KeyStroke CTRL_BACKSPACE = getKeyStroke(VK_BACK_SPACE, CTRL);
     public static final KeyStroke ALT_BACKSPACE = getKeyStroke(VK_BACK_SPACE, ALT);
 

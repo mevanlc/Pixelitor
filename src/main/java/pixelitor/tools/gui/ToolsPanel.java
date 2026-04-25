@@ -55,6 +55,7 @@ public class ToolsPanel extends JPanel {
         add(colorSelector, BorderLayout.SOUTH);
 
         setupTShortCut();
+        setupRShortCut();
     }
 
     private static int calcHeightHint(PixelitorWindow pw, JComponent colorSelector, Dimension buttonSize) {
@@ -113,6 +114,19 @@ public class ToolsPanel extends JPanel {
         // There is no text tool, but pressing T should add a text layer.
         // In the menu it was added using T, not t.
         GlobalEvents.registerHotkey('T', AddTextLayerAction.INSTANCE);
+    }
+
+    private static void setupRShortCut() {
+        // Lowercase 'r' (no modifiers) activates the Rectangle Selection tool.
+        // Shift+R is used by FgBgColorSelector for "Randomize Colors".
+        Action activateRectSelect = new TaskAction(() -> {
+            if (Tools.activeTool != Tools.RECTANGLE_SELECTION) {
+                Tools.RECTANGLE_SELECTION.activate();
+            }
+        });
+        GlobalEvents.registerHotkey(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, 0),
+            activateRectSelect);
     }
 
     private static Dimension calcToolButtonSize(Dimension screen, PixelitorWindow pw) {
