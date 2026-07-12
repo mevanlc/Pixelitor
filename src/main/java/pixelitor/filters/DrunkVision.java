@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -19,9 +19,9 @@ package pixelitor.filters;
 
 import net.jafama.FastMath;
 import pixelitor.filters.gui.RangeParam;
+import pixelitor.progress.StatusBarProgressTracker;
 import pixelitor.utils.Geometry;
 import pixelitor.utils.ImageUtils;
-import pixelitor.utils.StatusBarProgressTracker;
 
 import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
@@ -68,7 +68,7 @@ public class DrunkVision extends ParametrizedFilter {
 
         Graphics2D g = dest.createGraphics();
 
-        Random rand = paramSet.getLastSeedRandom();
+        Random rand = paramSet.getRandomWithLastSeed();
 
         int maxDistance = (int) (drunkenness.getPercentage() * 0.2 * (src.getWidth() + src.getHeight()));
 

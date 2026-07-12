@@ -34,7 +34,6 @@ import static java.awt.Color.BLACK;
 import static java.awt.Color.GRAY;
 import static java.awt.Color.WHITE;
 import static java.util.stream.Collectors.joining;
-import static pixelitor.filters.gui.RandomizeMode.ALLOW_RANDOMIZE;
 
 /**
  * Represents a gradient.
@@ -55,7 +54,7 @@ public class GradientParam extends AbstractFilterParam {
 
     public GradientParam(String name, float[] defaultThumbPositions,
                          Color[] defaultColors) {
-        this(name, defaultThumbPositions, defaultColors, ALLOW_RANDOMIZE);
+        this(name, defaultThumbPositions, defaultColors, RandomizeMode.ALLOW);
     }
 
     public GradientParam(String name, float[] defaultThumbPositions,
@@ -259,14 +258,14 @@ public class GradientParam extends AbstractFilterParam {
         }
 
         @Override
-        public String toSaveString() {
+        public String toPresetString() {
             String thumbsString = IntStream.range(0, thumbPositions.length)
                 .mapToDouble(i -> thumbPositions[i])
                 .mapToObj(d -> String.format(Locale.ROOT, "%.2f", d))
                 .collect(joining(",", "", "|"));
 
             String colorsString = Stream.of(colors)
-                .map(c -> Colors.toHTMLHex(c, true))
+                .map(c -> Colors.toHtmlHex(c, true))
                 .collect(joining(","));
 
             return thumbsString + colorsString;

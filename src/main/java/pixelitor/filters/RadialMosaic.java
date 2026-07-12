@@ -19,8 +19,8 @@ package pixelitor.filters;
 
 import pixelitor.filters.gui.*;
 import pixelitor.gui.utils.SliderSpinner;
-import pixelitor.utils.ProgressTracker;
-import pixelitor.utils.StatusBarProgressTracker;
+import pixelitor.progress.ProgressTracker;
+import pixelitor.progress.StatusBarProgressTracker;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -62,10 +62,10 @@ public class RadialMosaic extends ParametrizedFilter {
         FilterButtonModel reseedAction = paramSet.createReseedAction("", "Reseed Randomness");
 
         // enable the reseed randomness button only if randomness > 0
-        randomnessParam.setupEnableOtherIfNotZero(reseedAction);
+        randomnessParam.enableOtherWhenNotZero(reseedAction);
 
         // enable edge color selection only if edge width > 0
-        edgeWidth.setupEnableOtherIfNotZero(edgeColor);
+        edgeWidth.enableOtherWhenNotZero(edgeColor);
 
         initParams(
             center,
@@ -104,7 +104,7 @@ public class RadialMosaic extends ParametrizedFilter {
         double cy = center.getRelativeY() * height;
         int arrangement = arrangementParam.getValue();
 
-        Random random = paramSet.getLastSeedRandom();
+        Random random = paramSet.getRandomWithLastSeed();
         double randomness = randomnessParam.getPercentage();
         double pinchBulge = pinchBulgeParam.getPercentage();
         double spiral = spiralParam.getPercentage();

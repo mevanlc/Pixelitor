@@ -17,6 +17,7 @@
 
 package pixelitor.filters;
 
+import pixelitor.colors.ColorSpaces;
 import pixelitor.filters.gui.EnumParam;
 import pixelitor.filters.gui.GroupedRangeParam;
 import pixelitor.filters.gui.IntChoiceParam;
@@ -24,7 +25,10 @@ import pixelitor.filters.gui.RangeParam;
 import pixelitor.filters.lookup.RGBLookup;
 import pixelitor.filters.util.ColorSpace;
 import pixelitor.gui.GUIText;
-import pixelitor.utils.*;
+import pixelitor.progress.StatusBarProgressTracker;
+import pixelitor.progress.SubtaskProgressTracker;
+import pixelitor.utils.Dithering;
+import pixelitor.utils.ImageUtils;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
@@ -62,7 +66,7 @@ public class Posterize extends ParametrizedFilter {
     public Posterize() {
         super(true);
 
-        ditheringAmountParam.setupEnableOtherIfNotZero(ditheringMethodParam);
+        ditheringAmountParam.enableOtherWhenNotZero(ditheringMethodParam);
 
         initParams(
             colorSpace,
@@ -71,7 +75,7 @@ public class Posterize extends ParametrizedFilter {
             ditheringMethodParam
         );
 
-        colorSpace.addOnChangeTask(this::updateChannelSliderLabels);
+        colorSpace.addSelectionListener(this::updateChannelSliderLabels);
     }
 
     private void updateChannelSliderLabels() {
@@ -177,7 +181,7 @@ public class Posterize extends ParametrizedFilter {
         for (int i = 0; i < numPixels; i++) {
             int inRGB = inputPixels[i];
             // always get the alpha from the original, unmodified source image
-            int alpha = srcPixels[i] & 0xFF000000;
+            int alpha = srcPixels[i] & 0xFF_00_00_00;
 
             float[] oklab = ColorSpaces.srgbToOklab(inRGB);
 
@@ -227,7 +231,7 @@ public class Posterize extends ParametrizedFilter {
         }
         float range = max - min;
 
-        // prevent division by zero.
+        // prevent division by zero
         if (range == 0.0f) {
             return min;
         }
@@ -235,7 +239,7 @@ public class Posterize extends ParametrizedFilter {
         // normalize value to 0-1 range
         float normalizedValue = (value - min) / range;
         // clamp to handle out-of-gamut values and ensure it's < 1.0 for level calculation
-        normalizedValue = Math.max(0.0f, Math.min(normalizedValue, 0.999999f));
+        normalizedValue = Math.clamp(normalizedValue, 0.0f, 0.999999f);
 
         // find the discrete level, an integer from 0 to numLevels-1
         int level = (int) (normalizedValue * numLevels);

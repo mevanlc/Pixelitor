@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -65,27 +65,10 @@ import java.util.function.Supplier;
 
 import static java.awt.event.KeyEvent.*;
 import static java.lang.String.format;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static pixelitor.guitest.GUITestUtils.checkRandomly;
-import static pixelitor.guitest.GUITestUtils.chooseRandomly;
-import static pixelitor.guitest.GUITestUtils.slideRandomly;
-import static pixelitor.tools.Tools.BRUSH;
-import static pixelitor.tools.Tools.CLONE;
-import static pixelitor.tools.Tools.CROP;
-import static pixelitor.tools.Tools.ERASER;
-import static pixelitor.tools.Tools.HAND;
-import static pixelitor.tools.Tools.MOVE;
-import static pixelitor.tools.Tools.PEN;
-import static pixelitor.tools.Tools.SHAPES;
-import static pixelitor.tools.Tools.ZOOM;
-import static pixelitor.tools.Tools.getRandomTool;
-import static pixelitor.utils.Threads.callInfo;
-import static pixelitor.utils.Threads.calledOn;
-import static pixelitor.utils.Threads.calledOnEDT;
-import static pixelitor.utils.Threads.calledOutsideEDT;
-import static pixelitor.utils.Threads.threadName;
+import static java.util.concurrent.TimeUnit.*;
+import static pixelitor.guitest.GUITestUtils.*;
+import static pixelitor.tools.Tools.*;
+import static pixelitor.utils.Threads.*;
 import static pixelitor.utils.test.RandomGUITest.EXIT_KEY_CHAR;
 import static pixelitor.utils.test.RandomGUITest.PAUSE_KEY_CHAR;
 
@@ -143,7 +126,7 @@ public class RandomToolTest {
         EDT.run(this::setupPauseKey);
         EDT.run(this::setupExitKey);
 
-        app = new AppRunner(null, inputDir, null, "b.jpg", "a.jpg");
+        app = new AppRunner(null, this::log, inputDir, null, "b.jpg", "a.jpg");
         keyboard = app.getKeyboard();
         mouse = app.getMouse();
         ExceptionHandler.INSTANCE.prependHandler((t, e) -> {
@@ -294,9 +277,6 @@ public class RandomToolTest {
             paused = true;
 
             throw e;
-//        } catch (RuntimeException e) {
-//            e.printStackTrace();
-//            Utils.sleep(1, HOURS);
         }
     }
 
@@ -376,11 +356,11 @@ public class RandomToolTest {
             addClickAction();
         }
 
-        addAction(this::doubleClick, "doubleClick");
-        addAction(this::pressEnter, "pressEnter");
-        addAction(this::pressEsc, "pressEsc");
-        addAction(this::pressTab, "pressTab");
-        addAction(this::pressCtrlTab, "pressCtrlTab");
+        addAction(mouse::randomDoubleClick, "doubleClick");
+        addAction(keyboard::pressEnter, "pressEnter");
+        addAction(keyboard::pressEsc, "pressEsc");
+        addAction(keyboard::pressTab, "pressTab");
+        addAction(keyboard::pressCtrlTab, "pressCtrlTab");
         addAction(this::nudge, "nudge");
         addAction(this::possiblyUndoRedo, "possiblyUndoRedo");
         addAction(this::randomMultiLayerEdit, "randomMultiLayerEdit");
@@ -400,7 +380,7 @@ public class RandomToolTest {
 
     private void addClickAction() {
         actions.add(new MeasuredTask(() ->
-            click(Modifiers.randomly(new Random()))));
+            mouse.randomClick(Modifiers.randomly(new Random()))));
     }
 
     private void randomActions(Tool tool) {
@@ -426,26 +406,6 @@ public class RandomToolTest {
         }
     }
 
-    private void pressEnter() {
-        log("pressing Enter");
-        keyboard.pressEnter();
-    }
-
-    private void pressEsc() {
-        log("pressing Esc");
-        keyboard.pressEsc();
-    }
-
-    private void pressCtrlTab() {
-        log("pressing Ctrl-Tab");
-        keyboard.pressCtrlTab();
-    }
-
-    private void pressTab() {
-        log("pressing Tab");
-        keyboard.pressTab();
-    }
-
     private void nudge() {
         ArrowKey randomArrowKey = Rnd.chooseFrom(arrowKeys);
         log("nudging: " + randomArrowKey);
@@ -457,7 +417,7 @@ public class RandomToolTest {
         Tool tool = EDT.call(Tools::getActive);
         log("cleaning up after " + tool.getName());
 
-        if (EDT.getActiveSelection() != null) {
+        if (EDT.hasActiveSelection()) {
             Rnd.runWithProbability(this::deselect, 0.2);
         }
 
@@ -468,7 +428,7 @@ public class RandomToolTest {
         } else if (tool == PEN) {
             // prevent paths getting too large
             log("removing the path");
-            Rnd.runWithProbability(() -> EDT.run(PEN::removePath), 0.5);
+            Rnd.runWithProbability(() -> EDT.run(() -> PEN.removePath(true)), 0.5);
         }
 
         Rnd.runWithProbability(this::reload, 0.05);
@@ -573,21 +533,6 @@ public class RandomToolTest {
         }
     }
 
-    private String click(Modifiers modifiers) {
-        String name = "random " + Debug.modifiersToString(modifiers, false) + "click";
-        log(name);
-
-        Utils.sleep(200, MILLISECONDS);
-        mouse.randomClick(modifiers);
-        return name;
-    }
-
-    private void doubleClick() {
-        log("random double click");
-        Utils.sleep(200, MILLISECONDS);
-        mouse.randomDoubleClick();
-    }
-
     private void undo() {
         String editName = EDT.call(History::getEditToBeUndoneName);
         log("random undo " + Ansi.yellow(editName));
@@ -625,7 +570,7 @@ public class RandomToolTest {
         toolInfo += (" [" + stateInfo + "]");
 
         String printed = Ansi.red(testNr + ".") + " " + Ansi.blue(toolInfo + ": ") + msg;
-        if (EDT.getActiveSelection() != null) {
+        if (EDT.hasActiveSelection()) {
             printed += Ansi.red(" SEL");
         }
         if (EDT.queryActiveComp(Composition::getDraftSelection) != null) {
@@ -673,8 +618,7 @@ public class RandomToolTest {
         log("layers to canvas size");
         Utils.sleep(200, MILLISECONDS);
 
-        EDT.run(() -> Views.onActiveComp(
-            Composition::allImageLayersToCanvasSize));
+        EDT.run(() -> Views.getActiveComp().cropAllImageLayersToCanvasSize());
     }
 
     private void flattenImage() {

@@ -61,10 +61,7 @@ import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
-import static pixelitor.tools.DragToolState.AFTER_FIRST_MOUSE_PRESS;
-import static pixelitor.tools.DragToolState.IDLE;
-import static pixelitor.tools.DragToolState.INITIAL_DRAG;
-import static pixelitor.tools.DragToolState.TRANSFORM;
+import static pixelitor.tools.DragToolState.*;
 import static pixelitor.tools.shapes.TwoPointPaintType.FOREGROUND;
 import static pixelitor.tools.shapes.TwoPointPaintType.NONE;
 
@@ -434,13 +431,12 @@ public class ShapesTool extends DragTool {
 
     @Override
     public void altPressed() {
-        if (!altDown && state == INITIAL_DRAG && drag.isDragging() && !drag.isClick()) {
+        if (state == INITIAL_DRAG && drag.isDragging() && !drag.isClick()) {
             assert hasStyledShape();
             styledShape.updateFromDrag(drag, true, false);
 
             Views.getActiveLayer().update();
         }
-        altDown = true;
     }
 
     @Override
@@ -453,16 +449,35 @@ public class ShapesTool extends DragTool {
 
             Views.getActiveLayer().update();
         }
-        altDown = false;
     }
 
     @Override
     public void escPressed() {
-        // pressing Esc should work similarly to the Gradient Tool,
-        // or to clicking outside the transform box:
-        // the handles disappear, but the effect remains
+        // cancel the Drag and wipe the measurement overlay
+        super.escPressed();
+
         if (state == TRANSFORM && !isEditingShapesLayer()) {
-            Views.onActiveComp(this::rasterize);
+            // pressing Esc should work similarly to the Gradient Tool,
+            // or to clicking outside the transform box:
+            // the handles disappear, but the effect remains
+            Composition comp = Views.getActiveComp();
+            if (comp != null) {
+                rasterize(comp);
+            }
+        } else if (state == INITIAL_DRAG || state == AFTER_FIRST_MOUSE_PRESS) {
+            // abort the in-progress shape drawing
+            setIdleState();
+
+            // if we were drawing onto an empty shapes layer, detach the canceled shape
+            if (isEditingShapesLayer()) {
+                shapesLayer.setStyledShape(null);
+            }
+
+            // make the canceled shape disappear immediately
+            View view = Views.getActive();
+            if (view != null) {
+                view.getComp().getActiveLayer().update();
+            }
         }
     }
 
@@ -496,8 +511,8 @@ public class ShapesTool extends DragTool {
     }
 
     /**
-     * After this method the shape becomes part of the {@link Drawable}'s
-     * pixels (before it was only drawn above it).
+     * After calling this method the shape becomes part of the
+     * {@link Drawable}'s pixels (before it was only drawn above it).
      */
     private void rasterize(Composition comp) {
         assert hasBox();
@@ -650,12 +665,12 @@ public class ShapesTool extends DragTool {
     }
 
     @Override
-    public void editingTargetChanged(Layer activeLayer) {
+    public void editingTargetChanged(Layer activeLayer, boolean toolActivation) {
         layerActivated(activeLayer);
     }
 
     /**
-     * Restores a previously removed transform box as part of an undo/redo operation
+     * Restores a previously removed transform box as part of an undo/redo operation.
      */
     public void restoreBox(StyledShape shape, TransformBox box) {
         assert box.getTarget() == shape;
@@ -705,8 +720,8 @@ public class ShapesTool extends DragTool {
             shapesLayer.updateIconImage();
         }
 
-        FgBgColors.setFGColor(styledShape.getFgColor(), false);
-        FgBgColors.setBGColor(styledShape.getBgColor(), false);
+        FgBgColors.setFgColor(styledShape.getFgColor(), false);
+        FgBgColors.setBgColor(styledShape.getBgColor(), false);
 
         updateUIFromShape(styledShape);
     }
@@ -805,7 +820,7 @@ public class ShapesTool extends DragTool {
     }
 
     @Override
-    public boolean allowOnlyDrawables() {
+    public boolean requiresDrawables() {
         return true;
     }
 
@@ -831,15 +846,6 @@ public class ShapesTool extends DragTool {
 
     private boolean isEditingShapesLayer() {
         return shapesLayer != null;
-    }
-
-    @Override
-    protected void toolActivated(View view) {
-        super.toolActivated(view);
-
-        if (view != null) {
-            layerActivated(view.getComp().getActiveLayer());
-        }
     }
 
     @Override

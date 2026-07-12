@@ -216,7 +216,7 @@ public final class GUIUtils {
      * Prevents the given dialog from closing when the user
      * clicks the X button, and instead triggers the given action.
      */
-    public static void setupCloseAction(JDialog d, Runnable action) {
+    public static void installCloseHandler(JDialog d, Runnable action) {
         d.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         d.addWindowListener(new WindowAdapter() {
             @Override
@@ -230,9 +230,9 @@ public final class GUIUtils {
      * Registers the given action to be run when the
      * escape key is pressed in the given dialog.
      */
-    public static void setupEscAction(JDialog d, Runnable action) {
+    public static void installEscHandler(JDialog d, Runnable action) {
         JComponent contentPane = (JComponent) d.getContentPane();
-        contentPane.registerKeyboardAction(e -> action.run(),
+        contentPane.registerKeyboardAction(_ -> action.run(),
             ESC, WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
     }
 
@@ -265,18 +265,18 @@ public final class GUIUtils {
             timer.schedule(startBusyCursorTask, delay);
             task.run(); // on this thread!
         } finally {
-            // reset the cursor when the original task has stopped running
+            // reset the cursor after the task completes
             timer.cancel();
             parent.setCursor(DEFAULT);
         }
     }
 
-    public static void synchronizeScrollPanes(JScrollPane from, JScrollPane to) {
-        var sharedVerticalModel = from.getVerticalScrollBar().getModel();
-        to.getVerticalScrollBar().setModel(sharedVerticalModel);
+    public static void synchronizeScrollPanes(JScrollPane first, JScrollPane second) {
+        var sharedVerticalModel = first.getVerticalScrollBar().getModel();
+        second.getVerticalScrollBar().setModel(sharedVerticalModel);
 
-        var sharedHorizontalModel = from.getHorizontalScrollBar().getModel();
-        to.getHorizontalScrollBar().setModel(sharedHorizontalModel);
+        var sharedHorizontalModel = first.getHorizontalScrollBar().getModel();
+        second.getHorizontalScrollBar().setModel(sharedHorizontalModel);
     }
 
     /**
@@ -306,7 +306,7 @@ public final class GUIUtils {
             @Override
             public void actionPerformed(ActionEvent e) {
                 try {
-                    openFileInFolder(file);
+                    revealFileInFolder(file);
                 } catch (IOException ex) {
                     Messages.showException(ex);
                 }
@@ -314,7 +314,7 @@ public final class GUIUtils {
         };
     }
 
-    private static void openFileInFolder(File file) throws IOException {
+    private static void revealFileInFolder(File file) throws IOException {
         // this line should work in a platform-independent way, but
         // https://bugs.openjdk.java.net/browse/JDK-8233994
         // Desktop.getDesktop().browseFileDirectory(file);
@@ -340,6 +340,8 @@ public final class GUIUtils {
         }
     }
 
+    // platform support for file printing must be checked before calling this,
+    // because the corresponding menu item should not be created if not supported
     public static Action createPrintFileAction(Composition comp,
                                                File file, Component parent) {
         return new TaskAction("Print...", () -> {
@@ -350,7 +352,7 @@ public final class GUIUtils {
                     "Do you want to save your changes now?";
 
                 String[] options = {"Save and Print", GUIText.CANCEL};
-                boolean saveAndPrint = Dialogs.showOKCancelDialog(parent, msg,
+                boolean saveAndPrint = Dialogs.showOKCancelQuestion(parent, msg,
                     "Unsaved Changes", options, 0, QUESTION_MESSAGE);
                 if (!saveAndPrint) {
                     return;
@@ -424,22 +426,22 @@ public final class GUIUtils {
     }
 
     public static void removeAllMouseListeners(JComponent c) {
-        MouseListener[] mouseListeners = c.getMouseListeners();
-        for (MouseListener mouseListener : mouseListeners) {
-            c.removeMouseListener(mouseListener);
+        MouseListener[] listeners = c.getMouseListeners();
+        for (MouseListener listener : listeners) {
+            c.removeMouseListener(listener);
         }
     }
 
-    public static void replaceMouseListeners(JComponent c, MouseListener newMouseListener) {
+    public static void replaceMouseListeners(JComponent c, MouseListener newListener) {
         removeAllMouseListeners(c);
-        c.addMouseListener(newMouseListener);
+        c.addMouseListener(newListener);
     }
 
     public static JCheckBox createLinkCheckBox(Linkable linkable) {
         JCheckBox linkedCB = new JCheckBox();
         linkedCB.setModel(linkable.getLinkedModel());
         linkedCB.setToolTipText(linkable.createLinkedToolTip());
-        linkedCB.addActionListener(e -> linkable.setLinked(linkedCB.isSelected()));
+        linkedCB.addActionListener(_ -> linkable.setLinked(linkedCB.isSelected()));
         return linkedCB;
     }
 

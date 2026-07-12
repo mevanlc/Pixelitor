@@ -19,7 +19,7 @@ package pixelitor.layers;
 
 import pixelitor.AppMode;
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.Views;
 import pixelitor.compactions.Crop;
 import pixelitor.compactions.FlipDirection;
@@ -78,15 +78,15 @@ public class ShapesLayer extends ContentLayer {
     }
 
     @Override
-    public boolean edit() {
+    public boolean showEditUI() {
         // shapes layers are edited using the shapes tool
         Tools.SHAPES.activate();
         return true;
     }
 
     @Override
-    protected ShapesLayer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
-        String duplicateName = copyType.createLayerCopyName(name);
+    protected ShapesLayer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
+        String duplicateName = options.createLayerCopyName(name);
         var duplicate = new ShapesLayer(newComp, duplicateName);
 
         if (styledShape != null) {
@@ -94,7 +94,6 @@ public class ShapesLayer extends ContentLayer {
             if (transformBox != null) {
                 View view = comp.getView();
                 if (view != null) {
-                    // can't be copied without a view
                     transformBox.reInitialize(view, styledShape);
                 }
 
@@ -109,10 +108,10 @@ public class ShapesLayer extends ContentLayer {
         if (styledShape == null) {
             return;
         }
-        // the custom blending modes don't work with gradients
-        boolean useCachedImage = g.getComposite().getClass() != AlphaComposite.class
+        // the custom blending modes don't work with shape-filling gradients
+        boolean needsCache = g.getComposite().getClass() != AlphaComposite.class
             && styledShape.hasBlendingIssue();
-        if (useCachedImage) {
+        if (needsCache) {
             if (cachedImage == null) {
                 cachedImage = ImageUtils.createSysCompatibleImage(comp.getCanvas());
                 Graphics2D imgG = cachedImage.createGraphics();
@@ -162,7 +161,7 @@ public class ShapesLayer extends ContentLayer {
         Graphics2D g2 = img.createGraphics();
 
         if (styledShape == null) {
-            Thumbnails.paintBackground(g2, thumbCheckerBoardPainter);
+            Thumbnails.paintBackground(g2, thumbCheckerboardPainter);
         } else {
             styledShape.paintIconThumbnail(g2);
         }
@@ -193,8 +192,15 @@ public class ShapesLayer extends ContentLayer {
     }
 
     @Override
+    public void rotate(double angleRadians, boolean layerTransform) {
+        var center = comp.getCanvas().getImCenter();
+        transform(AffineTransform.getRotateInstance(
+            angleRadians, center.getX(), center.getY()));
+    }
+
+    @Override
     public void enlargeCanvas(Outsets out) {
-        transform(AffineTransform.getTranslateInstance(out.left, out.top));
+        transform(out.getTopLeftTranslation());
     }
 
     /**
@@ -244,7 +250,7 @@ public class ShapesLayer extends ContentLayer {
         // register a listener to invalidate the layer's
         // image cache when the styled shape changes
         if (styledShape != null) {
-            styledShape.setChangeListener(() -> cachedImage = null);
+            styledShape.setShapeChangeListener(() -> cachedImage = null);
         } else {
             cachedImage = null; // clear the cache if the shape is removed
         }
@@ -306,8 +312,8 @@ public class ShapesLayer extends ContentLayer {
         super.update();
 
         // TODO currently updateIconImage() of ShapesLayer is
-        //  called only when the icon really changes.
-        //  This must change when multiple shapes are allowed.
+        //  called only when the icon actually changes.
+        //  This must change when support for multiple shapes is added.
         if (holder != comp) {
             ((CompositeLayer) holder).updateIconImage();
         }

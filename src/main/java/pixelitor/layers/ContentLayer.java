@@ -102,6 +102,7 @@ public abstract class ContentLayer extends Layer {
 
     /**
      * Returns the rectangle representing the content, relative to the canvas.
+     * Can return null, for example for {@link GradientFillLayer}s and for uninitialized {@link ShapesLayer}s.
      */
     public Rectangle getContentBounds() {
         return getContentBounds(true);
@@ -118,7 +119,7 @@ public abstract class ContentLayer extends Layer {
     /**
      * Finds the topmost opaque layer at a given image-space point.
      * For simple content layers, this method checks the layer itself.
-     * For layer groups, this method can descend into child layers.
+     * Subclasses like layer groups may override this to descend into child layers.
      */
     public ContentLayer findOpaqueLayerAtPoint(Point p) {
         // a small opacity makes the layer effectively invisible for hit-testing
@@ -180,9 +181,9 @@ public abstract class ContentLayer extends Layer {
      * Programmatically sets the translation, bypassing layer
      * enlargement checks and without affecting linked layers.
      */
-    public void setTranslation(int x, int y) {
-        translationX = x;
-        translationY = y;
+    public void setTranslation(int tx, int ty) {
+        translationX = tx;
+        translationY = ty;
     }
 
     @Override
@@ -220,6 +221,14 @@ public abstract class ContentLayer extends Layer {
      * Rotates the layer content by a multiple of 90 degrees.
      */
     public abstract void rotate(QuadrantAngle angle, boolean layerTransform);
+
+    /**
+     * Rotates the layer content by an arbitrary angle (in radians).
+     */
+    public void rotate(double angleRadians, boolean layerTransform) {
+        throw new UnsupportedOperationException(getClass().getSimpleName()
+            + " does not support arbitrary-angle rotation.");
+    }
 
     /**
      * Adjusts the layer content in response to canvas enlargement.

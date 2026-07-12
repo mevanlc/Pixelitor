@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,6 +17,8 @@
 
 package pixelitor.tools.selection;
 
+import pixelitor.AppMode;
+import pixelitor.gui.GlobalEvents;
 import pixelitor.selection.SelectionType;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.util.PMouseEvent;
@@ -31,6 +33,7 @@ import java.util.function.Consumer;
 public class MarqueeSelectionTool extends AbstractSelectionTool {
     private final SelectionType selectionType;
 
+    // the rectangle and ellipse selection tools share the 'M' hotkey, with cycling
     public MarqueeSelectionTool(SelectionType selectionType) {
         super(selectionType.toString() + " Selection", 'M',
             "<b>click and drag</b> creates a selection, " +
@@ -52,16 +55,18 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
             dragStarted(e);
         }
 
-        // update alt state if Alt was pressed mid-drag
-        altDown = e.isAltDown();
+        // check if the Alt key was pressed mid-drag
+        boolean altDown = e.isAltDown();
+        assert altDown == GlobalEvents.isAltDown() || AppMode.isUnitTesting()
+            : "altDown = " + altDown + ", GlobalEvents.isAltDown() = " + GlobalEvents.isAltDown();
 
-        // determine if Alt means "expand from center"
-        // this is true if Alt is down, but wasn't pressed *at the start* for subtraction
-        boolean expandFromCenter = !altMeansSubtract && altDown;
+        // expand from center only if Alt wasn't already down at drag-start
+        // (in that case Alt is used for shape combination, not expand-from-center)
+        boolean expandFromCenter = !altUsedForCombinator && altDown;
 
-        // if Alt is released mid-drag, it no longer means subtract for this drag
+        // if Alt is released mid-drag, it no longer means subtract/intersect for this drag
         if (!altDown) {
-            altMeansSubtract = false;
+            altUsedForCombinator = false;
         }
 
         drag.setExpandFromCenter(expandFromCenter);
@@ -75,26 +80,31 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
         finalizeDragBasedSelection(e);
     }
 
+    // altPressed() and altReleased() mirror the expand-from-center handling
+    // in ongoingDrag(), but fire immediately on the key event since
+    // there may be no mouse movement to trigger it otherwise
     @Override
     public void altPressed() {
-        // handle pressing Alt *during* a drag: if Alt wasn't already
-        // down and wasn't for subtraction, enable expand-from-center
-        if (!altDown && !altMeansSubtract && drag != null && drag.isDragging()) {
+        if (!altUsedForCombinator && drag != null && drag.isDragging()) {
             drag.setExpandFromCenter(true);
-            selectionBuilder.updateDraftSelection(drag);
+            if (selectionBuilder != null) {
+                selectionBuilder.updateDraftSelection(drag);
+            }
         }
-        altDown = true;
     }
 
     @Override
     public void altReleased() {
-        // handle releasing Alt *during* a drag: if Alt wasn't
-        // for subtraction, disable expand-from-center
-        if (!altMeansSubtract && drag != null && drag.isDragging()) {
+        boolean wasAltCombinator = altUsedForCombinator;
+
+        super.altReleased(); // clears altUsedForCombinator
+
+        if (!wasAltCombinator && drag != null && drag.isDragging()) {
             drag.setExpandFromCenter(false);
-            selectionBuilder.updateDraftSelection(drag);
+            if (selectionBuilder != null) {
+                selectionBuilder.updateDraftSelection(drag);
+            }
         }
-        altDown = false;
     }
 
     @Override
@@ -104,4 +114,3 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
             : ToolIcons::paintEllipseSelectionIcon;
     }
 }
-

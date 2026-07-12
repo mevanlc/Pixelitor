@@ -46,9 +46,7 @@ import java.awt.geom.FlatteningPathIterator;
 
 import static java.awt.RenderingHints.KEY_ANTIALIASING;
 import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
-import static java.awt.geom.PathIterator.SEG_CLOSE;
-import static java.awt.geom.PathIterator.SEG_LINETO;
-import static java.awt.geom.PathIterator.SEG_MOVETO;
+import static java.awt.geom.PathIterator.*;
 import static javax.swing.BorderFactory.createEmptyBorder;
 import static pixelitor.gui.GUIText.CLOSE_DIALOG;
 import static pixelitor.gui.utils.SliderSpinner.LabelPosition.WEST;
@@ -123,9 +121,9 @@ public abstract class AbstractBrushTool extends Tool {
     private Rectangle outlineDebugNewBounds;
     private Rectangle outlineDebugLastOverlayBounds;
 
-    AbstractBrushTool(String name, char hotkey, String toolMessage,
+    AbstractBrushTool(String name, char hotkey, String statusBarMessage,
                       Cursor cursor, boolean supportsSymmetry) {
-        super(name, hotkey, toolMessage, cursor);
+        super(name, hotkey, statusBarMessage, cursor);
         this.supportsSymmetry = supportsSymmetry;
         if (supportsSymmetry) {
             symmetryModel = new EnumComboBoxModel<>(Symmetry.class);
@@ -151,7 +149,7 @@ public abstract class AbstractBrushTool extends Tool {
      * Updates the active brush based on the lazy mouse enabled state.
      * This method must be overridden if {@link #initBrushVariables()} is overridden.
      */
-    protected void updateLazyMouseEnabledState() {
+    protected void updateLazyMouseState() {
         if (lazyMouseEnabled.isChecked()) {
             // decorate the symmetry brush with lazy mouse functionality
             lazyMouseBrush = new LazyMouseBrush(symmetryBrush);
@@ -196,7 +194,7 @@ public abstract class AbstractBrushTool extends Tool {
         var symmetryCB = new JComboBox<Symmetry>(symmetryModel);
 
         settingsPanel.addComboBox(GUIText.MIRROR + ":", symmetryCB, "symmetrySelector");
-        symmetryCB.addActionListener(e ->
+        symmetryCB.addActionListener(_ ->
             symmetryBrush.symmetryChanged(getSymmetry(), getRadius()));
     }
 
@@ -255,13 +253,13 @@ public abstract class AbstractBrushTool extends Tool {
         panel.setBorder(createEmptyBorder(5, 5, 5, 5));
         var gbh = new GridBagHelper(panel);
 
-        lazyMouseEnabled.setAdjustmentListener(this::updateLazyMouseEnabledState);
+        lazyMouseEnabled.setAdjustmentListener(this::updateLazyMouseState);
         gbh.addLabelAndControlNoStretch("Enabled:", lazyMouseEnabled.createGUI());
 
         var distSlider = lazyMouseDist.createGUI("distSlider");
         gbh.addLabelAndControl(lazyMouseDist.getName() + ":", distSlider);
 
-        lazyMouseEnabled.setupEnableOtherIfChecked(lazyMouseDist);
+        lazyMouseEnabled.enableOtherWhenChecked(lazyMouseDist);
         return panel;
     }
 
@@ -271,8 +269,8 @@ public abstract class AbstractBrushTool extends Tool {
         boolean lineConnect = e.isShiftDown() && brush.hasPrevious();
         processStrokePoint(e, lineConnect);
 
-        // if it can have symmetry, then the symmetry brush does
-        // the tracking of the affected area
+        // if the tool supports symmetry, the
+        // symmetry brush tracks the affected area
         if (!supportsSymmetry) {
             if (lineConnect) {
                 assert brush.hasPrevious();
@@ -304,18 +302,16 @@ public abstract class AbstractBrushTool extends Tool {
             return;
         }
 
-        // whether or not it is a lazy mouse, reset
-        // the outline back to the mouse coordinates
+        // regardless of whether lazy mouse is enabled, reset
+        // the outline back to the actual mouse coordinates
         outlineCoX = (int) e.getCoX();
         outlineCoY = (int) e.getCoY();
 
-        Composition comp = e.getComp();
-        Drawable dr = comp.getActiveDrawableOrThrow();
-        finishBrushStroke(dr);
+        finishBrushStroke();
 
         // repaint needed if lazy mouse caused drawing lag
         if (lazyMouse) {
-            comp.repaint();
+            e.getView().repaint();
         }
     }
 
@@ -351,7 +347,7 @@ public abstract class AbstractBrushTool extends Tool {
         }
 
         // calculate the rectangle encompassing both old and new positions
-        var repaintRect = Shapes.toPositiveRect(prevX, outlineCoX, prevY, outlineCoY);
+        var repaintRect = Shapes.toPositiveRect(prevX, prevY, outlineCoX, outlineCoY);
         // include the end pixels too, because Rectangle width/height are exclusive
         repaintRect.width++;
         repaintRect.height++;
@@ -426,19 +422,20 @@ public abstract class AbstractBrushTool extends Tool {
         updateOutlinePosition(x, y, view);
     }
 
-    private void finishBrushStroke(Drawable dr) {
+    private void finishBrushStroke() {
+        assert brushContext != null;
+
+        Drawable dr = brushContext.getDrawable();
+
         brush.finishBrushStroke();
         addBrushStrokeToHistory(dr);
 
-        assert brushContext != null;
-        if (brushContext != null) {
-            brushContext.finish(dr);
-        }
+        brushContext.finish();
         brushContext = null;
     }
 
     private void addBrushStrokeToHistory(Drawable dr) {
-        var originalImage = drawTarget.getOriginalImage(dr, this);
+        var originalImage = brushContext.getOriginalImage();
 
         double maxBrushRadius = brush.getMaxEffectiveRadius();
         var affectedRect = affectedArea.toRectangle(maxBrushRadius);
@@ -483,8 +480,8 @@ public abstract class AbstractBrushTool extends Tool {
      * Processes a new mouse point during a drawing operation (press or drag).
      */
     private void processStrokePoint(PMouseEvent p, boolean lineConnect) {
-        Drawable dr = p.getComp().getActiveDrawableOrThrow();
         if (brushContext == null) { // start of a new stroke
+            Drawable dr = p.getComp().getActiveDrawableOrThrow();
             createBrushStroke(dr);
 
             if (lineConnect) {
@@ -591,6 +588,8 @@ public abstract class AbstractBrushTool extends Tool {
      * The given shape must be in image coordinates.
      */
     public void trace(Drawable dr, Shape shape) {
+        assert brushContext == null;
+
         // temporarily disable the lazy mouse, because otherwise
         // the mouse would cut corners instead of following the shape
         boolean wasLazy = lazyMouse;
@@ -599,7 +598,11 @@ public abstract class AbstractBrushTool extends Tool {
                 lazyMouseEnabled.setValue(false, false, false);
             }
             doTrace(dr, shape);
-            finishBrushStroke(dr);
+
+            // only finish if doTrace actually started a context (i.e. shape isn't empty)
+            if (brushContext != null) {
+                finishBrushStroke();
+            }
         } finally {
             if (wasLazy) {
                 lazyMouseEnabled.setValue(true, false, false);
@@ -780,7 +783,7 @@ public abstract class AbstractBrushTool extends Tool {
     }
 
     @Override
-    public boolean allowOnlyDrawables() {
+    public boolean requiresDrawables() {
         return true; // brush tools operate on drawable layers or on masks
     }
 
@@ -833,7 +836,7 @@ public abstract class AbstractBrushTool extends Tool {
 
         lazyMouseEnabled.loadStateFrom(preset);
         lazyMouseDist.loadStateFrom(preset);
-        updateLazyMouseEnabledState();
+        updateLazyMouseState();
         LazyMouseBrush.setLazyDist(lazyMouseDist.getValue());
     }
 
@@ -883,7 +886,7 @@ public abstract class AbstractBrushTool extends Tool {
      *
      * This is necessary because (at least on Windows) it looks like
      * cursors can't have an arbitrary size, so the outline cannot be
-     * made via custom brush images. See java.awt.Toolkit.getBestCursorSize.
+     * implemented via custom brush images. See java.awt.Toolkit.getBestCursorSize.
      */
     static class BrushOutlinePainter extends SimpleCachedPainter {
         private static final Stroke OUTER_STROKE = new BasicStroke(3);

@@ -263,7 +263,6 @@ public class DialogBuilder {
         Window effectiveOwner = (owner != null) ? owner : PixelitorWindow.get();
         dialog = new BuiltDialog(effectiveOwner, modal);
         dialog.setTitle(title);
-        dialog.setModal(modal);
         if (menuBar != null) {
             dialog.setJMenuBar(menuBar);
         }
@@ -275,8 +274,8 @@ public class DialogBuilder {
         addContent();
         addButtons();
 
-        GUIUtils.setupCloseAction(dialog, this::dialogCanceled);
-        GUIUtils.setupEscAction(dialog, this::dialogCanceled);
+        GUIUtils.installCloseHandler(dialog, this::dialogCanceled);
+        GUIUtils.installEscHandler(dialog, this::dialogCanceled);
 
         if (enableCopyShortcuts) {
             JComponent contentPane = (JComponent) dialog.getContentPane();
@@ -330,7 +329,7 @@ public class DialogBuilder {
         if (addOKButton) {
             okButton = new JButton(okText);
             okButton.setName("ok");
-            okButton.addActionListener(e -> okButtonPressed());
+            okButton.addActionListener(_ -> okButtonPressed());
             dialog.getRootPane().setDefaultButton(okButton);
         }
 
@@ -339,7 +338,7 @@ public class DialogBuilder {
             cancelButton = new JButton(cancelText);
             cancelButton.setName("cancel");
 
-            cancelButton.addActionListener(e -> dialogCanceled());
+            cancelButton.addActionListener(_ -> dialogCanceled());
         }
 
         JPanel southPanel = new JPanel();
@@ -410,6 +409,9 @@ public class DialogBuilder {
 
         @Override
         public void setVisible(boolean visible) {
+            // must be a visibility change, otherwise the GlobalEvents counts are incorrect
+            assert visible != isVisible();
+
             if (isModal()) {
                 if (visible) {
                     GlobalEvents.modalDialogOpened();

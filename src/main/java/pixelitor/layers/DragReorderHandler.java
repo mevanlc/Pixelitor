@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -26,7 +26,7 @@ import java.awt.event.MouseEvent;
 
 /**
  * Handles mouse events for drag-reordering layers in the {@link LayersPanel}.
- * Used booth as MouseListener and as MouseMotionListener.
+ * Used both as MouseListener and as MouseMotionListener.
  */
 public class DragReorderHandler extends MouseInputAdapter {
     // horizontal offset while dragging
@@ -66,7 +66,7 @@ public class DragReorderHandler extends MouseInputAdapter {
             // it seems that on Mac we get mouseDragged events even when the mouse isn't moved
             return;
         }
-        if (layerGUI.isNameEditing()) {
+        if (layerGUI.isEditingName()) {
             return;
         }
 
@@ -91,7 +91,7 @@ public class DragReorderHandler extends MouseInputAdapter {
             layersPanel.dragFinished();
         } else {
             // activate the layer if the user clicks on the name field
-            getRealLayerGUI(e).getLayer().activate();
+            getSourceLayerGUI(e).getLayer().activate();
         }
         dragging = false;
     }
@@ -116,8 +116,7 @@ public class DragReorderHandler extends MouseInputAdapter {
             layerGUI = (LayerGUI) c;
         }
 
-        // ensure that mouse drags on embedded LayerGUIs
-        // move the entire top parent
+        // ensure that dragging a nested layer GUI drags its top-level ancestor
         while (layerGUI.isEmbedded()) {
             e.translatePoint(layerGUI.getX(), layerGUI.getY());
             layerGUI = layerGUI.getParentUI();
@@ -127,9 +126,9 @@ public class DragReorderHandler extends MouseInputAdapter {
     }
 
     /**
-     * Returns the real LayerGUI, without going up in the hierarchy.
+     * Returns the source LayerGUI, without going up in the hierarchy.
      */
-    private static LayerGUI getRealLayerGUI(MouseEvent e) {
+    private static LayerGUI getSourceLayerGUI(MouseEvent e) {
         Component c = e.getComponent();
         if (c instanceof LayerNameEditor nameEditor) {
             return nameEditor.getLayerGUI();

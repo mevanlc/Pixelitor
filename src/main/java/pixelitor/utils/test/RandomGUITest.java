@@ -67,14 +67,12 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static java.awt.event.KeyEvent.*;
-import static pixelitor.FilterContext.FILTER_WITHOUT_DIALOG;
-import static pixelitor.FilterContext.PREVIEWING;
 import static pixelitor.colors.FgBgColors.randomizeColors;
 import static pixelitor.compactions.FlipDirection.HORIZONTAL;
 import static pixelitor.compactions.FlipDirection.VERTICAL;
-import static pixelitor.compactions.QuadrantAngle.ANGLE_180;
-import static pixelitor.compactions.QuadrantAngle.ANGLE_270;
-import static pixelitor.compactions.QuadrantAngle.ANGLE_90;
+import static pixelitor.compactions.QuadrantAngle.*;
+import static pixelitor.filters.FilterContext.FILTER_WITHOUT_DIALOG;
+import static pixelitor.filters.FilterContext.PREVIEWING;
 import static pixelitor.gui.ImageArea.Mode.FRAMES;
 import static pixelitor.gui.ImageArea.Mode.TABS;
 
@@ -152,7 +150,7 @@ public class RandomGUITest {
 
         pastedImagesCount = 0;
 
-        registerHotKeys();
+        registerHotkeys();
 
         System.out.printf("RandomGUITest started at %s, the '%s' key stops, the '%s' key exits.%n",
             timestampFormatter.format(LocalDateTime.now()), PAUSE_KEY_CHAR, EXIT_KEY_CHAR);
@@ -182,7 +180,7 @@ public class RandomGUITest {
         return robot;
     }
 
-    private void registerHotKeys() {
+    private void registerHotkeys() {
         // make sure it can be stopped by pressing a key
         GlobalEvents.registerHotkey(PAUSE_KEY_CHAR, new TaskAction(() -> {
                 System.err.printf("%nRandomGUITest: '%s' pressed.%n", PAUSE_KEY_CHAR);
@@ -367,7 +365,7 @@ public class RandomGUITest {
     }
 
     private static boolean canUseTool(Tool tool) {
-        if (tool.allowOnlyDrawables()) {
+        if (tool.requiresDrawables()) {
             return (Views.getActiveLayer() instanceof Drawable);
         }
         return true;
@@ -561,16 +559,16 @@ public class RandomGUITest {
         double r = Math.random();
         if (r > 0.75) {
             log("fit active to space");
-            Views.fitActive(AutoZoom.FIT_SPACE);
+            Views.zoomActive(AutoZoom.FIT_SPACE);
         } else if (r > 0.5) {
             log("fit active to width");
-            Views.fitActive(AutoZoom.FIT_WIDTH);
+            Views.zoomActive(AutoZoom.FIT_WIDTH);
         } else if (r > 0.25) {
             log("fit active to height");
-            Views.fitActive(AutoZoom.FIT_HEIGHT);
+            Views.zoomActive(AutoZoom.FIT_HEIGHT);
         } else {
             log("fit active to actual pixels");
-            Views.fitActive(AutoZoom.ACTUAL_PIXELS);
+            Views.zoomActive(AutoZoom.ACTUAL_PIXELS);
         }
     }
 
@@ -615,10 +613,7 @@ public class RandomGUITest {
     }
 
     private void randomZoom() {
-        Views.onActive(this::setRandomZoom);
-    }
-
-    private void setRandomZoom(View view) {
+        View view = Views.getActive();
         ZoomLevel randomZoomLevel = calcRandomZoomLevel();
         log("zoom " + view.getName() + ", zoom level = " + randomZoomLevel);
 
@@ -746,12 +741,12 @@ public class RandomGUITest {
 
     private void layerToCanvasSize() {
         log("layer to canvas size");
-        Views.onActiveComp(Composition::activeLayerToCanvasSize);
+        Views.getActiveComp().cropActiveLayerToCanvasSize();
     }
 
     private void fitCanvasToLayers() {
         log("fit canvas to layers");
-        Views.onActiveComp(Composition::fitCanvasToLayers);
+        Views.getActiveComp().fitCanvasToLayers();
     }
 
     private void invertSelection() {
@@ -984,12 +979,12 @@ public class RandomGUITest {
     }
 
     private void newRandomTextLayer() {
-        Composition comp = Views.getActiveComp();
-        MaskViewMode oldMaskViewMode = comp.getView().getMaskViewMode();
+        View view = Views.getActive();
+        MaskViewMode oldMaskViewMode = view.getMaskViewMode();
+        Composition comp = view.getComp();
         Layer activeLayerBefore = comp.getActiveLayer();
 
-        TextSettings settings = new TextSettings();
-        settings.randomize();
+        TextSettings settings = TextSettings.createRandomized(null);
         TextLayer textLayer = TextLayer.createNew(comp, settings);
 
         // has to be called explicitly, since no dialog will be shown
@@ -1111,19 +1106,19 @@ public class RandomGUITest {
             assert preferredTweenFilter.isAnimatable();
             return preferredTweenFilter;
         }
-        FilterAction filterAction = Filters.getRandomAnimationFilter();
+        FilterAction filterAction = Rnd.chooseFrom(Filters.getAnimationFilters());
         return (ParametrizedFilter) filterAction.getFilter();
     }
 
     private void randomEnlargeCanvas() {
-        int north = rand.nextInt(3);
-        int east = rand.nextInt(3);
-        int south = rand.nextInt(3);
-        int west = rand.nextInt(3);
-        log(String.format("enlarge canvas north = %d, east = %d, south = %d, west = %d",
-            north, east, south, west));
+        int top = rand.nextInt(3);
+        int right = rand.nextInt(3);
+        int bottom = rand.nextInt(3);
+        int left = rand.nextInt(3);
+        log(String.format("enlarge canvas top = %d, right = %d, bottom = %d, left = %d",
+            top, right, bottom, left));
         var comp = Views.getActiveComp();
-        new EnlargeCanvas(north, east, south, west).process(comp);
+        new EnlargeCanvas(top, right, bottom, left).process(comp);
     }
 
     private void randomGuides() {
@@ -1141,10 +1136,10 @@ public class RandomGUITest {
     private void randomGuidesSetup(Guides guides) {
         if (rand.nextBoolean()) {
             log("add relative horizontal guide");
-            guides.addHorRelative(rand.nextFloat());
+            guides.addHorizontal(rand.nextFloat());
         } else {
             log("add relative vertical guide");
-            guides.addVerRelative(rand.nextFloat());
+            guides.addVertical(rand.nextFloat());
         }
     }
 
@@ -1159,7 +1154,7 @@ public class RandomGUITest {
     }
 
     private void deletePath() {
-        if (!Tools.activeIsPathTool()) {
+        if (!Tools.isPathToolActive()) {
             return;
         }
         if (PathActions.deletePathAction.isEnabled()) {

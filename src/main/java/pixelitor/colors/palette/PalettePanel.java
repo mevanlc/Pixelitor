@@ -34,8 +34,8 @@ import static java.awt.BorderLayout.CENTER;
 import static java.awt.BorderLayout.NORTH;
 import static javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER;
 import static javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED;
-import static pixelitor.colors.FgBgColors.getBGColor;
-import static pixelitor.colors.FgBgColors.getFGColor;
+import static pixelitor.colors.FgBgColors.getBgColor;
+import static pixelitor.colors.FgBgColors.getFgColor;
 
 /**
  * A panel that displays color swatches in a grid. It can display both
@@ -81,8 +81,8 @@ public class PalettePanel extends JPanel implements Scrollable {
 
     private void handleResize() {
         switch (palette) {
-            case StaticPalette s -> handleStaticPaletteResize();
-            case DynamicPalette d -> handleDynamicPaletteResize();
+            case StaticPalette _ -> handleStaticPaletteResize();
+            case DynamicPalette _ -> handleDynamicPaletteResize();
         }
     }
 
@@ -197,43 +197,43 @@ public class PalettePanel extends JPanel implements Scrollable {
         return false;
     }
 
-    public static void showVariationsDialog(PixelitorWindow pw, boolean fg) {
+    public static void showVariationsDialog(boolean fg) {
         var palette = new VariationsPalette(
-            fg ? getFGColor() : getBGColor(),
+            fg ? getFgColor() : getBgColor(),
             fg ? "Foreground Color Variations" : "Background Color Variations"
         );
-        showDialog(pw, palette, ColorSwatchClickHandler.STANDARD);
+        showDialog(palette, ColorSwatchClickHandler.STANDARD);
     }
 
-    public static void showFilterVariationsDialog(Window window, Color refColor,
+    public static void showFilterVariationsDialog(Color refColor,
                                                   ColorSwatchClickHandler clickHandler) {
         var palette = new VariationsPalette(refColor,
             "Filter Color Variations");
-        showDialog(window, palette, clickHandler);
+        showDialog(palette, clickHandler);
     }
 
-    public static void showHSBMixDialog(PixelitorWindow pw, boolean fg) {
+    public static void showHSBMixDialog(boolean fg) {
         var palette = new HSBColorMixPalette(fg);
-        showDialog(pw, palette, ColorSwatchClickHandler.STANDARD);
+        showDialog(palette, ColorSwatchClickHandler.STANDARD);
     }
 
-    public static void showRGBMixDialog(PixelitorWindow pw, boolean fg) {
+    public static void showRGBMixDialog(boolean fg) {
         var palette = new RGBColorMixPalette(fg);
-        showDialog(pw, palette, ColorSwatchClickHandler.STANDARD);
+        showDialog(palette, ColorSwatchClickHandler.STANDARD);
     }
 
-    public static void showStaticPaletteDialog(Window window, String title) {
+    public static void showStaticPaletteDialog(String title) {
         List<Color> colors = IntStream.range(0, 100)
             .mapToObj(i -> Rnd.createRandomColor())
             .toList();
 
         var palette = new StaticPalette(title, colors);
-        showDialog(window, palette, ColorSwatchClickHandler.STANDARD);
+        showDialog(palette, ColorSwatchClickHandler.STANDARD);
     }
 
-    public static void showDialog(Window window, Palette palette,
+    public static void showDialog(Palette palette,
                                   ColorSwatchClickHandler clickHandler) {
-        assert window != null;
+        Window window = PixelitorWindow.get();
 
         var palettePanel = new PalettePanel(palette, clickHandler);
 

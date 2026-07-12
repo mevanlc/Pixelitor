@@ -72,7 +72,7 @@ public class Views {
         i18n("close"), comp -> warnAndClose(comp.getView()));
 
     public static final Action CLOSE_ALL_UNMODIFIED_ACTION = new ViewEnabledAction(
-        "Close Unmodified", comp -> warnAndCloseUnmodified());
+        "Close Unmodified", comp -> closeUnmodified());
 
     private Views() {
     }
@@ -89,7 +89,9 @@ public class Views {
         return views.size();
     }
 
-    public static void viewClosed(View view) {
+    public static void closeView(View view) {
+        boolean wasActive = view == activeView;
+
         Composition comp = view.getComp();
         History.compClosed(comp);
         comp.dispose();
@@ -97,8 +99,10 @@ public class Views {
         views.remove(view);
         if (views.isEmpty()) {
             allViewsClosed();
+        } else if (wasActive) {
+            // ensure that an active view exists
+            activate(views.getFirst());
         }
-        ensureActiveViewExists();
     }
 
     private static void allViewsClosed() {
@@ -110,13 +114,6 @@ public class Views {
         FramesUI.resetCascadeCount();
     }
 
-    // ensures that an active view is set if there are any open views remaining
-    private static void ensureActiveViewExists() {
-        if (!views.isEmpty() && !views.contains(activeView)) {
-            activate(views.getFirst());
-        }
-    }
-
     public static void activate(View view) {
         setActiveView(view, true);
     }
@@ -124,14 +121,14 @@ public class Views {
     /**
      * Sets the active view, optionally triggering full UI activation.
      */
-    public static void setActiveView(View view, boolean activate) {
+    public static void setActiveView(View view, boolean updateUI) {
         if (view == activeView) {
             return;
         }
 
-        if (activate) {
+        if (updateUI) {
             if (view == null) {
-                throw new IllegalStateException("Can't activate null view");
+                throw new IllegalStateException();
             }
             if (!view.isMock()) {
                 ImageArea.activateView(view);
@@ -215,15 +212,9 @@ public class Views {
         }
     }
 
-    public static void fitActive(AutoZoom autoZoom) {
+    public static void zoomActive(AutoZoom autoZoom) {
         if (activeView != null) {
             activeView.setZoom(autoZoom);
-        }
-    }
-
-    public static void onActive(Consumer<View> action) {
-        if (activeView != null) {
-            action.accept(activeView);
         }
     }
 
@@ -263,7 +254,7 @@ public class Views {
         try {
             Composition comp = view.getComp();
             if (comp.hasUnsavedChanges()) {
-                int answer = Dialogs.showCloseWarningDialog(comp.getName());
+                int answer = Dialogs.showUnsavedChangesWarning(comp.getName());
 
                 switch (answer) {
                     case YES_OPTION:  // "Save"
@@ -298,12 +289,12 @@ public class Views {
         warnAndCloseAllIf(view -> true);
     }
 
-    public static void warnAndCloseAllBut(View ignored) {
-        warnAndCloseAllIf(view -> view != ignored);
+    public static void warnAndCloseAllBut(View viewToKeep) {
+        warnAndCloseAllIf(view -> view != viewToKeep);
     }
 
-    private static void warnAndCloseUnmodified() {
-        warnAndCloseAllIf(view -> !view.getComp().isDirty());
+    private static void closeUnmodified() {
+        warnAndCloseAllIf(view -> !view.getComp().hasUnsavedChanges());
     }
 
     // close all views matching a predicate, prompting for unsaved changes
@@ -320,9 +311,9 @@ public class Views {
         }
     }
 
-    public static boolean doesAnyViewAllowPixelGrid() {
+    public static boolean anyViewAllowsPixelGrid() {
         for (View view : views) {
-            if (view.allowPixelGrid()) {
+            if (view.getZoomLevel().allowsPixelGrid()) {
                 return true;
             }
         }
@@ -336,16 +327,6 @@ public class Views {
 
         // there is no open view
         return null;
-    }
-
-    public static void onActiveComp(Consumer<Composition> action) {
-        if (activeView != null) {
-            try {
-                action.accept(activeView.getComp());
-            } catch (Exception e) {
-                Messages.showException(e);
-            }
-        }
     }
 
     public static Optional<Composition> findCompByName(String name) {
@@ -381,7 +362,7 @@ public class Views {
         return comp;
     }
 
-    public static void addNewPasted(BufferedImage pastedImage) {
+    public static void addPastedImage(BufferedImage pastedImage) {
         String name = "Pasted Image " + pastedCount++;
         addNew(Composition.fromImage(pastedImage, null, name));
     }
@@ -444,26 +425,12 @@ public class Views {
         return null;
     }
 
-    public static void onActiveLayer(Consumer<Layer> action) {
-        if (activeView != null) {
-            action.accept(activeView.getComp().getActiveLayer());
-        }
-    }
-
     public static Drawable getActiveDrawable() {
         if (activeView != null) {
             return activeView.getComp().getActiveDrawable();
         }
 
         return null;
-    }
-
-    public static Drawable getActiveDrawableOrThrow() {
-        if (activeView != null) {
-            return activeView.getComp().getActiveDrawableOrThrow();
-        }
-
-        throw new IllegalStateException("no active view");
     }
 
     public static Filterable getActiveFilterable() {
@@ -504,7 +471,7 @@ public class Views {
     /**
      * Warns the user if a file is already open and prompts for confirmation to open it again.
      */
-    public static boolean warnIfAlreadyOpen(File file) {
+    public static boolean confirmIfAlreadyOpen(File file) {
         View view = findViewByFile(file);
         if (view == null) {
             return true; // the file is not open; proceed with opening
@@ -514,9 +481,9 @@ public class Views {
 
         String title = "File Already Open";
         String msg = "<html>The file <b>" + file.getAbsolutePath()
-            + "</b> is already opened.";
+            + "</b> is already open.";
         String[] options = {"Open Again", GUIText.CANCEL};
-        boolean again = Dialogs.showOKCancelDialog(view.getDialogParent(),
+        boolean again = Dialogs.showOKCancelQuestion(view.getDialogParent(),
             msg, title, options, 1, WARNING_MESSAGE);
         return again;
     }
@@ -538,7 +505,7 @@ public class Views {
         for (View view : views) {
             // make sure that the next reload is not started
             // before the previous one is finished
-            chainedChecks = chainedChecks.thenCompose(comp -> view.checkForExternalModifications());
+            chainedChecks = chainedChecks.thenCompose(comp -> view.checkAutoReload());
         }
     }
 

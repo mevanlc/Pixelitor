@@ -22,7 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import pixelitor.compactions.Crop;
 import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
@@ -736,7 +735,7 @@ class CompositionTest {
             .activeLayerAndMaskImageSizeIs(24, 16);
 
         // now test "Layer to Canvas Size"
-        comp.activeLayerToCanvasSize();
+        comp.cropActiveLayerToCanvasSize();
         assertThat(comp)
             .activeLayerTranslationIs(0, 0)
             .activeLayerAndMaskImageSizeIs(20, 10);
@@ -778,32 +777,6 @@ class CompositionTest {
     }
 
     @Test
-    void intersectSelectionWith() {
-        var selectionShape = new Rectangle(4, 4, 8, 4);
-        TestHelper.setSelection(comp, selectionShape);
-        assertThat(comp)
-            .hasSelection()
-            .selectionBoundsIs(selectionShape);
-
-        var cropRect = new Rectangle(2, 2, 4, 4);
-        comp.intersectSelectionWith(cropRect);
-
-        assertThat(comp)
-            .hasSelection()
-            .selectionBoundsIs(new Rectangle(4, 4, 2, 2));
-
-        var tx = Crop.createCropTransform(cropRect);
-        comp.imCoordsChanged(tx, false, comp.getView());
-
-        assertThat(comp)
-            .hasSelection()
-            .selectionBoundsIs(new Rectangle(2, 2, 2, 2));
-
-        // the history isn't managed in this method
-        History.assertNumEditsIs(0);
-    }
-
-    @Test
     void rename() {
         comp.rename("CompositionTest", "CompositionTest New Name");
         assertThat(comp).hasName("CompositionTest New Name");
@@ -817,7 +790,7 @@ class CompositionTest {
 
     @Test
     void copyComposition() {
-        Composition copy = comp.copy(CopyType.DUPLICATE_COMP, true);
+        Composition copy = comp.copy(CopyOptions.duplicateComposition());
 
         assertThat(copy)
             .isNotSameAs(comp)

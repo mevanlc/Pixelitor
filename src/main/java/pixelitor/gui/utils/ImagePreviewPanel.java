@@ -18,9 +18,9 @@
 package pixelitor.gui.utils;
 
 import pixelitor.io.*;
-import pixelitor.utils.JProgressBarTracker;
-import pixelitor.utils.ProgressPanel;
-import pixelitor.utils.ProgressTracker;
+import pixelitor.progress.JProgressBarTracker;
+import pixelitor.progress.ProgressPanel;
+import pixelitor.progress.ProgressTracker;
 
 import javax.swing.*;
 import java.awt.Dimension;
@@ -63,12 +63,12 @@ public class ImagePreviewPanel extends JPanel implements PropertyChangeListener 
 
     private static final int MAX_CACHE_SIZE = 200;
     private static final Map<String, KeyedSoftReference> thumbsCache =
-        new LinkedHashMap<String, KeyedSoftReference>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<String, KeyedSoftReference> eldest) {
-                return size() > MAX_CACHE_SIZE; // LRU cache
-            }
-        };
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, KeyedSoftReference> eldest) {
+                    return size() > MAX_CACHE_SIZE; // LRU cache
+                }
+            };
 
     // information about the currently shown thumbnail
     private ThumbInfo thumbInfo;

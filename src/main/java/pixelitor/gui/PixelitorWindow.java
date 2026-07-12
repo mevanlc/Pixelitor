@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -22,7 +22,6 @@ import pixelitor.AppMode;
 import pixelitor.Composition;
 import pixelitor.Pixelitor;
 import pixelitor.Views;
-import pixelitor.gui.utils.Screens;
 import pixelitor.layers.LayersContainer;
 import pixelitor.menus.MenuBar;
 import pixelitor.menus.help.AboutDialog;
@@ -41,14 +40,8 @@ import java.awt.geom.AffineTransform;
 import java.net.URL;
 import java.util.List;
 
-import static java.awt.BorderLayout.CENTER;
-import static java.awt.BorderLayout.EAST;
-import static java.awt.BorderLayout.NORTH;
-import static java.awt.BorderLayout.SOUTH;
-import static java.awt.BorderLayout.WEST;
-import static java.awt.Desktop.Action.APP_ABOUT;
-import static java.awt.Desktop.Action.APP_PREFERENCES;
-import static java.awt.Desktop.Action.APP_QUIT_HANDLER;
+import static java.awt.BorderLayout.*;
+import static java.awt.Desktop.Action.*;
 import static java.awt.Taskbar.Feature.ICON_IMAGE;
 import static pixelitor.utils.ImageUtils.findImageURL;
 import static pixelitor.utils.Texts.i18n;
@@ -72,14 +65,13 @@ public class PixelitorWindow extends JFrame {
 
         workSpace = new WorkSpace();
 
-        Dimension screenSize = Screens.getMaxWindowSize();
-        AppPreferences.loadFramePreferences(this, screenSize);
+        AppPreferences.loadFramePreferences(this);
 
         addMenuBar();
         addImageArea();
         addSidePanel();
         addStatusBar();
-        addToolsPanel(screenSize);
+        addToolsPanel();
         Tools.setDefaultTool();
 
         initIcons();
@@ -132,13 +124,13 @@ public class PixelitorWindow extends JFrame {
         }
         Desktop desktop = Desktop.getDesktop();
         if (desktop.isSupported(APP_ABOUT)) {
-            desktop.setAboutHandler(e -> AboutDialog.showDialog(i18n("about")));
+            desktop.setAboutHandler(_ -> AboutDialog.showDialog(i18n("about")));
         }
         if (desktop.isSupported(APP_PREFERENCES)) {
-            desktop.setPreferencesHandler(e -> PreferencesPanel.showInDialog());
+            desktop.setPreferencesHandler(_ -> PreferencesPanel.showInDialog());
         }
         if (desktop.isSupported(APP_QUIT_HANDLER)) {
-            desktop.setQuitHandler((e, r) -> Pixelitor.exitApp(this));
+            desktop.setQuitHandler((_, _) -> Pixelitor.exitApp(this));
         }
     }
 
@@ -165,8 +157,8 @@ public class PixelitorWindow extends JFrame {
         add(sidePanel, EAST);
     }
 
-    private void addToolsPanel(Dimension screenSize) {
-        toolsPanel = new ToolsPanel(this, screenSize);
+    private void addToolsPanel() {
+        toolsPanel = new ToolsPanel();
 
         if (workSpace.areToolsVisible()) {
             add(ToolSettingsPanelContainer.get(), NORTH);

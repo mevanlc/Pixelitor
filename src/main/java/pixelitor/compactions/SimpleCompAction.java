@@ -19,7 +19,7 @@ package pixelitor.compactions;
 
 import pixelitor.Canvas;
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.gui.View;
 import pixelitor.gui.utils.AbstractViewEnabledAction;
 import pixelitor.guides.Guides;
@@ -28,6 +28,7 @@ import pixelitor.history.History;
 import pixelitor.layers.ContentLayer;
 import pixelitor.layers.Layer;
 import pixelitor.layers.SmartObject;
+import pixelitor.layers.TextLayer;
 import pixelitor.selection.SelectionActions;
 import pixelitor.utils.Messages;
 
@@ -35,8 +36,8 @@ import java.awt.geom.AffineTransform;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * A {@link CompAction} where the processing can be simplified
- * by using the template method pattern.
+ * An abstract base class for the {@link CompAction} implementations
+ * whose processing can be simplified using the template method pattern.
  */
 public abstract class SimpleCompAction extends AbstractViewEnabledAction implements CompAction {
     private final boolean affectsCanvasSize;
@@ -56,23 +57,27 @@ public abstract class SimpleCompAction extends AbstractViewEnabledAction impleme
     @Override
     public CompletableFuture<Composition> process(Composition srcComp) {
         if (disableForSmartObjects() && srcComp.containsLayerOfType(SmartObject.class)) {
-            Messages.showSmartObjectUnsupportedWarning(getText());
+            Messages.showSmartObjectUnsupportedInfo(getText());
+            return CompletableFuture.completedFuture(srcComp);
+        }
+        if (disableForTextLayers() && srcComp.containsLayerOfType(TextLayer.class)) {
+            Messages.showTextLayerUnsupportedWarning(getText());
             return CompletableFuture.completedFuture(srcComp);
         }
 
         View view = srcComp.getView();
-        Composition newComp = srcComp.copy(CopyType.UNDO, true);
+        Composition newComp = srcComp.copy(CopyOptions.fullStateBackup(true, false));
         Canvas newCanvas = newComp.getCanvas();
         Canvas srcCanvas = srcComp.getCanvas();
 
-        var canvasTransform = createCanvasTransform(newCanvas);
-        newComp.imCoordsChanged(canvasTransform, false, view);
+        var canvasTransform = createCanvasTransform(srcCanvas);
 
         newComp.forEachNestedLayerAndMask(this::transformLayer);
 
         if (affectsCanvasSize) {
             updateCanvasSize(newCanvas, view);
         }
+        newComp.imCoordsChanged(canvasTransform, false, view);
 
         History.add(new CompositionReplacedEdit(
             getEditName(), view, srcComp, newComp, canvasTransform, false));
@@ -85,8 +90,8 @@ public abstract class SimpleCompAction extends AbstractViewEnabledAction impleme
             newComp.setGuides(newGuides);
         }
 
-        // Only after the canvas size was updated, because
-        // they are based on the canvas-sized subimage
+        // update icon images only after the canvas size is updated,
+        // because they are based on the canvas-sized subimage
         newComp.updateAllIconImages();
 
         newComp.update(true);
@@ -100,6 +105,10 @@ public abstract class SimpleCompAction extends AbstractViewEnabledAction impleme
     }
 
     public abstract boolean disableForSmartObjects();
+
+    protected boolean disableForTextLayers() {
+        return false;
+    }
 
     private void transformLayer(Layer layer) {
         if (layer instanceof ContentLayer contentLayer) {

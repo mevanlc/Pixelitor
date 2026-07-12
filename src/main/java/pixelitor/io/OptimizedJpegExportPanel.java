@@ -23,8 +23,15 @@ import pixelitor.gui.utils.DialogBuilder;
 import pixelitor.gui.utils.GUIUtils;
 import pixelitor.gui.utils.ImagePanel;
 import pixelitor.gui.utils.SliderSpinner;
+import pixelitor.progress.JProgressBarTracker;
+import pixelitor.progress.ProgressPanel;
+import pixelitor.progress.ProgressTracker;
+import pixelitor.progress.SubtaskProgressTracker;
 import pixelitor.tools.ViewportPanner;
-import pixelitor.utils.*;
+import pixelitor.utils.ImageUtils;
+import pixelitor.utils.MemoryInfo;
+import pixelitor.utils.Messages;
+import pixelitor.utils.Threads;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
@@ -61,10 +68,10 @@ public class OptimizedJpegExportPanel extends JPanel {
     private final BufferedImage sourceImage;
 
     // shows the original image
-    private ImagePanel original;
+    private ImagePanel originalPanel;
 
     // shows the real-time preview of compression settings
-    private ImagePanel optimized;
+    private ImagePanel optimizedPanel;
 
     private RangeParam qualityParam;
     private JLabel sizeLabel;
@@ -86,10 +93,10 @@ public class OptimizedJpegExportPanel extends JPanel {
         JPanel comparePanel = new JPanel(new GridLayout(1, 2, GRID_GAP, GRID_GAP));
         var imageDim = new Dimension(image.getWidth(), image.getHeight());
 
-        original = createImagePanel(imageDim);
-        original.setImageWithoutRepaint(image);
+        originalPanel = createImagePanel(imageDim);
+        originalPanel.setImageWithoutRepaint(image);
 
-        optimized = createImagePanel(imageDim);
+        optimizedPanel = createImagePanel(imageDim);
 
         addScrollPanes(comparePanel);
 
@@ -97,8 +104,8 @@ public class OptimizedJpegExportPanel extends JPanel {
     }
 
     private void addScrollPanes(JPanel comparePanel) {
-        JScrollPane originalSP = createScrollPane(original, "Original");
-        JScrollPane optimizedSP = createScrollPane(optimized, "Optimized");
+        JScrollPane originalSP = createScrollPane(originalPanel, "Original");
+        JScrollPane optimizedSP = createScrollPane(optimizedPanel, "Optimized");
 
         comparePanel.add(originalSP);
         comparePanel.add(optimizedSP);
@@ -130,7 +137,7 @@ public class OptimizedJpegExportPanel extends JPanel {
         // progressive encoding
         p.add(new JLabel("Progressive:"));
         progressiveCB = new JCheckBox("", false);
-        progressiveCB.addActionListener(e -> updatePreviewAsync());
+        progressiveCB.addActionListener(_ -> updatePreviewAsync());
         p.add(progressiveCB);
 
         // quality slider
@@ -153,24 +160,31 @@ public class OptimizedJpegExportPanel extends JPanel {
     }
 
     private void updatePreviewAsync() {
+        assert Threads.calledOnEDT();
+
+        // capture UI state and create the tracker on the EDT
+        float quality = getQuality();
+        boolean progressive = isProgressive();
+        JProgressBarTracker tracker = new JProgressBarTracker(progressPanel);
+
         CompletableFuture
-            .supplyAsync(() -> generatePreview(getQuality(), isProgressive()), onPool)
+            .supplyAsync(() -> generatePreview(quality, progressive, tracker), onPool)
             .thenAcceptAsync(this::applyPreview, onEDT)
             .exceptionally(Messages::showExceptionOnEDT);
     }
 
-    private PreviewInfo generatePreview(float quality, boolean progressive) {
+    private PreviewInfo generatePreview(float quality, boolean progressive, ProgressTracker tracker) {
         try {
             return writeJpegToPreviewImage(sourceImage,
                 JpegSettings.createJpegCustomizer(quality, progressive),
-                new JProgressBarTracker(progressPanel));
+                tracker);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     private void applyPreview(PreviewInfo previewInfo) {
-        optimized.setImageAndRepaint(previewInfo.image());
+        optimizedPanel.setImageAndRepaint(previewInfo.image());
         sizeLabel.setText("  Size: "
             + MemoryInfo.formatBytes(previewInfo.sizeInBytes()));
     }
@@ -206,18 +220,18 @@ public class OptimizedJpegExportPanel extends JPanel {
         // Step 1: write the JPEG with the given settings to memory.
         // This step typically takes about 70% of the total time.
         ImageOutputStream ios = ImageIO.createImageOutputStream(bos);
-        var pt1 = new SubtaskProgressTracker(0.7, pt);
-        TrackedIO.writeToImageStream(image, ios, "jpg", pt1, customizer);
+        var writeTracker = new SubtaskProgressTracker(0.7, pt);
+        TrackedIO.writeToImageStream(image, ios, "jpg", writeTracker, customizer);
 
         // Step 2: Read it back into the preview image.
         // Approximately 30% of the total time is spent here.
         byte[] bytes = bos.toByteArray();
         var in = new ByteArrayInputStream(bytes);
-        var pt2 = new SubtaskProgressTracker(0.3, pt);
+        var readTracker = new SubtaskProgressTracker(0.3, pt);
 
         BufferedImage previewImage;
         try (ImageInputStream iis = ImageIO.createImageInputStream(in)) {
-            previewImage = TrackedIO.readFromImageStream(iis, pt2);
+            previewImage = TrackedIO.readFromImageStream(iis, readTracker);
         }
 
         pt.finished();

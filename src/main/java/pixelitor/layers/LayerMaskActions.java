@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -25,18 +25,21 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
+/**
+ * Creates the popup menus for layer mask actions.
+ */
 public class LayerMaskActions {
     private LayerMaskActions() {
     }
 
     public static void addPopupMenu(JLabel label, Layer layer) {
-        label.addMouseListener(new PopupMouseListener(layer));
+        label.addMouseListener(new MaskPopupListener(layer));
     }
 
-    private static class PopupMouseListener extends MouseAdapter {
+    private static class MaskPopupListener extends MouseAdapter {
         private final JPopupMenu menu;
 
-        protected PopupMouseListener(Layer layer) {
+        protected MaskPopupListener(Layer layer) {
             menu = new JPopupMenu();
 
             JMenu showMenu = new JMenu("Show/Edit");
@@ -49,22 +52,22 @@ public class LayerMaskActions {
             menu.addSeparator();
 
             // delete mask action
-            menu.add(new JMenuItem(new TaskAction("Delete", () -> layer.deleteMask(true))));
+            menu.add(new TaskAction("Delete", () -> layer.deleteMask(true)));
 
             // masks can be applied only to image layers
             if (layer instanceof ImageLayer) {
                 // apply mask action
-                menu.add(new JMenuItem(new TaskAction("Apply", () -> {
+                menu.add(new TaskAction("Apply", () -> {
                     ((ImageLayer) layer).applyLayerMask(true);
                     layer.update();
-                })));
+                }));
             }
 
-            menu.add(new JMenuItem(new EnableDisableMaskAction(layer)));
+            menu.add(new ToggleMaskEnabledAction(layer));
 
             // masks can be linked only to content layers
             if (layer instanceof ContentLayer) {
-                menu.add(new JMenuItem(new LinkUnlinkMaskAction(layer)));
+                menu.add(new ToggleMaskLinkedAction(layer));
             }
         }
 
@@ -89,10 +92,13 @@ public class LayerMaskActions {
         }
     }
 
-    static class EnableDisableMaskAction extends NamedAction implements LayerListener {
+    /**
+     * Enables or disables a layer's layer mask.
+     */
+    static class ToggleMaskEnabledAction extends NamedAction implements LayerListener {
         private final Layer layer;
 
-        public EnableDisableMaskAction(Layer layer) {
+        public ToggleMaskEnabledAction(Layer layer) {
             super(calcText(layer));
             this.layer = layer;
             layer.addListener(this);
@@ -113,16 +119,19 @@ public class LayerMaskActions {
         }
 
         @Override
-        public void layerStateChanged(Layer layer) {
-            assert layer == this.layer;
+        public void layerStateChanged(Layer changedLayer) {
+            assert changedLayer == layer;
             refreshText();
         }
     }
 
-    static class LinkUnlinkMaskAction extends NamedAction implements LayerListener {
+    /**
+     * Links or unlinks the movement of a layer and its layer mask.
+     */
+    static class ToggleMaskLinkedAction extends NamedAction implements LayerListener {
         private final Layer layer;
 
-        public LinkUnlinkMaskAction(Layer layer) {
+        public ToggleMaskLinkedAction(Layer layer) {
             super(calcText(layer));
             this.layer = layer;
             layer.getMask().addListener(this);
@@ -145,12 +154,10 @@ public class LayerMaskActions {
         }
 
         @Override
-        public void layerStateChanged(Layer layer) {
-            LayerMask mask = (LayerMask) layer;
-            assert mask.getOwner() == this.layer : "this.name = " + this.layer.getName()
-                + ", origin.name = " + mask.getOwner().getName()
-                + ", this.class = " + this.layer.getClass().getSimpleName()
-                + ", origin.class = " + mask.getOwner().getClass().getSimpleName();
+        public void layerStateChanged(Layer changedLayer) {
+            assert changedLayer == layer.getMask();
+            assert ((LayerMask) changedLayer).getOwner() == layer;
+
             refreshText();
         }
     }

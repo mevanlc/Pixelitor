@@ -106,11 +106,11 @@ public class PreferencesPanel extends JTabbedPane {
 
         langChooser.setName("langChooser");
         gbh.addLabelAndControlNoStretch("Language: ", langChooser);
-        langChooser.addActionListener(e -> {
+        langChooser.addActionListener(_ -> {
             Language language = languages.getSelectedItem();
             if (language != Language.getActive()) {
                 Language.setActive(language);
-                EventQueue.invokeLater(() -> Dialogs.showInfoDialog(this,
+                EventQueue.invokeLater(() -> Dialogs.showInfo(this,
                     "Needs Restart",
                     "Changing the display language will take effect after restarting Pixelitor."));
             }
@@ -141,7 +141,7 @@ public class PreferencesPanel extends JTabbedPane {
 
         gbh.addTwoControlsNoStretch(accentColorLabel, accentColorChooser);
 */
-        themeChooser.addActionListener(e -> {
+        themeChooser.addActionListener(_ -> {
             Theme theme = themes.getSelectedItem();
             setCursor(Cursors.BUSY);
 
@@ -153,7 +153,7 @@ public class PreferencesPanel extends JTabbedPane {
             });
         });
 
-//        accentColorChooser.addActionListener(e -> Themes.changeAccentColor(accentColors.getSelectedItem()));
+//        accentColorChooser.addActionListener(_ -> Themes.changeAccentColor(accentColors.getSelectedItem()));
     }
 
     private void addFontChoosers(GridBagHelper gbh) {
@@ -237,7 +237,7 @@ public class PreferencesPanel extends JTabbedPane {
         uiChooser.setSelectedItem(ImageArea.getMode());
         uiChooser.setName("uiChooser");
         gbh.addLabelAndControlNoStretch("Images In: ", uiChooser);
-        uiChooser.addActionListener(e -> {
+        uiChooser.addActionListener(_ -> {
             ImageArea.Mode mode = (ImageArea.Mode) uiChooser.getSelectedItem();
             ImageArea.changeUI(mode);
         });
@@ -254,14 +254,14 @@ public class PreferencesPanel extends JTabbedPane {
 
         int currentSize = Thumbnails.getMaxSize();
         for (int i = 0; i < thumbSizeCB.getItemCount(); i++) {
-            if (thumbSizeCB.getItemAt(i).valueIs(currentSize)) {
+            if (thumbSizeCB.getItemAt(i).hasValue(currentSize)) {
                 thumbSizeCB.setSelectedIndex(i);
                 break;
             }
         }
 
         gbh.addLabelAndControlNoStretch("Layer/Mask Thumb Sizes: ", thumbSizeCB);
-        thumbSizeCB.addActionListener(e -> updateThumbSize());
+        thumbSizeCB.addActionListener(_ -> updateThumbSize());
     }
 
     private JPanel createMousePanel() {
@@ -327,7 +327,7 @@ public class PreferencesPanel extends JTabbedPane {
      * Configures either regular guides or composition guides in the crop tool.
      */
     private static void configureGuideStyle(GuideStyle guideStyle, String labelPrefix, String comboName, GridBagHelper gbh) {
-        var guideColorSwatch = new ColorSwatch(guideStyle.getColorA(), 20);
+        var guideColorSwatch = new ColorSwatch(guideStyle.getPrimaryColor(), 20);
         var guideStyleCB = new JComboBox<>(GuideStrokeType.values());
         guideStyleCB.setName(comboName);
         guideStyleCB.setSelectedItem(guideStyle.getStrokeType());
@@ -336,11 +336,11 @@ public class PreferencesPanel extends JTabbedPane {
         gbh.addLabelAndControlNoStretch(labelPrefix + " Style: ", guideStyleCB);
 
         new ColorPickerHelper(guideColorSwatch, e -> {
-            guideStyle.setColorA(guideColorSwatch.getForeground());
+            guideStyle.setPrimaryColor(guideColorSwatch.getForeground());
             ImageArea.getUI().repaint();
         });
 
-        guideStyleCB.addActionListener(e -> {
+        guideStyleCB.addActionListener(_ -> {
             guideStyle.setStrokeType((GuideStrokeType) guideStyleCB.getSelectedItem());
             ImageArea.getUI().repaint();
         });
@@ -385,13 +385,13 @@ public class PreferencesPanel extends JTabbedPane {
     }
 
     private void addMagickDirField(GridBagHelper gbh) {
-        magickDirTF = new JTextField(AppPreferences.magickDirName);
+        magickDirTF = new JTextField(AppPreferences.magickDirPath);
         magickDirTF.setColumns(10);
         gbh.addLabelAndControl(IMAGEMAGICK_FOLDER_LABEL + ": ", magickDirTF);
     }
 
     private void addGmicDirField(GridBagHelper gbh) {
-        gmicDirTF = new JTextField(AppPreferences.gmicDirName);
+        gmicDirTF = new JTextField(AppPreferences.gmicDirPath);
         gmicDirTF.setColumns(10);
         gbh.addLabelAndControl(GMIC_FOLDER_LABEL + ": ", gmicDirTF);
     }
@@ -423,8 +423,8 @@ public class PreferencesPanel extends JTabbedPane {
 
         // apply remaining settings
         // (these can't be set interactively => set them here)
-        AppPreferences.magickDirName = magickDirTF.getText().trim();
-        AppPreferences.gmicDirName = gmicDirTF.getText().trim();
+        AppPreferences.magickDirPath = magickDirTF.getText().trim();
+        AppPreferences.gmicDirPath = gmicDirTF.getText().trim();
         MouseZoomMethod.changeTo((MouseZoomMethod) zoomMethodCB.getSelectedItem());
         PanMethod.changeTo((PanMethod) panMethodCB.getSelectedItem());
 
@@ -453,7 +453,7 @@ public class PreferencesPanel extends JTabbedPane {
         if (lastSelectedTabIndex != 0) {
             setSelectedIndex(lastSelectedTabIndex);
         }
-        addChangeListener(e ->
+        addChangeListener(_ ->
             lastSelectedTabIndex = getSelectedIndex());
     }
 

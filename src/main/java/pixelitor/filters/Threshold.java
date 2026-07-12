@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -58,7 +58,7 @@ public class Threshold extends ParametrizedFilter {
 
         thresholdParam.setPresetKey("Threshold");
 
-        diffusionStrengthParam.setupEnableOtherIfNotZero(ditheringMethodParam);
+        diffusionStrengthParam.enableOtherWhenNotZero(ditheringMethodParam);
 
         initParams(
             thresholdParam,
@@ -89,12 +89,9 @@ public class Threshold extends ParametrizedFilter {
             int rgb = inputPixels[i];
 
             int a = srcPixels[i] & 0xFF_00_00_00; // the original, and not shifted
-            int r = (rgb >>> 16) & 0xFF;
-            int g = (rgb >>> 8) & 0xFF;
-            int b = rgb & 0xFF;
             int out;
 
-            double intensity = channel.getIntensity(r, g, b);
+            double intensity = channel.getIntensity(rgb);
             if (intensity > threshold) {
                 out = 0xFF;
             } else {

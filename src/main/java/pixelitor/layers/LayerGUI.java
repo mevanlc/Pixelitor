@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -39,6 +39,7 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static java.awt.RenderingHints.KEY_ANTIALIASING;
 import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
@@ -58,8 +59,8 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     public static final Color UNSELECTED_COLOR = new Color(214, 217, 223);
     public static final Color SELECTED_COLOR = new Color(48, 76, 111);
     private static final Color SELECTED_DARK_COLOR = new Color(16, 16, 16);
-    private static final Color SEMI_SELECTED_COLOR = new Color(131, 146, 167);
-    private static final Color SEMI_SELECTED_DARK_COLOR = new Color(38, 39, 40);
+    private static final Color INACTIVE_SELECTED_COLOR = new Color(131, 146, 167);
+    private static final Color INACTIVE_SELECTED_DARK_COLOR = new Color(38, 39, 40);
 
     private SelectionState selectionState;
 
@@ -86,7 +87,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     private DragReorderHandler dragReorderHandler;
 
     /**
-     * The Y coordinate in the parent when it is not dragged.
+     * The Y coordinate in the parent when it is not being dragged.
      */
     private int layoutY;
 
@@ -211,16 +212,12 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     }
 
     private static Icon createLayerIcon(Layer layer) {
-        if (layer instanceof TextLayer) {
-            return Icons.getTextLayerIcon();
-        } else if (layer.getClass() == AdjustmentLayer.class) {
-            return Icons.getAdjLayerIcon();
-        } else if (layer.getClass() == SmartFilter.class) {
-            return Icons.getSmartFilterIcon();
-        } else {
-            // for other layer types, the icon depends on the contents
-            return null;
-        }
+        return switch (layer) {
+            case TextLayer _ -> Icons.getTextLayerIcon();
+            case SmartFilter _ -> Icons.getSmartFilterIcon();
+            case AdjustmentLayer _ -> Icons.getAdjLayerIcon();
+            default -> null; // for other layer types, the icon depends on the contents
+        };
     }
 
     private void layerIconClicked(MouseEvent e) {
@@ -230,7 +227,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
         if (clickCount == 1) {
             MaskViewMode.NORMAL.activateOn(layer);
         } else {
-            layer.edit();
+            layer.showEditUI();
         }
     }
 
@@ -243,14 +240,19 @@ public class LayerGUI extends JToggleButton implements LayerUI {
 
     private void layerPopupTriggered(MouseEvent e) {
         JPopupMenu popup = layer.createLayerIconPopupMenu();
-        if (popup != null) {
-            if (AppMode.isDevelopment()) {
-                popup.addSeparator();
-                popup.add(new TaskAction("Internal State...", () ->
-                    Debug.showTree(layer, layer.getTypeString())));
-            }
+        boolean hasActions = popup.getComponentCount() > 0;
 
-            popup.show(this, e.getX(), e.getY());
+        if (AppMode.isDevelopment()) {
+            if (hasActions) {
+                popup.addSeparator();
+            }
+            popup.add(new TaskAction("Internal State...", () ->
+                Debug.showTree(layer, layer.getTypeString())));
+            hasActions = true;
+        }
+
+        if (hasActions) {
+            popup.show(e.getComponent(), e.getX(), e.getY());
         }
     }
 
@@ -265,14 +267,15 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     }
 
     private void initLayerVisibilityCB() {
-        visibilityCB = createVisibilityCheckBox(false);
+        visibilityCB = createVisibilityCheckBox();
 
         visibilityCB.setSelected(layer.isVisible());
         visibilityCB.setToolTipText("<html><b>Click</b> to hide/show this layer.<br><b>Alt-click</b> to isolate this layer.");
         add(visibilityCB, LayerGUILayout.CHECKBOX);
     }
 
-    private JCheckBox createVisibilityCheckBox(boolean smartFilter) {
+    private JCheckBox createVisibilityCheckBox() {
+        boolean smartFilter = layer instanceof SmartFilter;
         JCheckBox cb = new JCheckBox(CLOSED_EYE_ICON) {
             @Override
             public void setUI(ButtonUI ui) {
@@ -285,15 +288,11 @@ public class LayerGUI extends JToggleButton implements LayerUI {
             protected void processMouseEvent(MouseEvent e) {
                 // isolating works after a theme-change only if the
                 // mouse event processing is overridden at this level
-
-                if (smartFilter) {
-                    super.processMouseEvent(e);
-                } else if (e.getID() == MouseEvent.MOUSE_CLICKED) {
-                    boolean altDown = (e.getModifiersEx() & MouseEvent.ALT_DOWN_MASK) == MouseEvent.ALT_DOWN_MASK;
-                    if (altDown) {
+                if (e.getID() == MouseEvent.MOUSE_CLICKED) {
+                    if (e.isAltDown() && !smartFilter) { // smart filters shouldn't be isolated
                         layer.isolate();
                     } else {
-                        // normal behaviour
+                        // normal behavior
                         boolean newVisibility = !visibilityCB.isSelected();
                         layer.setVisible(newVisibility, true, true);
                     }
@@ -317,7 +316,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     }
 
     private void bindSelectionToLayerActivation() {
-        addItemListener(e -> {
+        addItemListener(_ -> {
             if (reactToItemEvents) {
                 // invoke later, when isSelected() returns the correct value
                 EventQueue.invokeLater(this::buttonActivationChanged);
@@ -327,7 +326,8 @@ public class LayerGUI extends JToggleButton implements LayerUI {
 
     private void buttonActivationChanged() {
         if (isSelected()) {
-            // during comp actions, the active layer might already be inside the layer
+            // during comp actions, the active layer might already be
+            // inside the layer (which could be a composite layer)
             if (!layer.contains(layer.getComp().getActiveLayer())) {
                 layer.activate();
             }
@@ -339,13 +339,13 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     }
 
     @Override
-    public void setOpenEye(boolean newVisibility) {
+    public void setEyeIconOpen(boolean newVisibility) {
         visibilityCB.setSelected(newVisibility);
         layer.setVisible(newVisibility, true, true);
     }
 
     @Override
-    public boolean isEyeOpen() {
+    public boolean isEyeIconOpen() {
         return visibilityCB.isSelected();
     }
 
@@ -427,7 +427,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
         return layer.getName();
     }
 
-    public boolean isNameEditing() {
+    public boolean isEditingName() {
         return nameEditor.isEditable();
     }
 
@@ -437,37 +437,30 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     }
 
     @Override
-    public void updateLayerIconImageAsync(Layer layer) {
+    public void updateIconImageAsync(Layer layerOrMask) {
         assert calledOnEDT() : callInfo();
-        assert layer.hasRasterIcon();
+        assert layerOrMask.hasRasterIcon();
 
         // the synchronous update avoids starting a filter twice
         // TODO dubious design
-        boolean synchronousUpdate = layer instanceof CompositeLayer;
+        boolean synchronousUpdate = layerOrMask instanceof CompositeLayer;
 
         if (synchronousUpdate) {
-            BufferedImage thumb = layer.createIconThumbnail();
-            assert thumb != null;
-            if (thumb != null) {
-                updateIconOnEDT(layer, thumb);
-            }
+            BufferedImage thumb = layerOrMask.createIconThumbnail();
+            updateIconOnEDT(layerOrMask, thumb);
             return;
         }
 
-        Runnable notEDT = () -> {
-            BufferedImage thumb = layer.createIconThumbnail();
-            assert thumb != null;
-            if (thumb != null) {
-                SwingUtilities.invokeLater(() -> updateIconOnEDT(layer, thumb));
-            }
-        };
-
-        new Thread(notEDT).start();
+        CompletableFuture.supplyAsync(layerOrMask::createIconThumbnail)
+            .thenAcceptAsync(thumb ->
+                updateIconOnEDT(layerOrMask, thumb), EventQueue::invokeLater);
     }
 
-    private void updateIconOnEDT(Layer layer, BufferedImage thumb) {
+    private void updateIconOnEDT(Layer layerOrMask, BufferedImage thumb) {
         assert calledOnEDT() : callInfo();
-        if (layer instanceof LayerMask mask) {
+        assert thumb != null;
+
+        if (layerOrMask instanceof LayerMask mask) {
             if (!hasMaskIcon()) {
                 return;
             }
@@ -511,9 +504,9 @@ public class LayerGUI extends JToggleButton implements LayerUI {
             dragReorderHandler.attachTo(maskIconLabel);
         }
 
-        // don't call layer.getMask().updateIconImage(); because
-        // it requires an ui, which could be constructed right now.
-        updateLayerIconImageAsync(layer.getMask());
+        // don't call layer.getMask().updateIconImage() because
+        // it requires a ui, which could be constructed right now
+        updateIconImageAsync(layer.getMask());
         revalidate();
     }
 
@@ -526,7 +519,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
 
         if (altClick && shiftClick) {
             // shift-alt-click switches to RUBYLITH
-            // except when it already is in RUBYLITH
+            // except when it is already in RUBYLITH
             if (view.getMaskViewMode() == MaskViewMode.RUBYLITH) {
                 view.setMaskViewMode(MaskViewMode.EDIT_MASK, layer);
             } else {
@@ -534,7 +527,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
             }
         } else if (altClick) {
             // alt-click switches to VIEW_MASK
-            // except when it already is in VIEW_MASK
+            // except when it is already in VIEW_MASK
             if (view.getMaskViewMode() == MaskViewMode.VIEW_MASK) {
                 view.setMaskViewMode(MaskViewMode.EDIT_MASK, layer);
             } else {
@@ -559,7 +552,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
     public void removeMaskIcon() {
         assert maskIconLabel != null;
 
-        // the mask icon label is not going to be used again, remove all listeners
+        // the mask icon label is not going to be used again, so remove all listeners
         if (dragReorderHandler != null) { // null in unit tests
             dragReorderHandler.detachFrom(maskIconLabel);
         }
@@ -596,10 +589,10 @@ public class LayerGUI extends JToggleButton implements LayerUI {
         this.layer = newLayer;
         updateName();
         Icon icon = createLayerIcon(layer);
-        if (icon != null) { // has fix icon
+        if (icon != null) { // has a static icon
             layerIconLabel.setIcon(icon);
         } else {
-            updateLayerIconImageAsync(layer);
+            updateIconImageAsync(layer);
         }
 
         if (maskIconLabel != null) {
@@ -614,12 +607,12 @@ public class LayerGUI extends JToggleButton implements LayerUI {
 
     @Override
     public void updateUI() {
-        // don't use any UI
+        // no need for a Swing Look and Feel delegate
     }
 
     @Override
     protected void paintComponent(Graphics g) {
-        if (!layer.getTopLevelLayer().isActiveTopLevel()) {
+        if (!layer.getTopLevelLayer().isActive()) {
             // no custom painting if not selected or semi-selected
             return;
         }
@@ -646,7 +639,7 @@ public class LayerGUI extends JToggleButton implements LayerUI {
         if (layer.isActive()) {
             return darkTheme ? SELECTED_DARK_COLOR : SELECTED_COLOR;
         } else {
-            return darkTheme ? SEMI_SELECTED_DARK_COLOR : SEMI_SELECTED_COLOR;
+            return darkTheme ? INACTIVE_SELECTED_DARK_COLOR : INACTIVE_SELECTED_COLOR;
         }
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -30,7 +30,7 @@ import java.awt.Stroke;
 import java.awt.geom.*;
 
 /**
- * The shapes types in the shapes tool
+ * The shape types in the shapes tool.
  */
 public enum ShapeType {
     RECTANGLE("Rectangle", false, true, true) {
@@ -143,7 +143,7 @@ public enum ShapeType {
             }
             lastDrag = drag;
 
-            Rectangle2D r = drag.createSignedImRect();
+            Rectangle2D r = drag.toSignedImRect();
             return new RandomStarShape(r.getX(), r.getY(), r.getWidth(), r.getHeight());
         }
 
@@ -166,7 +166,7 @@ public enum ShapeType {
                 unitArrow = CustomShapes.createUnitArrow();
             }
 
-            Rectangle2D r = drag.createSignedImRect();
+            Rectangle2D r = drag.toSignedImRect();
 
             double length = drag.calcImLength();
             var transform = AffineTransform.getTranslateInstance(r.getX(), r.getY());
@@ -200,7 +200,7 @@ public enum ShapeType {
     BAT("Bat", false, false, true, CustomShapes::createBat),
     RABBIT("Rabbit", false, false, false, CustomShapes::createRabbit);
 
-    // the key can't be simpy "Shape", because
+    // the key can't be simply "Shape", because
     // that key is used by the stroke settings
     public static final String PRESET_KEY = "ShapeType";
 
@@ -217,9 +217,6 @@ public enum ShapeType {
     // factory for simple shapes that can be created from a rectangle
     private final ShapeFactory shapeFactory;
 
-    /**
-     * Functional interface for shape creation from a rectangle's components
-     */
     @FunctionalInterface
     private interface ShapeFactory {
         Shape create(double x, double y, double width, double height);
@@ -253,10 +250,10 @@ public enum ShapeType {
 
     /**
      * Override this to use a different rectangle type (positive vs signed).
-     * Most simple shapes use signed rect for symmetry during drag.
+     * Most simple shapes use a signed rectangle for symmetry during drag.
      */
     protected Rectangle2D getShapeBounds(Drag drag) {
-        return drag.createSignedImRect();
+        return drag.toSignedImRect();
     }
 
     public final Shape createShape(double x, double y, double size) {
@@ -286,7 +283,7 @@ public enum ShapeType {
     /**
      * Return true if the shape could trigger https://bugs.openjdk.java.net/browse/JDK-6357341
      */
-    public boolean hasAreaProblem() {
+    public boolean hasAreaBug() {
         return hasAreaBug;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -29,7 +29,6 @@ import pixelitor.filters.lookup.ColorBalance;
 import pixelitor.gui.ImageArea;
 import pixelitor.gui.TabsUI;
 import pixelitor.guitest.AppRunner.ExpectConfirmation;
-import pixelitor.guitest.AppRunner.FilterOptions;
 import pixelitor.history.HistoryChecker;
 import pixelitor.layers.*;
 import pixelitor.tools.BrushType;
@@ -45,36 +44,24 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static java.awt.event.KeyEvent.VK_DOWN;
-import static java.awt.event.KeyEvent.VK_ENTER;
-import static java.awt.event.KeyEvent.VK_F3;
+import static java.awt.event.KeyEvent.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.guitest.AppRunner.clickPopupMenu;
 import static pixelitor.guitest.GUITestUtils.findButtonByText;
-import static pixelitor.layers.MaskViewMode.EDIT_MASK;
-import static pixelitor.layers.MaskViewMode.NORMAL;
-import static pixelitor.layers.MaskViewMode.RUBYLITH;
-import static pixelitor.layers.MaskViewMode.VIEW_MASK;
+import static pixelitor.layers.MaskViewMode.*;
 import static pixelitor.selection.SelectionModifyType.EXPAND;
 import static pixelitor.tools.DragToolState.IDLE;
 import static pixelitor.tools.gradient.GradientColorType.FG_TO_BG;
-import static pixelitor.tools.gradient.GradientType.LINEAR;
-import static pixelitor.tools.gradient.GradientType.RADIAL;
-import static pixelitor.tools.gradient.GradientType.SPIRAL_CW;
+import static pixelitor.tools.gradient.GradientType.*;
 import static pixelitor.tools.move.MoveMode.MOVE_LAYER_ONLY;
 import static pixelitor.tools.move.MoveMode.MOVE_SELECTION_ONLY;
-import static pixelitor.tools.shapes.ShapeType.CAT;
-import static pixelitor.tools.shapes.ShapeType.HEART;
-import static pixelitor.tools.shapes.ShapeType.KIWI;
-import static pixelitor.tools.shapes.ShapeType.RECTANGLE;
-import static pixelitor.tools.shapes.TwoPointPaintType.FOREGROUND;
-import static pixelitor.tools.shapes.TwoPointPaintType.NONE;
-import static pixelitor.tools.shapes.TwoPointPaintType.TRANSPARENT;
+import static pixelitor.tools.shapes.ShapeType.*;
+import static pixelitor.tools.shapes.TwoPointPaintType.*;
 
 /**
- * A workflow test is an AssertJ-Swing regression test, where an
+ * A workflow test is an AssertJ-Swing regression test where an
  * image is created from scratch using a longer workflow, and then
  * it is visually compared to a reference image saved earlier.
  * It's not a unit test.
@@ -98,7 +85,7 @@ public class WorkflowTest {
     private final Set<String> loadedRefImages = new HashSet<>();
 
     /**
-     * Enables running all tests within a group
+     * Enables running all tests within a layer group.
      */
     enum GroupSetting {
         NO_GROUP("") {
@@ -166,13 +153,13 @@ public class WorkflowTest {
         }
     }
 
-    private WorkflowTest(String arg) {
+    private WorkflowTest(String groupNr) {
         boolean experimentalWasEnabled = EDT.call(() -> Features.enableExperimental);
         // enable it before building the menus so that shortcuts work
         EDT.run(() -> Features.enableExperimental = true);
 
         historyChecker = new HistoryChecker();
-        app = new AppRunner(historyChecker, null, null);
+        app = new AppRunner(historyChecker, WorkflowTest::log, null, null);
         mouse = app.getMouse();
         pw = app.getPW();
         keyboard = app.getKeyboard();
@@ -188,14 +175,14 @@ public class WorkflowTest {
 //            GroupSetting.DOUBLE_IP
         );
 
-        List<Consumer<GroupSetting>> tests = switch (arg) {
+        List<Consumer<GroupSetting>> tests = switch (groupNr) {
             case "all" -> List.of(this::wfTest1, this::wfTest2, this::wfTest3, this::wfTest4, this::wfTest5);
             case "1" -> List.of(this::wfTest1);
             case "2" -> List.of(this::wfTest2);
             case "3" -> List.of(this::wfTest3);
             case "4" -> List.of(this::wfTest4);
             case "5" -> List.of(this::wfTest5);
-            default -> throw new IllegalArgumentException("arg = " + arg);
+            default -> throw new IllegalArgumentException("groupNr = " + groupNr);
         };
 
         groupSettings.forEach(groupSetting ->
@@ -210,7 +197,7 @@ public class WorkflowTest {
         // ensure that manual testing can continue without undoing/redoing
         app.removeHistoryChecker();
 
-        System.out.println("WorkflowTest: finished at " + AppRunner.getCurrentTimeHM());
+        log("WorkflowTest: finished at " + AppRunner.getCurrentTimeHM());
     }
 
     private void wfTest1(GroupSetting groupSetting) {
@@ -266,7 +253,9 @@ public class WorkflowTest {
     }
 
     private static String startTest(int testNr, GroupSetting groupSetting) {
-        System.out.printf("starting workflow test %d, groupSetting = %s...%n", testNr, groupSetting);
+        String msg = String.format("starting workflow test %d, groupSetting = %s...%n", testNr, groupSetting);
+        log(msg);
+
         String compName = "wf " + testNr + groupSetting.getNameSuffix();
         return compName;
     }
@@ -740,12 +729,12 @@ public class WorkflowTest {
         keyboard.undoRedo("Create Shape");
 
         keyboard.pressEsc();
-        // presing Esc rasterizes the shape
+        // pressing Esc rasterizes the shape
         keyboard.undoRedo("Rasterize Shape");
     }
 
     private void enlargeCanvas() {
-        app.enlargeCanvas(EXTRA_HEIGHT, EXTRA_WIDTH, EXTRA_WIDTH, EXTRA_HEIGHT);
+        app.enlargeCanvas(EXTRA_HEIGHT, EXTRA_WIDTH, EXTRA_HEIGHT, EXTRA_WIDTH);
         keyboard.undoRedo("Enlarge Canvas");
     }
 
@@ -895,7 +884,11 @@ public class WorkflowTest {
         loadedRefImages.add(fileName);
     }
 
-    public static void main(String[] args) {
+    private static void log(String msg) {
+        System.out.println(msg);
+    }
+
+    static void main(String[] args) {
         System.out.println("WorkflowTest: started at " + AppRunner.getCurrentTimeHM());
         Utils.ensureAssertionsEnabled();
         FailOnThreadViolationRepaintManager.install();

@@ -28,32 +28,25 @@ import pixelitor.filters.jhlabsproxies.JHWeave;
 import javax.swing.*;
 import java.awt.Component;
 import java.awt.Container;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static java.awt.Color.BLACK;
-import static java.awt.Color.BLUE;
-import static java.awt.Color.CYAN;
-import static java.awt.Color.RED;
-import static java.awt.Color.WHITE;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static java.awt.Color.*;
+import static org.mockito.Mockito.*;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.filters.gui.FilterSetting.EnabledReason.ANIMATION_ENDING_STATE;
 import static pixelitor.filters.gui.FilterSetting.EnabledReason.FILTER_LOGIC;
-import static pixelitor.filters.gui.TransparencyMode.ALPHA_ENABLED;
-import static pixelitor.filters.gui.TransparencyMode.MANUAL_ALPHA_ONLY;
-import static pixelitor.filters.gui.TransparencyMode.OPAQUE_ONLY;
+import static pixelitor.filters.gui.TransparencyMode.*;
 
 /**
  * Checks whether different {@link FilterParam} implementations
- * implement the interface contract correctly.
+ * adhere to the interface contract.
  */
 @ParameterizedClass
 @MethodSource("instancesToTest")
-@DisplayName("filter param tests")
+@DisplayName("Filter Parameter Tests")
 @TestMethodOrder(MethodOrderer.Random.class)
 class FilterParamTest {
     @Parameter
@@ -84,12 +77,12 @@ class FilterParamTest {
             new ImagePositionParam("Param Name"),
             new GradientParam("Param Name", BLACK, WHITE),
             new TextParam("Param Name", "default text", true),
-            new ColorParam("Param Name", BLACK, ALPHA_ENABLED),
+            new ColorParam("Param Name", BLACK, RANDOMIZED_ALPHA),
             new ColorParam("Param Name", WHITE, MANUAL_ALPHA_ONLY),
             new ColorParam("Param Name", BLUE, OPAQUE_ONLY),
             new ColorListParam("Param Name", 1, 1, BLACK, BLUE),
-            new GroupedColorsParam("Param Name", "Name 1", BLUE, "Name 2", BLUE, ALPHA_ENABLED, true, true),
-            new BooleanParam("Param Name", true, RandomizeMode.ALLOW_RANDOMIZE, true),
+            new GroupedColorsParam("Param Name", "Name 1", BLUE, "Name 2", BLUE, RANDOMIZED_ALPHA, true, true),
+            new BooleanParam("Param Name", true, RandomizeMode.ALLOW, true),
             new AngleParam("Param Name", 0),
             new ElevationAngleParam("Param Name", 0),
             new IntChoiceParam("Param Name", new Item[]{
@@ -134,7 +127,7 @@ class FilterParamTest {
         int columnCount = ((ParamGUI) param.createGUI()).getNumLayoutColumns();
 
         assertThat(columnCount)
-            .as("Layout column count must be exactly 1 or 2")
+            .as("layout column count")
             .isIn(1, 2);
 
         verifyNoParamAdjustments();
@@ -143,14 +136,14 @@ class FilterParamTest {
     @Test
     void shouldHandleRandomization() {
         // test allowed randomization
-        param.setRandomizeMode(RandomizeMode.ALLOW_RANDOMIZE);
+        param.setRandomizeMode(RandomizeMode.ALLOW);
         assertThat(param).shouldRandomize();
         param.randomize();
         verifyNoParamAdjustments();
 
         // test ignored randomization
         String origValue = param.getValueAsString();
-        param.setRandomizeMode(RandomizeMode.IGNORE_RANDOMIZE);
+        param.setRandomizeMode(RandomizeMode.IGNORE);
         assertThat(param).shouldNotRandomize();
         param.randomize();
         assertThat(param).valueAsStringIs(origValue); // it didn't change
@@ -176,6 +169,7 @@ class FilterParamTest {
         randomizeUntilNotDefault();
 
         assertThat(param.getValueAsString())
+            .as(param.getClass().getSimpleName() + " " + param)
             .isNotNull()
             .isNotEqualTo(defaultValue);
 
@@ -195,7 +189,7 @@ class FilterParamTest {
      * This is the only general way to change the value.
      */
     private void randomizeUntilNotDefault() {
-        param.setRandomizeMode(RandomizeMode.ALLOW_RANDOMIZE);
+        param.setRandomizeMode(RandomizeMode.ALLOW);
         int attempts = 0;
         while (param.isAtDefault() && attempts < 100) {
             param.randomize();
@@ -221,7 +215,7 @@ class FilterParamTest {
     }
 
     @Test
-    void simpleMethodsShouldNotTriggerFilter() {
+    void shouldNotTriggerFilterForStateChanges() {
         assertThat(param)
             .as(param.toString())
             .hasName("Param Name");
@@ -230,14 +224,14 @@ class FilterParamTest {
 
         param.isAnimatable();
 
-        // Test APP_LOGIC disable/enable
+        // test FILTER_LOGIC disable/enable
         param.setEnabled(false, FILTER_LOGIC);
         assertIsDisabled(gui);
 
         param.setEnabled(true, FILTER_LOGIC);
         assertIsEnabled(gui);
 
-        // Test ANIMATION_ENDING_STATE disable/enable
+        // test ANIMATION_ENDING_STATE disable/enable
         param.setEnabled(false, ANIMATION_ENDING_STATE);
         if (param.isAnimatable()) {
             assertIsEnabled(gui); // unaffected
@@ -263,22 +257,29 @@ class FilterParamTest {
         param.withSideButton(sideButtonModel);
         JComponent gui = param.createGUI();
 
-        // randomize until we are NOT at default => the reset button should be enabled
-        param.setRandomizeMode(RandomizeMode.ALLOW_RANDOMIZE);
+        // randomize until the parent parameter is NOT at default
+        param.setRandomizeMode(RandomizeMode.ALLOW);
         int attempts = 0;
         while (param.isAtDefault() && attempts < 100) {
             param.randomize();
             attempts++;
         }
 
-        // find the specific components in the GUI hierarchy
-        ResetButton resetButton = findChildComponent(gui, ResetButton.class, btn -> true);
+        // find ALL reset buttons and the side button (some parameters,
+        // such as GroupedRangeParam, don't have a single reset button
+        // for the group itself because the children have their own reset buttons)
+        List<ResetButton> resetButtons = findAllChildComponents(gui, ResetButton.class);
         JButton sideButton = findChildComponent(gui, JButton.class, btn -> sideButtonName.equals(btn.getName()));
 
-        // disable the parameter and verify buttons are disabled
+        // capture the expected state of each reset button BEFORE disabling
+        List<Boolean> expectedResetStates = resetButtons.stream()
+            .map(ResetButton::isEnabled)
+            .toList();
+
+        // disable the parameter and verify all buttons are disabled
         param.setEnabled(false);
-        if (resetButton != null) {
-            assertThat(resetButton.isEnabled())
+        for (ResetButton btn : resetButtons) {
+            assertThat(btn.isEnabled())
                 .as(paramClass + ": ResetButton should be disabled when param is disabled")
                 .isFalse();
         }
@@ -288,20 +289,34 @@ class FilterParamTest {
                 .isFalse();
         }
 
-        // re-enable the parameter and verify buttons
+        // re-enable the parameter and verify all buttons return to their captured expected states
         param.setEnabled(true);
-        if (resetButton != null) {
-            // the reset button should only be enabled if the value is still not default
-            boolean expectedState = !param.isAtDefault();
-            assertThat(resetButton.isEnabled())
-                .as(paramClass + ": ResetButton enabled state should match !isAtDefault() when param is enabled")
-                .isEqualTo(expectedState);
+        for (int i = 0; i < resetButtons.size(); i++) {
+            assertThat(resetButtons.get(i).isEnabled())
+                .as(paramClass + ": ResetButton enabled state should be correctly restored")
+                .isEqualTo(expectedResetStates.get(i));
         }
         if (sideButton != null) {
             assertThat(sideButton.isEnabled())
                 .as(paramClass + ": Side button should be enabled when param is enabled")
                 .isTrue();
         }
+    }
+
+    /**
+     * Helper to find all components of a specific type in a Container hierarchy.
+     */
+    private static <T extends Component> List<T> findAllChildComponents(Container container, Class<T> type) {
+        List<T> found = new ArrayList<>();
+        for (Component c : container.getComponents()) {
+            if (type.isInstance(c)) {
+                found.add(type.cast(c));
+            }
+            if (c instanceof Container childContainer) {
+                found.addAll(findAllChildComponents(childContainer, type));
+            }
+        }
+        return found;
     }
 
     /**

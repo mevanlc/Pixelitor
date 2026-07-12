@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,11 +17,12 @@
 
 package pixelitor.utils;
 
+import pixelitor.progress.ProgressHandler;
+
 import java.awt.Component;
 
 /**
- * Abstracts away messages sent through the GUI
- * in order to enable GUI-independent testing.
+ * Abstracts message display to enable GUI-independent testing.
  */
 public interface MessageHandler {
     // *** status bar messages ***
@@ -42,7 +43,9 @@ public interface MessageHandler {
 
     void showException(Throwable exception);
 
-    // Shows an exception dialog with information about the source thread.
+    /**
+     * Shows an exception dialog with information about the source thread.
+     */
     void showException(Throwable exception, Thread srcThread);
 
     void showExceptionOnEDT(Throwable exception);

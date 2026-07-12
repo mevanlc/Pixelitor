@@ -19,14 +19,14 @@ package pixelitor.compactions;
 
 import pixelitor.Canvas;
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.gui.View;
 import pixelitor.guides.Guides;
 import pixelitor.history.CompositionReplacedEdit;
 import pixelitor.history.History;
+import pixelitor.progress.ProgressHandler;
 import pixelitor.selection.SelectionActions;
 import pixelitor.utils.Messages;
-import pixelitor.utils.ProgressHandler;
 import pixelitor.utils.Utils;
 
 import java.awt.Dimension;
@@ -34,10 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import static pixelitor.utils.Threads.callInfo;
-import static pixelitor.utils.Threads.calledOnEDT;
-import static pixelitor.utils.Threads.onEDT;
-import static pixelitor.utils.Threads.onPool;
+import static pixelitor.utils.Threads.*;
 
 /**
  * Resizes all layers of a {@link Composition} to the given dimensions.
@@ -74,13 +71,14 @@ public class Resize implements CompAction {
 
         // The resizing runs outside the EDT to allow the progress bar animation
         // to update, and to enable the parallel resizing of multiple layers.
-        var progressHandler = Messages.startProgress("Resizing", -1);
+        var progressHandler = Messages.startProgress("<html>Resizing <b>" + srcComp.getName() + "</b>", -1);
         return CompletableFuture
-            .supplyAsync(() -> srcComp.copy(CopyType.UNDO, true), onPool)
+            .supplyAsync(() -> srcComp.copy(CopyOptions.fullStateBackup(true, false)), onPool)
             .thenCompose(newComp -> resizeLayersInParallel(newComp, targetSize))
-            .thenApplyAsync(newComp -> afterResizeActions(srcComp, newComp, targetSize, progressHandler), onEDT)
+            .thenApplyAsync(newComp -> finishResize(srcComp, newComp, targetSize, progressHandler), onEDT)
             .handle((newComp, ex) -> {
                 if (ex != null) {
+                    progressHandler.stopProgressOnEDT();
                     Messages.showExceptionOnEDT(ex);
                 }
                 return newComp;
@@ -100,15 +98,15 @@ public class Resize implements CompAction {
         double scale = Math.min(heightScale, widthScale);
 
         return new Dimension(
-            (int) (scale * srcWidth),
-            (int) (scale * srcHeight)
+            Math.max(1, (int) (scale * srcWidth + 0.5)),
+            Math.max(1, (int) (scale * srcHeight + 0.5))
         );
     }
 
-    private static Composition afterResizeActions(Composition srcComp,
-                                                  Composition newComp,
-                                                  Dimension newCanvasSize,
-                                                  ProgressHandler progressHandler) {
+    private static Composition finishResize(Composition srcComp,
+                                            Composition newComp,
+                                            Dimension newCanvasSize,
+                                            ProgressHandler progressHandler) {
         assert calledOnEDT() : callInfo();
 
         View view = srcComp.getView();
@@ -116,15 +114,16 @@ public class Resize implements CompAction {
 
         Canvas newCanvas = newComp.getCanvas();
         var canvasTransform = newCanvas.createImTransformToFit(newCanvasSize);
-        newComp.imCoordsChanged(canvasTransform, false, view);
+
         newCanvas.resize(newCanvasSize.width, newCanvasSize.height, view, false);
+        newComp.imCoordsChanged(canvasTransform, false, view);
 
         History.add(new CompositionReplacedEdit("Resize",
             view, srcComp, newComp, canvasTransform, false));
         view.replaceComp(newComp);
 
-        // The view was active when the resizing started, but since the
-        // resizing was asynchronous, this could have changed.
+        // the view was active when the resizing started, but since the
+        // resizing was asynchronous, it could be inactive now
         if (view.isActive()) {
             SelectionActions.update(newComp);
         }
@@ -133,13 +132,13 @@ public class Resize implements CompAction {
         if (srcGuides != null) {
             // the guides don't need transforming,
             // just a correct canvas size
-            Guides newGuides = srcGuides.copyIdentical(view);
+            Guides newGuides = srcGuides.copy(view);
             newComp.setGuides(newGuides);
         }
 
-        // Only after the shared canvas size was updated.
-        // The icon image could change if the proportions were
-        // changed or if it was resized to a very small size
+        // update icon images after the canvas size has been updated,
+        // as they could change if proportions were modified
+        // or if the canvas was resized to a very small size
         newComp.updateAllIconImages();
 
         newComp.update(true);

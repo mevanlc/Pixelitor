@@ -40,8 +40,8 @@ import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
 import static java.lang.String.format;
-import static pixelitor.colors.FgBgColors.setBGColor;
-import static pixelitor.colors.FgBgColors.setFGColor;
+import static pixelitor.colors.FgBgColors.setBgColor;
+import static pixelitor.colors.FgBgColors.setFgColor;
 import static pixelitor.gui.utils.SliderSpinner.LabelPosition.WEST;
 import static pixelitor.utils.ImageUtils.isGrayscale;
 import static pixelitor.utils.ImageUtils.isWithinBounds;
@@ -138,9 +138,9 @@ public class ColorPickerTool extends Tool {
 
             Color pickedColor = new Color(sampledRGB);
             if (selectBackground) {
-                setBGColor(pickedColor);
+                setBgColor(pickedColor);
             } else {
-                setFGColor(pickedColor);
+                setFgColor(pickedColor);
             }
         }
     }
@@ -205,9 +205,9 @@ public class ColorPickerTool extends Tool {
             for (int sx = startX; sx <= endX; sx++) {
                 int rgb = pixels[sx + sy * width];
                 a += rgb >>> 24;
-                r += (rgb >> 16) & 0xff;
-                g += (rgb >> 8) & 0xff;
-                b += rgb & 0xff;
+                r += (rgb >> 16) & 0xFF;
+                g += (rgb >> 8) & 0xFF;
+                b += rgb & 0xFF;
                 sampledPixels++;
             }
         }
@@ -241,8 +241,8 @@ public class ColorPickerTool extends Tool {
     }
 
     @Override
-    public void editingTargetChanged(Layer activeLayer) {
-        if (layerOnlySamplingCB.isSelected()) {
+    public void editingTargetChanged(Layer activeLayer, boolean toolActivation) {
+        if (!toolActivation && layerOnlySamplingCB.isSelected()) {
             // don't show the values for the old layer
             Messages.clearStatusBar();
         }

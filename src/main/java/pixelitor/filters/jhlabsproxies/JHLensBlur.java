@@ -18,6 +18,7 @@ package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.LensBlurFilter;
 import pixelitor.filters.ParametrizedFilter;
+import pixelitor.filters.gui.AngleParam;
 import pixelitor.filters.gui.BooleanParam;
 import pixelitor.filters.gui.RangeParam;
 import pixelitor.utils.ImageUtils;
@@ -36,6 +37,7 @@ public class JHLensBlur extends ParametrizedFilter {
 
     private final RangeParam amount = new RangeParam("Amount (Radius)", 1, 2, 101);
     private final RangeParam numSides = new RangeParam("Number of Sides of the Aperture", 3, 5, 12);
+    private final AngleParam rotation = new AngleParam("Aperture Rotation", 0);
     private final RangeParam bloomFactor = new RangeParam("Bloom Factor", 1, 1, 8);
     private final RangeParam bloomThreshold = new RangeParam("Bloom Threshold", 0, 200, 255);
 
@@ -47,21 +49,20 @@ public class JHLensBlur extends ParametrizedFilter {
         initParams(
             amount.withDecimalPlaces(1),
             numSides,
+            rotation,
             bloomFactor,
             bloomThreshold,
-            hpSharpening
-        );
+            hpSharpening);
     }
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        LensBlurFilter filter = new LensBlurFilter(
-            NAME,
+        LensBlurFilter filter = new LensBlurFilter(NAME,
             amount.getValueAsFloat(),
             numSides.getValue(),
             bloomFactor.getValueAsFloat(),
-            bloomThreshold.getValueAsFloat()
-        );
+            bloomThreshold.getValueAsFloat(),
+            (float) rotation.getValueInRadians());
 
         dest = ImageUtils.filterPremultiplied(src, dest, filter);
 

@@ -80,7 +80,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     public void initSettingsPanel(ResourceBundle resources) {
         String moveText = resources.getString("mt_move");
         settingsPanel.addComboBox(moveText, modeSelector, "modeSelector");
-        modeSelector.addActionListener(e -> modeChanged());
+        modeSelector.addActionListener(_ -> modeChanged());
 
         settingsPanel.addSeparator();
         settingsPanel.addWithLabel("Auto Select Layer:",
@@ -88,7 +88,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
 
         settingsPanel.addWithLabel("Free Transform:",
             freeTransformCheckBox, "freeTransformCheckBox");
-        freeTransformCheckBox.addActionListener(e ->
+        freeTransformCheckBox.addActionListener(_ ->
             setFreeTransformMode(freeTransformCheckBox.isSelected()));
     }
 
@@ -251,6 +251,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     protected void toolActivated(View view) {
         super.toolActivated(view);
+
         if (freeTransformCheckBox.isSelected()) {
             createTransformBox();
             if (!isFreeTransforming()) {
@@ -300,8 +301,8 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     }
 
     @Override
-    public void editingTargetChanged(Layer activeLayer) {
-        if (activeMode.movesLayer()) {
+    public void editingTargetChanged(Layer activeLayer, boolean toolActivation) {
+        if (!toolActivation && activeMode.movesLayer()) {
             // switching to another layer implicitly cancels the transform
             cancelTransform(true);
         }
@@ -395,7 +396,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         return null;
     }
 
-    private void applyTransform(boolean addHistory) {
+    private void applyTransform(boolean addToHistory) {
         if (!isFreeTransforming()) {
             return;
         }
@@ -411,7 +412,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
 
         // if there was a significant change, create a history entry that bundles the
         // data edit with the UI snapshot, allowing the session to be restored on undo
-        if (addHistory && contentEdit != null) {
+        if (addToHistory && contentEdit != null) {
             History.add(new ApplyTransformEdit(
                 "Apply Free Transform",
                 Views.getActiveComp(),
@@ -426,7 +427,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         Messages.showStatusMessage("Free transform applied.");
     }
 
-    public void cancelTransform(boolean addHistory) {
+    public void cancelTransform(boolean addToHistory) {
         if (!isFreeTransforming()) {
             return;
         }
@@ -441,7 +442,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         transformTarget.cancelTransform();
 
         // create a history entry for the cancellation action, but only if the box state has changed
-        if (addHistory && !snapshot.memento().equals(initialTransformMemento)) {
+        if (addToHistory && !snapshot.memento().equals(initialTransformMemento)) {
             History.add(new CancelTransformEdit(
                 "Cancel Free Transform",
                 Views.getActiveComp(),

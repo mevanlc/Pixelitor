@@ -18,12 +18,14 @@
 package pixelitor.layers;
 
 import pixelitor.Canvas;
-import pixelitor.*;
+import pixelitor.Composition;
+import pixelitor.CopyOptions;
+import pixelitor.ImageMode;
 import pixelitor.compactions.FlipDirection;
 import pixelitor.compactions.Outsets;
 import pixelitor.compactions.QuadrantAngle;
+import pixelitor.filters.FilterContext;
 import pixelitor.gui.View;
-import pixelitor.gui.utils.Dialogs;
 import pixelitor.history.*;
 import pixelitor.io.ORAImageInfo;
 import pixelitor.io.PXCFormat;
@@ -49,17 +51,13 @@ import java.io.ObjectOutputStream;
 import java.io.Serial;
 import java.util.concurrent.CompletableFuture;
 
-import static java.awt.RenderingHints.KEY_INTERPOLATION;
-import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
-import static java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
+import static java.awt.RenderingHints.*;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
-import static pixelitor.FilterContext.BATCH_AUTOMATE;
-import static pixelitor.FilterContext.REPEAT_LAST;
 import static pixelitor.compactions.FlipDirection.HORIZONTAL;
-import static pixelitor.layers.ImageLayer.State.NORMAL;
-import static pixelitor.layers.ImageLayer.State.PREVIEW;
-import static pixelitor.layers.ImageLayer.State.SHOW_ORIGINAL;
+import static pixelitor.filters.FilterContext.BATCH_AUTOMATE;
+import static pixelitor.filters.FilterContext.REPEAT_LAST;
+import static pixelitor.layers.ImageLayer.State.*;
 import static pixelitor.utils.ImageUtils.copyImage;
 import static pixelitor.utils.ImageUtils.replaceSelectedRegion;
 import static pixelitor.utils.Threads.onEDT;
@@ -108,7 +106,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
     /**
      * Whether the preview image is different from the normal image.
-     * Relevant only in {@link PREVIEW} state.
+     * Relevant only in preview state.
      */
     private transient boolean imageContentChanged = false;
 
@@ -265,8 +263,8 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     /**
-     * Toggles between showing the filter preview and
-     * the original image during a filter dialog session.
+     * Sets whether to show the original image instead of
+     * the filter preview during a filter dialog session.
      */
     @Override
     public void setShowOriginal(boolean showOriginal) {
@@ -281,14 +279,14 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     @Override
-    protected ImageLayer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
+    protected ImageLayer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
         BufferedImage imageCopy = copyImage(image);
         if (imageCopy == null) {
             // there was an out of memory error
             return null;
         }
 
-        String copyName = copyType.createLayerCopyName(name);
+        String copyName = options.createLayerCopyName(name);
         return new ImageLayer(newComp, imageCopy, copyName, getTx(), getTy());
     }
 
@@ -548,7 +546,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
             imageContentChanged = false; // no history will be necessary
 
-            // it still can happen that the image needs to be repainted
+            // it can still happen that the image needs to be repainted
             // because the preview image can be different from the image
             // (the user does something, but then resets the params to a do-nothing state)
             boolean shouldRefresh = image != previewImage;
@@ -637,7 +635,9 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
             return new Rectangle(getTx(), getTy(), image.getWidth(), image.getHeight());
         } else {
             Rectangle rect = ImageUtils.calcOpaqueBounds(image);
-            rect.translate(getTx(), getTy());
+            if (rect != null) {
+                rect.translate(getTx(), getTy());
+            }
             return rect;
         }
     }
@@ -761,23 +761,19 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
      * Enlarges the image so that it covers the canvas completely.
      */
     private void enlargeImage(Rectangle canvasBounds) {
-        try {
-            Rectangle current = getContentBounds();
-            Rectangle target = current.union(canvasBounds);
+        Rectangle current = getContentBounds();
+        Rectangle target = current.union(canvasBounds);
 
-            BufferedImage bi = createEmptyLayerImage(target.width, target.height);
-            Graphics2D g = bi.createGraphics();
-            int drawX = current.x - target.x;
-            int drawY = current.y - target.y;
-            g.drawImage(image, drawX, drawY, null);
-            g.dispose();
+        BufferedImage bi = createEmptyLayerImage(target.width, target.height);
+        Graphics2D g = bi.createGraphics();
+        int drawX = current.x - target.x;
+        int drawY = current.y - target.y;
+        g.drawImage(image, drawX, drawY, null);
+        g.dispose();
 
-            setTranslation(target.x - canvasBounds.x, target.y - canvasBounds.y);
+        setTranslation(target.x - canvasBounds.x, target.y - canvasBounds.y);
 
-            setImage(bi);
-        } catch (OutOfMemoryError e) {
-            Dialogs.showOutOfMemoryDialog(e);
-        }
+        setImage(bi);
     }
 
     @Override
@@ -812,7 +808,31 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         if (layerTransform) {
             rotateOnlyThisLayer(angle);
         } else {
-            rotateForFullComp(angle);
+            rotateFullComp(angle);
+        }
+    }
+
+    @Override
+    public void rotate(double angleRadians, boolean layerTransform) {
+        if (Math.abs(angleRadians) < 1.0e-12) {
+            return;
+        }
+
+        Point2D canvasCenter = comp.getCanvas().getImCenter();
+        AffineTransform at = AffineTransform.getRotateInstance(
+            angleRadians, canvasCenter.getX(), canvasCenter.getY());
+        at.translate(getTx(), getTy());
+
+        TransformResult result = applyTransform(image, at, VALUE_INTERPOLATION_BILINEAR);
+        if (result == null) {
+            throw new IllegalStateException("transform resulted in an empty image");
+        }
+
+        if (layerTransform) {
+            replaceTranslatedImage(result.image, "Rotate Layer", result.tx, result.ty);
+        } else {
+            setTranslation(result.tx, result.ty);
+            setImage(result.image);
         }
     }
 
@@ -833,7 +853,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     // this is a full composition transform, the canvas will also be rotated
-    private void rotateForFullComp(QuadrantAngle angle) {
+    private void rotateFullComp(QuadrantAngle angle) {
         int newTx;
         int newTy;
         switch (angle.getAngleDegree()) {
@@ -866,13 +886,13 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     @Override
-    public void setTranslation(int x, int y) {
+    public void setTranslation(int tx, int ty) {
         // don't allow positive translations for image layers,
         // because the image must always fully cover the canvas
-        if (x > 0 || y > 0) {
-            throw new IllegalArgumentException("x = " + x + ", y = " + y + ", this = " + this);
+        if (tx > 0 || ty > 0) {
+            throw new IllegalArgumentException("tx = " + tx + ", ty = " + ty + ", this = " + this);
         }
-        super.setTranslation(x, y);
+        super.setTranslation(tx, ty);
         invalidateMaskedImageCache();
     }
 
@@ -916,15 +936,15 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
                 super.crop(cropRect, false, allowGrowing);
             } else {
                 // the image still has to be enlarged, but the translation will not be zero
-                int westEnlargement = Math.max(0, -cropX);
-                int newWidth = westEnlargement + Math.max(
+                int leftEnlargement = Math.max(0, -cropX);
+                int newWidth = leftEnlargement + Math.max(
                     image.getWidth(), cropX + cropRect.width);
-                int northEnlargement = Math.max(0, -cropY);
-                int newHeight = northEnlargement + Math.max(
+                int topEnlargement = Math.max(0, -cropY);
+                int newHeight = topEnlargement + Math.max(
                     image.getHeight(), cropY + cropRect.height);
 
                 BufferedImage newImage = ImageUtils.crop(image,
-                    -westEnlargement, -northEnlargement, newWidth, newHeight);
+                    -leftEnlargement, -topEnlargement, newWidth, newHeight);
                 setImage(newImage);
                 setTranslation(Math.min(-cropX, 0), Math.min(-cropY, 0));
             }
@@ -1001,12 +1021,12 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     /**
      * Crops the layer to the canvas size and records the action in history.
      */
-    public void toCanvasSizeWithHistory() {
+    public void cropToCanvasSizeWithHistory() {
         BufferedImage backupImage = getImage();
         // must be created before the change
         var translationEdit = new TranslationEdit(comp, this, true);
 
-        boolean changed = toCanvasSize();
+        boolean changed = cropToCanvasSize();
         if (!changed) {
             Messages.showStatusMessage("The layer <b>\"%s\"</b> was already the same size (%dx%d) as the canvas."
                 .formatted(getName(), comp.getCanvasWidth(), comp.getCanvasHeight()));
@@ -1017,7 +1037,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         BufferedImage maskBackupImage = null;
         if (hasMask()) {
             maskBackupImage = mask.getImage();
-            maskChanged = mask.toCanvasSize();
+            maskChanged = mask.cropToCanvasSize();
         }
 
         ImageEdit imageEdit;
@@ -1038,7 +1058,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     /**
      * Crops the layer to the canvas size without creating a history edit.
      */
-    public boolean toCanvasSize() {
+    public boolean cropToCanvasSize() {
         if (!isBigLayer()) {
             return false; // nothing changed
         }
@@ -1047,9 +1067,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
             -getTx(), -getTy(),
             comp.getCanvasWidth(), comp.getCanvasHeight());
 
-        BufferedImage tmp = image;
         setImage(newImage);
-        tmp.flush();
         setTranslation(0, 0);
 
         return true; // there was a change
@@ -1062,15 +1080,15 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         Rectangle imageBounds = getContentBounds();
         Rectangle canvasBounds = comp.getCanvasBounds();
 
-        int newX = canvasBounds.x - out.left;
-        int newY = canvasBounds.y - out.top;
-        int newWidth = canvasBounds.width + out.left + out.right;
-        int newHeight = canvasBounds.height + out.top + out.bottom;
+        int newX = canvasBounds.x - out.left();
+        int newY = canvasBounds.y - out.top();
+        int newWidth = canvasBounds.width + out.left() + out.right();
+        int newHeight = canvasBounds.height + out.top() + out.bottom();
         var newCanvasBounds = new Rectangle(newX, newY, newWidth, newHeight);
 
         if (imageBounds.contains(newCanvasBounds)) {
             // even after the canvas enlargement, the image does not need to be enlarged
-            setTranslation(getTx() + out.left, getTy() + out.top);
+            setTranslation(getTx() + out.left(), getTy() + out.top());
         } else {
             enlargeImage(newCanvasBounds);
         }
@@ -1167,7 +1185,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     /**
-     * Returns true if the layer image is bigger than the canvas
+     * Returns true if the layer image is bigger than the canvas.
      */
     private boolean isBigLayer() {
         return image.getWidth() > comp.getCanvasWidth()
@@ -1199,7 +1217,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     protected void paintWithoutTmpLayer(Graphics2D g,
                                         BufferedImage visibleImage,
                                         boolean firstVisibleLayer) {
-        if (Tools.isShapesDrawing() && isActive() && !isMaskEditing()) {
+        if (Tools.isDrawingShapes() && isActive() && !isMaskEditing()) {
             paintLayerWithShapes(g, visibleImage, firstVisibleLayer);
         } else { // the simple case
             g.drawImage(visibleImage, getTx(), getTy(), null);
@@ -1251,7 +1269,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
             // But, until then, the image and the shape have to be mixed first
             // and then the result must be composited into the main Graphics,
             // otherwise we don't get the correct result if this layer is not the
-            // first visible layer and has a blending mode different from normal
+            // first visible layer and has a blending mode other than normal.
             BufferedImage tmp = comp.getCanvas().createTmpImage();
             Graphics2D tmpG = tmp.createGraphics();
             tmpG.drawImage(visibleImage, getTx(), getTy(), null);
@@ -1285,7 +1303,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     @Override
     public BufferedImage createIconThumbnail() {
         BufferedImage bigImg = getCanvasSizedSubImage();
-        return createThumbnail(bigImg, thumbCheckerBoardPainter);
+        return createThumbnail(bigImg, thumbCheckerboardPainter);
     }
 
     /**
@@ -1319,7 +1337,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     public void convertMode(ImageMode mode) {
-        image = mode.convert(image);
+        setImage(mode.convert(image));
     }
 
     @Override

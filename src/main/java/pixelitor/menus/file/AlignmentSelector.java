@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * A panel with a 3x3 grid of toggle buttons to select an alignment.
+ * A panel containing a 3x3 grid of toggle buttons for selecting an alignment.
  */
 public class AlignmentSelector extends JPanel {
     private static final Insets BUTTON_MARGIN = new Insets(2, 2, 2, 2);
@@ -43,7 +43,7 @@ public class AlignmentSelector extends JPanel {
 
     public enum VerticalAlignment {TOP, CENTER, BOTTOM}
 
-    public record Alignment(HorizontalAlignment hAlign, VerticalAlignment vAlign) {
+    public record Alignment(HorizontalAlignment horizontal, VerticalAlignment vertical) {
     }
 
     private final JToggleButton[][] buttons = new JToggleButton[3][3];
@@ -90,12 +90,12 @@ public class AlignmentSelector extends JPanel {
     private void fireActionPerformed(ActionEvent e) {
         for (ActionListener listener : listeners) {
             // forward the event with this as the source
-            listener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null));
+            listener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, e.getActionCommand()));
         }
     }
 
     /**
-     * Adds an action listener to be notified of selection changes.
+     * Adds an action listener that is notified of selection changes.
      */
     public void addActionListener(ActionListener listener) {
         listeners.add(listener);
@@ -128,7 +128,7 @@ public class AlignmentSelector extends JPanel {
      * Sets the currently selected alignment from an Alignment object.
      */
     public void setAlignment(Alignment alignment) {
-        setAlignment(alignment.hAlign(), alignment.vAlign());
+        setAlignment(alignment.horizontal(), alignment.vertical());
     }
 
     /**

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,11 +17,8 @@
 
 package pixelitor.filters;
 
-import pixelitor.filters.gui.GroupedRangeParam;
-import pixelitor.filters.gui.Help;
-import pixelitor.filters.gui.IntChoiceParam;
+import pixelitor.filters.gui.*;
 import pixelitor.filters.gui.IntChoiceParam.Item;
-import pixelitor.filters.gui.RangeParam;
 import pixelitor.gui.GUIText;
 
 import java.awt.geom.Path2D;
@@ -29,7 +26,6 @@ import java.io.Serial;
 
 import static net.jafama.FastMath.cos;
 import static net.jafama.FastMath.sin;
-import static pixelitor.filters.gui.RandomizeMode.IGNORE_RANDOMIZE;
 import static pixelitor.gui.GUIText.ZOOM;
 
 /**
@@ -41,8 +37,8 @@ public class Spirograph extends CurveFilter {
 
     public static final String NAME = "Spirograph";
 
-    // Hypotrochoid and epitrochoid curves are produced
-    // when one circle rolls around/within another circle.
+    // hypotrochoid and epitrochoid curves are produced
+    // when one circle rolls around/within another circle
     private static final int TYPE_HYPOTROCHOID = 1;
     private static final int TYPE_EPITROCHOID = 2;
 
@@ -56,7 +52,7 @@ public class Spirograph extends CurveFilter {
     private final IntChoiceParam type = new IntChoiceParam(GUIText.TYPE, new Item[]{
         new Item("Hypotrochoid", TYPE_HYPOTROCHOID),
         new Item("Epitrochoid", TYPE_EPITROCHOID),
-    }, IGNORE_RANDOMIZE);
+    }, RandomizeMode.IGNORE);
 
     private final RangeParam zoom = new RangeParam(ZOOM + " (%)", 1, 100, 701);
 

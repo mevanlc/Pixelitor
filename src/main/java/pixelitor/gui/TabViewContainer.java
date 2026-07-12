@@ -73,7 +73,7 @@ public class TabViewContainer extends JComponent implements ViewContainer {
     }
 
     @Override
-    public void updateTitle(View view) {
+    public void updateTitle() {
         if (header != null) {
             header.setTitle(view.getName());
         }
@@ -123,12 +123,18 @@ public class TabViewContainer extends JComponent implements ViewContainer {
     }
 
     private void addRenameAction(JPopupMenu popup) {
-        popup.add(new TaskAction("Rename...", () ->
-            view.getComp().renameInteractively(this)));
+        popup.add(new TaskAction("Rename...", this::renameComp));
+    }
+
+    private void renameComp() {
+        String currentName = view.getName();
+        String chosenName = JOptionPane.showInputDialog(this,
+            "New Name:", currentName);
+        view.getComp().rename(currentName, chosenName);
     }
 
     private void addCloseActions(JPopupMenu popup) {
-        // close the clicked one, even if it isn't the active!
+        // closes the clicked tab, even if it isn't the active one
         popup.add(new TaskAction(i18n("close"), () ->
             Views.warnAndClose(view)));
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -24,6 +24,7 @@ import pixelitor.Views;
 import pixelitor.filters.gui.DialogMenuOwner;
 import pixelitor.filters.gui.RangeParam;
 import pixelitor.filters.gui.UserPreset;
+import pixelitor.gui.GUIText;
 import pixelitor.gui.utils.SliderSpinner;
 import pixelitor.utils.*;
 
@@ -34,9 +35,7 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 
 import static java.awt.RenderingHints.KEY_ANTIALIASING;
 import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
@@ -50,42 +49,43 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
     private static final String PIXEL_CARD = "pixel";
     private static final String PERCENT_CARD = "percent";
 
-    // percentage-based sliders (0-100%)
-    private final RangeParam northPercentage = new RangeParam("North", 0, 0, 100);
-    private final RangeParam eastPercentage = new RangeParam("East", 0, 0, 100);
-    private final RangeParam southPercentage = new RangeParam("South", 0, 0, 100);
-    private final RangeParam westPercentage = new RangeParam("West", 0, 0, 100);
+    private static final String PRESET_KEY_USE_PIXELS = "Pixels";
 
-    // pixel-based sliders (0 to canvas dimension)
-    private final RangeParam northPixels;
-    private final RangeParam eastPixels;
-    private final RangeParam southPixels;
-    private final RangeParam westPixels;
+    // percentage-based sliders (0-100%)
+    private final RangeParam topPercentage = new RangeParam(GUIText.TOP, 0, 0, 100);
+    private final RangeParam rightPercentage = new RangeParam(GUIText.RIGHT, 0, 0, 100);
+    private final RangeParam bottomPercentage = new RangeParam(GUIText.BOTTOM, 0, 0, 100);
+    private final RangeParam leftPercentage = new RangeParam(GUIText.LEFT, 0, 0, 100);
+
+    // pixel-based sliders (0 to the corresponding canvas width or height)
+    private final RangeParam topPixels;
+    private final RangeParam rightPixels;
+    private final RangeParam bottomPixels;
+    private final RangeParam leftPixels;
 
     private final List<RangeParam> pixelParams;
     private final List<RangeParam> percentParams;
-    private final Map<RangeParam, RangeParam> percentToPixelMap;
 
     private final JRadioButton usePixelsRadio = new JRadioButton("Pixels");
     private final JRadioButton usePercentsRadio = new JRadioButton("Percentage");
     private final JButton resetButton = new JButton("Reset", Icons.getResetIcon());
-    private final CanvasPreviewPanel previewPanel = new CanvasPreviewPanel();
+    private final PreviewPanel previewPanel = new PreviewPanel();
 
-    private final JPanel northCardPanel;
-    private final JPanel eastCardPanel;
-    private final JPanel southCardPanel;
-    private final JPanel westCardPanel;
+    private final JPanel topCardPanel;
+    private final JPanel rightCardPanel;
+    private final JPanel bottomCardPanel;
+    private final JPanel leftCardPanel;
 
-    private enum SymmetryMode {
-        INDEPENDENT("None"),
+    private enum LinkMode {
+        NONE("None"),
         UNIFORM_BORDER("Uniform Border"),
         KEEP_ASPECT_RATIO("Keep Aspect Ratio"),
-        HORIZONTAL("Horizontal"),
-        VERTICAL("Vertical");
+        CENTER_HOR("Center Horizontally"),
+        CENTER_VER("Center Vertically");
 
         private final String displayName;
 
-        SymmetryMode(String displayName) {
+        LinkMode(String displayName) {
             this.displayName = displayName;
         }
 
@@ -95,9 +95,12 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         }
     }
 
-    private final JComboBox<SymmetryMode> symmetryComboBox = new JComboBox<>(SymmetryMode.values());
-    private boolean isUpdatingFromLink = false;
+    private final JComboBox<LinkMode> linkModeComboBox = new JComboBox<>(LinkMode.values());
+    private boolean propagatingLinkUpdate = false;
 
+    /**
+     * Tracks a {@link ChangeListener} registered on a {@link RangeParam} so the listener can be removed later.
+     */
     private record ListenerSubscription(RangeParam param, ChangeListener listener) {
         private ListenerSubscription {
             param.addChangeListener(listener);
@@ -114,33 +117,20 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         setLayout(new GridBagLayout());
 
         Canvas c = Views.getActiveComp().getCanvas();
-        northPixels = new RangeParam("North", 0, 0, c.getHeight());
-        eastPixels = new RangeParam("East", 0, 0, c.getWidth());
-        southPixels = new RangeParam("South", 0, 0, c.getHeight());
-        westPixels = new RangeParam("West", 0, 0, c.getWidth());
+        topPixels = new RangeParam(GUIText.TOP, 0, 0, c.getHeight());
+        rightPixels = new RangeParam(GUIText.RIGHT, 0, 0, c.getWidth());
+        bottomPixels = new RangeParam(GUIText.BOTTOM, 0, 0, c.getHeight());
+        leftPixels = new RangeParam(GUIText.LEFT, 0, 0, c.getWidth());
 
-        pixelParams = List.of(northPixels, eastPixels, southPixels, westPixels);
-        percentParams = List.of(northPercentage, eastPercentage, southPercentage, westPercentage);
+        pixelParams = List.of(topPixels, rightPixels, bottomPixels, leftPixels);
+        percentParams = List.of(topPercentage, rightPercentage, bottomPercentage, leftPercentage);
 
-        percentToPixelMap = new IdentityHashMap<>();
-        percentToPixelMap.put(northPercentage, northPixels);
-        percentToPixelMap.put(eastPercentage, eastPixels);
-        percentToPixelMap.put(southPercentage, southPixels);
-        percentToPixelMap.put(westPercentage, westPixels);
+        topCardPanel = createSliderCardPanel(topPercentage, topPixels, "top", SliderSpinner.HORIZONTAL);
+        rightCardPanel = createSliderCardPanel(rightPercentage, rightPixels, "right", SliderSpinner.VERTICAL);
+        bottomCardPanel = createSliderCardPanel(bottomPercentage, bottomPixels, "bottom", SliderSpinner.HORIZONTAL);
+        leftCardPanel = createSliderCardPanel(leftPercentage, leftPixels, "left", SliderSpinner.VERTICAL);
 
-//        percentToPixelMap = Map.of(
-//            northPercentage, northPixels,
-//            eastPercentage, eastPixels,
-//            southPercentage, southPixels,
-//            westPercentage, westPixels
-//        );
-
-        northCardPanel = createSliderCardPanel(northPercentage, northPixels, "north", SliderSpinner.HORIZONTAL);
-        eastCardPanel = createSliderCardPanel(eastPercentage, eastPixels, "east", SliderSpinner.VERTICAL);
-        southCardPanel = createSliderCardPanel(southPercentage, southPixels, "south", SliderSpinner.HORIZONTAL);
-        westCardPanel = createSliderCardPanel(westPercentage, westPixels, "west", SliderSpinner.VERTICAL);
-
-        setupSymmetryControls();
+        setupConstraintsControls();
         setupRadioButtons();
         setupResetButton();
         addComponentsToLayout();
@@ -148,24 +138,24 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         usePixelsRadio.doClick(); // default to pixel mode
     }
 
-    private void setupSymmetryControls() {
-        symmetryComboBox.setSelectedItem(SymmetryMode.INDEPENDENT);
-        symmetryComboBox.addActionListener(e -> updateSymmetry());
+    private void setupConstraintsControls() {
+        linkModeComboBox.setSelectedItem(LinkMode.NONE);
+        linkModeComboBox.addActionListener(_ -> updateConstraints());
     }
 
     private void addComponentsToLayout() {
         GridBagConstraints c = new GridBagConstraints();
 
-        // symmetry controls at the top
-        JPanel symmetryPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
-        symmetryPanel.add(new JLabel("Link Edges:"));
-        symmetryPanel.add(symmetryComboBox);
+        // constraints controls at the top
+        JPanel constraintsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
+        constraintsPanel.add(new JLabel("Constraints:"));
+        constraintsPanel.add(linkModeComboBox);
         c.gridx = 0;
         c.gridy = 0;
         c.gridwidth = 3;
         c.anchor = GridBagConstraints.CENTER;
         c.insets = new Insets(5, 0, 5, 0);
-        add(symmetryPanel, c);
+        add(constraintsPanel, c);
 
         c.gridwidth = 1;
         c.insets = new Insets(0, 0, 0, 0);
@@ -173,19 +163,19 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
 
         c.gridx = 1;
         c.gridy = 1;
-        add(northCardPanel, c);
+        add(topCardPanel, c);
 
         c.gridx = 2;
         c.gridy = 2;
-        add(eastCardPanel, c);
+        add(rightCardPanel, c);
 
         c.gridx = 1;
         c.gridy = 3;
-        add(southCardPanel, c);
+        add(bottomCardPanel, c);
 
         c.gridx = 0;
         c.gridy = 2;
-        add(westCardPanel, c);
+        add(leftCardPanel, c);
 
         c.gridx = 1;
         c.gridy = 2;
@@ -199,11 +189,11 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
     private JPanel createSliderCardPanel(RangeParam percent, RangeParam pixels, String sliderName, int orientation) {
         var percentGUI = new SliderSpinner(percent, BORDER, false, orientation);
         percentGUI.setName(sliderName);
-        percentGUI.addChangeListener(e -> sliderChanged());
+        percentGUI.addChangeListener(_ -> sliderChanged());
 
         var pixelGUI = new SliderSpinner(pixels, BORDER, false, orientation);
         pixelGUI.setName(sliderName);
-        pixelGUI.addChangeListener(e -> sliderChanged());
+        pixelGUI.addChangeListener(_ -> sliderChanged());
 
         JPanel cardPanel = new JPanel(new CardLayout());
         cardPanel.add(pixelGUI, PIXEL_CARD);
@@ -217,17 +207,17 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         c.gridy = 3;
         c.anchor = GridBagConstraints.CENTER;
 
-        usePixelsRadio.addActionListener(e -> setUnit(ResizeUnit.PIXELS));
-        usePercentsRadio.addActionListener(e -> setUnit(ResizeUnit.PERCENTAGE));
+        usePixelsRadio.addActionListener(_ -> setUnit(ResizeUnit.PIXELS));
+        usePercentsRadio.addActionListener(_ -> setUnit(ResizeUnit.PERCENTAGE));
 
-        ButtonGroup unitToggleGroup = new ButtonGroup();
-        unitToggleGroup.add(usePixelsRadio);
-        unitToggleGroup.add(usePercentsRadio);
+        ButtonGroup unitButtonGroup = new ButtonGroup();
+        unitButtonGroup.add(usePixelsRadio);
+        unitButtonGroup.add(usePercentsRadio);
 
-        Box radioContainer = new Box(BoxLayout.Y_AXIS);
-        radioContainer.add(usePixelsRadio);
-        radioContainer.add(usePercentsRadio);
-        add(radioContainer, c);
+        Box unitContainer = new Box(BoxLayout.Y_AXIS);
+        unitContainer.add(usePixelsRadio);
+        unitContainer.add(usePercentsRadio);
+        add(unitContainer, c);
     }
 
     private void setUnit(ResizeUnit newUnit) {
@@ -238,10 +228,10 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
             case CENTIMETERS, INCHES -> throw new IllegalArgumentException("newUnit = " + newUnit);
         };
 
-        showCard(northCardPanel, cardName);
-        showCard(eastCardPanel, cardName);
-        showCard(southCardPanel, cardName);
-        showCard(westCardPanel, cardName);
+        showCard(topCardPanel, cardName);
+        showCard(rightCardPanel, cardName);
+        showCard(bottomCardPanel, cardName);
+        showCard(leftCardPanel, cardName);
     }
 
     private static void showCard(JPanel panel, String cardName) {
@@ -250,7 +240,7 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
 
     private void setupResetButton() {
         resetButton.setEnabled(false);
-        resetButton.addActionListener(e -> reset());
+        resetButton.addActionListener(_ -> reset());
 
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 2;
@@ -287,10 +277,10 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
      * Synchronizes values between pixel and percentage sliders when switching units.
      */
     private void syncAllPairsTo(ResizeUnit newUnit) {
-        syncPair(northPixels, northPercentage, newUnit);
-        syncPair(eastPixels, eastPercentage, newUnit);
-        syncPair(westPixels, westPercentage, newUnit);
-        syncPair(southPixels, southPercentage, newUnit);
+        syncPair(topPixels, topPercentage, newUnit);
+        syncPair(rightPixels, rightPercentage, newUnit);
+        syncPair(leftPixels, leftPercentage, newUnit);
+        syncPair(bottomPixels, bottomPercentage, newUnit);
     }
 
     private static void syncPair(RangeParam pixels, RangeParam percent, ResizeUnit newUnit) {
@@ -303,25 +293,25 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         }
     }
 
-    private void updateSymmetry() {
+    private void updateConstraints() {
         clearLinks();
-        SymmetryMode selectedMode = (SymmetryMode) symmetryComboBox.getSelectedItem();
+        LinkMode selectedMode = (LinkMode) linkModeComboBox.getSelectedItem();
         if (selectedMode == null) {
             return;
         }
 
         switch (selectedMode) {
-            case HORIZONTAL -> {
-                linkPair(eastPixels, westPixels);
-                linkPair(eastPercentage, westPercentage);
+            case CENTER_HOR -> {
+                linkPair(rightPixels, leftPixels);
+                linkPair(rightPercentage, leftPercentage);
             }
-            case VERTICAL -> {
-                linkPair(northPixels, southPixels);
-                linkPair(northPercentage, southPercentage);
+            case CENTER_VER -> {
+                linkPair(topPixels, bottomPixels);
+                linkPair(topPercentage, bottomPercentage);
             }
             case UNIFORM_BORDER -> linkAll(true);
             case KEEP_ASPECT_RATIO -> linkAll(false);
-            case INDEPENDENT -> { /* no links needed */ }
+            case NONE -> { /* no links needed */ }
         }
     }
 
@@ -336,42 +326,44 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
     }
 
     private void updateLinkedParam(RangeParam source, RangeParam target) {
-        if (isUpdatingFromLink) {
+        if (propagatingLinkUpdate) {
             return;
         }
-        isUpdatingFromLink = true;
+        propagatingLinkUpdate = true;
         target.setValue(source.getValueAsDouble(), true);
-        isUpdatingFromLink = false;
+        propagatingLinkUpdate = false;
     }
 
     private void linkAll(boolean basedOnPixels) {
-        List<RangeParam> allParams = new ArrayList<>();
-        allParams.addAll(pixelParams);
-        allParams.addAll(percentParams);
-
-        for (RangeParam source : allParams) {
-            ChangeListener listener = e -> {
-                if (isUpdatingFromLink) {
-                    return;
-                }
-                isUpdatingFromLink = true;
-
-                if (basedOnPixels) {
-                    // uniform border: sync all to a single pixel value
-                    double newPixelValue = getPixelValueFromSource(source);
-                    setAllPixelValues(newPixelValue);
-                    syncAllPairsTo(ResizeUnit.PERCENTAGE);
-                } else {
-                    // keep aspect ratio: sync all to a single percentage value
-                    double newPercentValue = getPercentValueFromSource(source);
-                    setAllPercentValues(newPercentValue);
-                    syncAllPairsTo(ResizeUnit.PIXELS);
-                }
-
-                isUpdatingFromLink = false;
-            };
-            activeLinks.add(new ListenerSubscription(source, listener));
+        for (RangeParam source : pixelParams) {
+            activeLinks.add(new ListenerSubscription(source, e ->
+                onLinkAllChanged(source, basedOnPixels)));
         }
+        for (RangeParam source : percentParams) {
+            activeLinks.add(new ListenerSubscription(source, e ->
+                onLinkAllChanged(source, basedOnPixels)));
+        }
+    }
+
+    private void onLinkAllChanged(RangeParam source, boolean basedOnPixels) {
+        if (propagatingLinkUpdate) {
+            return;
+        }
+        propagatingLinkUpdate = true;
+
+        if (basedOnPixels) {
+            // uniform border: sync all to a single pixel value
+            double newPixelValue = getPixelValueFromSource(source);
+            setAllPixelValues(newPixelValue);
+            syncAllPairsTo(ResizeUnit.PERCENTAGE);
+        } else {
+            // keep aspect ratio: sync all to a single percentage value
+            double newPercentValue = getPercentValueFromSource(source);
+            setAllPercentValues(newPercentValue);
+            syncAllPairsTo(ResizeUnit.PIXELS);
+        }
+
+        propagatingLinkUpdate = false;
     }
 
     private double getPixelValueFromSource(RangeParam source) {
@@ -404,31 +396,32 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
     }
 
     private RangeParam getCorrespondingPixelParam(RangeParam percentParam) {
-        RangeParam pixelParam = percentToPixelMap.get(percentParam);
-        if (pixelParam == null) {
+        int index = percentParams.indexOf(percentParam);
+        if (index == -1) {
             throw new IllegalArgumentException("Unknown percentage param: " + percentParam.getName());
         }
-        return pixelParam;
+        // the two lists use the same index order
+        return pixelParams.get(index);
     }
 
     private int getEnlargementInPixels(RangeParam pixels, RangeParam percent, int canvasDim) {
         return usePixels() ? pixels.getValue() : percentToPixels(percent, canvasDim);
     }
 
-    private int getNorth(Canvas canvas) {
-        return getEnlargementInPixels(northPixels, northPercentage, canvas.getHeight());
+    private int getTop(Canvas canvas) {
+        return getEnlargementInPixels(topPixels, topPercentage, canvas.getHeight());
     }
 
-    private int getSouth(Canvas canvas) {
-        return getEnlargementInPixels(southPixels, southPercentage, canvas.getHeight());
+    private int getBottom(Canvas canvas) {
+        return getEnlargementInPixels(bottomPixels, bottomPercentage, canvas.getHeight());
     }
 
-    private int getWest(Canvas canvas) {
-        return getEnlargementInPixels(westPixels, westPercentage, canvas.getWidth());
+    private int getLeft(Canvas canvas) {
+        return getEnlargementInPixels(leftPixels, leftPercentage, canvas.getWidth());
     }
 
-    private int getEast(Canvas canvas) {
-        return getEnlargementInPixels(eastPixels, eastPercentage, canvas.getWidth());
+    private int getRight(Canvas canvas) {
+        return getEnlargementInPixels(rightPixels, rightPercentage, canvas.getWidth());
     }
 
     private boolean usePixels() {
@@ -444,14 +437,12 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
      */
     public EnlargeCanvas createCompAction(Canvas canvas) {
         return new EnlargeCanvas(
-            getNorth(canvas), getEast(canvas),
-            getSouth(canvas), getWest(canvas));
+            getTop(canvas), getRight(canvas),
+            getBottom(canvas), getLeft(canvas));
     }
 
-    private RangeParam[] getActiveRangeParams() {
-        return usePixels()
-            ? pixelParams.toArray(new RangeParam[0])
-            : percentParams.toArray(new RangeParam[0]);
+    private List<RangeParam> getActiveRangeParams() {
+        return usePixels() ? pixelParams : percentParams;
     }
 
     @Override
@@ -461,7 +452,7 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
 
     @Override
     public void saveStateTo(UserPreset preset) {
-        preset.putBoolean("Pixels", usePixels());
+        preset.putBoolean(PRESET_KEY_USE_PIXELS, usePixels());
         for (RangeParam param : getActiveRangeParams()) {
             param.saveStateTo(preset);
         }
@@ -469,7 +460,7 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
 
     @Override
     public void loadUserPreset(UserPreset preset) {
-        boolean usePixels = preset.getBoolean("Pixels");
+        boolean usePixels = preset.getBoolean(PRESET_KEY_USE_PIXELS);
         if (usePixels) {
             usePixelsRadio.doClick();
         } else {
@@ -489,17 +480,17 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
     /**
      * A panel that displays a preview of the enlarged canvas.
      */
-    private class CanvasPreviewPanel extends JPanel {
+    private class PreviewPanel extends JPanel {
         // show arrows when enlargement > 20px in preview space
         private static final int ENLARGEMENT_THRESHOLD_PIXELS = 20;
         // scale factor for fitting preview in panel
         private static final float PREVIEW_SCALE_FACTOR = 0.75f;
 
-        private static final Color ENLARGED_AREA_COLOR = new Color(136, 139, 146);
+        private static final Color ENLARGED_CANVAS_BACKGROUND = new Color(136, 139, 146);
         private static final CheckerboardPainter checkerboard = ImageUtils.createCheckerboardPainter();
         private BufferedImage previewImg;
 
-        CanvasPreviewPanel() {
+        PreviewPanel() {
             addComponentListener(new PreviewResizeListener());
             setBorder(createTitledBorder("Preview"));
         }
@@ -525,34 +516,34 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
 
         private void drawPreview(Graphics g, Composition comp) {
             Canvas canvas = comp.getCanvas();
-            PreviewDimensions dims = calculatePreviewDimensions(canvas);
+            PreviewLayout layout = calcPreviewLayout(canvas);
 
-            drawNewCanvasBoundary(g, dims);
-            drawOriginalCanvas(g, dims);
-            drawEnlargementArrows((Graphics2D) g, dims);
+            drawNewCanvasBoundary(g, layout);
+            drawOriginalCanvas(g, layout);
+            drawEnlargementArrows((Graphics2D) g, layout);
         }
 
         /**
          * Draws the boundary of the new enlarged canvas.
          */
-        private static void drawNewCanvasBoundary(Graphics g, PreviewDimensions dims) {
-            g.setColor(ENLARGED_AREA_COLOR);
+        private static void drawNewCanvasBoundary(Graphics g, PreviewLayout layout) {
+            g.setColor(ENLARGED_CANVAS_BACKGROUND);
             g.fillRect(
-                Math.round(dims.centerX - dims.newWidth / 2),
-                Math.round(dims.centerY - dims.newHeight / 2),
-                Math.round(dims.newWidth),
-                Math.round(dims.newHeight)
+                Math.round(layout.centerX - layout.newWidth / 2),
+                Math.round(layout.centerY - layout.newHeight / 2),
+                Math.round(layout.newWidth),
+                Math.round(layout.newHeight)
             );
         }
 
         /**
-         * Draws the original canvas with checkerboard background and preview image.
+         * Draws the original canvas with a checkerboard background and a preview image.
          */
-        private void drawOriginalCanvas(Graphics g, PreviewDimensions dims) {
-            int x = Math.round(dims.centerX - dims.newWidth / 2 + dims.westEnlargement);
-            int y = Math.round(dims.centerY - dims.newHeight / 2 + dims.northEnlargement);
-            int w = Math.round(dims.originalWidth);
-            int h = Math.round(dims.originalHeight);
+        private void drawOriginalCanvas(Graphics g, PreviewLayout layout) {
+            int x = Math.round(layout.centerX - layout.newWidth / 2 + layout.leftEnlargement);
+            int y = Math.round(layout.centerY - layout.newHeight / 2 + layout.topEnlargement);
+            int w = Math.round(layout.originalWidth);
+            int h = Math.round(layout.originalHeight);
 
             // draw checkerboard background
             Graphics2D g2d = (Graphics2D) g.create();
@@ -570,29 +561,29 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         /**
          * Draws direction arrows when enlargement exceeds a threshold.
          */
-        private static void drawEnlargementArrows(Graphics2D g, PreviewDimensions dims) {
+        private static void drawEnlargementArrows(Graphics2D g, PreviewLayout layout) {
             g.setColor(Color.WHITE);
             g.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_ON);
 
             // coordinates of the original canvas in preview space
-            float origLeft = dims.centerX - dims.newWidth / 2 + dims.westEnlargement;
-            float origRight = origLeft + dims.originalWidth;
-            float origTop = dims.centerY - dims.newHeight / 2 + dims.northEnlargement;
-            float origBottom = origTop + dims.originalHeight;
+            float origLeft = layout.centerX - layout.newWidth / 2 + layout.leftEnlargement;
+            float origRight = origLeft + layout.originalWidth;
+            float origTop = layout.centerY - layout.newHeight / 2 + layout.topEnlargement;
+            float origBottom = origTop + layout.originalHeight;
 
             // coordinates of the enlarged canvas in preview space
-            float enlargedLeft = dims.centerX - dims.newWidth / 2;
-            float enlargedRight = dims.centerX + dims.newWidth / 2;
-            float enlargedTop = dims.centerY - dims.newHeight / 2;
-            float enlargedBottom = dims.centerY + dims.newHeight / 2;
+            float enlargedLeft = layout.centerX - layout.newWidth / 2;
+            float enlargedRight = layout.centerX + layout.newWidth / 2;
+            float enlargedTop = layout.centerY - layout.newHeight / 2;
+            float enlargedBottom = layout.centerY + layout.newHeight / 2;
 
-            float centerX = origLeft + dims.originalWidth / 2;
-            float centerY = origTop + dims.originalHeight / 2;
+            float centerX = origLeft + layout.originalWidth / 2;
+            float centerY = origTop + layout.originalHeight / 2;
 
-            drawArrowIfLargeEnough(g, dims.northEnlargement, centerX, origTop, centerX, enlargedTop);
-            drawArrowIfLargeEnough(g, dims.southEnlargement, centerX, origBottom, centerX, enlargedBottom);
-            drawArrowIfLargeEnough(g, dims.eastEnlargement, origRight, centerY, enlargedRight, centerY);
-            drawArrowIfLargeEnough(g, dims.westEnlargement, origLeft, centerY, enlargedLeft, centerY);
+            drawArrowIfLargeEnough(g, layout.topEnlargement, centerX, origTop, centerX, enlargedTop);
+            drawArrowIfLargeEnough(g, layout.bottomEnlargement, centerX, origBottom, centerX, enlargedBottom);
+            drawArrowIfLargeEnough(g, layout.rightEnlargement, origRight, centerY, enlargedRight, centerY);
+            drawArrowIfLargeEnough(g, layout.leftEnlargement, origLeft, centerY, enlargedLeft, centerY);
         }
 
         private static void drawArrowIfLargeEnough(Graphics2D g, float enlargement,
@@ -605,56 +596,56 @@ class EnlargeCanvasPanel extends JPanel implements DialogMenuOwner {
         /**
          * Helper class to store and manage preview dimensions and calculations.
          */
-        private static class PreviewDimensions {
+        private static class PreviewLayout {
             float originalWidth, originalHeight;
             float newWidth, newHeight;
-            float northEnlargement, southEnlargement, eastEnlargement, westEnlargement;
+            float topEnlargement, bottomEnlargement, rightEnlargement, leftEnlargement;
             float centerX, centerY;
             float scale;
 
             /**
-             * Applies scaling factor to all dimensional values.
+             * Applies a scaling factor to all dimensional values.
              */
             void applyScaling() {
                 originalWidth *= scale;
                 originalHeight *= scale;
                 newWidth *= scale;
                 newHeight *= scale;
-                northEnlargement *= scale;
-                southEnlargement *= scale;
-                eastEnlargement *= scale;
-                westEnlargement *= scale;
+                topEnlargement *= scale;
+                bottomEnlargement *= scale;
+                rightEnlargement *= scale;
+                leftEnlargement *= scale;
             }
         }
 
         /**
-         * Calculates all necessary dimensions for the preview.
+         * Calculates all necessary metrics for the preview.
          */
-        private PreviewDimensions calculatePreviewDimensions(Canvas canvas) {
-            PreviewDimensions dims = new PreviewDimensions();
+        private PreviewLayout calcPreviewLayout(Canvas canvas) {
+            PreviewLayout layout = new PreviewLayout();
 
-            dims.originalWidth = canvas.getWidth();
-            dims.originalHeight = canvas.getHeight();
+            layout.originalWidth = canvas.getWidth();
+            layout.originalHeight = canvas.getHeight();
 
-            dims.northEnlargement = getNorth(canvas);
-            dims.westEnlargement = getWest(canvas);
-            dims.eastEnlargement = getEast(canvas);
-            dims.southEnlargement = getSouth(canvas);
+            layout.topEnlargement = getTop(canvas);
+            layout.leftEnlargement = getLeft(canvas);
+            layout.rightEnlargement = getRight(canvas);
+            layout.bottomEnlargement = getBottom(canvas);
 
-            dims.newWidth = dims.westEnlargement + dims.originalWidth + dims.eastEnlargement;
-            dims.newHeight = dims.northEnlargement + dims.originalHeight + dims.southEnlargement;
+            layout.newWidth = layout.leftEnlargement + layout.originalWidth + layout.rightEnlargement;
+            layout.newHeight = layout.topEnlargement + layout.originalHeight + layout.bottomEnlargement;
 
-            dims.centerX = getWidth() / 2.0f;
-            dims.centerY = getHeight() / 2.0f;
+            layout.centerX = getWidth() / 2.0f;
+            layout.centerY = getHeight() / 2.0f;
 
             // calculate scaling factor to fit preview in panel
-            float widthRatio = dims.newWidth / getWidth();
-            float heightRatio = dims.newHeight / getHeight();
-            dims.scale = PREVIEW_SCALE_FACTOR / Math.max(widthRatio, heightRatio);
+            float widthRatio = layout.newWidth / getWidth();
+            float heightRatio = layout.newHeight / getHeight();
+            layout.scale = PREVIEW_SCALE_FACTOR / Math.max(widthRatio, heightRatio);
 
-            dims.applyScaling();
+            layout.applyScaling();
 
-            return dims;
+            return layout;
         }
 
         private class PreviewResizeListener extends ComponentAdapter {

@@ -30,7 +30,6 @@ import pixelitor.guides.GuidesRenderer;
 import pixelitor.history.History;
 import pixelitor.history.PixelitorEdit;
 import pixelitor.tools.DragTool;
-import pixelitor.tools.DragToolState;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.util.ArrowKey;
 import pixelitor.tools.util.PMouseEvent;
@@ -53,9 +52,7 @@ import java.util.function.Consumer;
 import static java.awt.AlphaComposite.SRC_OVER;
 import static java.awt.Color.BLACK;
 import static pixelitor.gui.utils.SliderSpinner.LabelPosition.WEST;
-import static pixelitor.tools.DragToolState.IDLE;
-import static pixelitor.tools.DragToolState.INITIAL_DRAG;
-import static pixelitor.tools.DragToolState.TRANSFORM;
+import static pixelitor.tools.DragToolState.*;
 
 /**
  * The crop tool.
@@ -98,7 +95,7 @@ public class CropTool extends DragTool {
 
     public CropTool() {
         super("Crop", 'C',
-            "<b>drag</b> to start or <b>Alt-drag</b> to start form the center. " +
+            "<b>drag</b> to start or <b>Alt-drag</b> to start from the center. " +
                 "After handles appear: " +
                 "<b>Shift-drag</b> to keep aspect ratio, " +
                 "<b>Double-click</b> to crop, <b>Esc</b> to cancel.",
@@ -134,7 +131,7 @@ public class CropTool extends DragTool {
     private void addMaskOpacitySlider() {
         // use a change listener so that the mask is
         // continuously updated while the slider is dragged
-        maskOpacity.addChangeListener(e -> updateMaskOpacity(true));
+        maskOpacity.addChangeListener(_ -> updateMaskOpacity(true));
         settingsPanel.add(maskOpacity.createGUI());
     }
 
@@ -200,27 +197,12 @@ public class CropTool extends DragTool {
         int newCropWidth = (int) widthSpinner.getValue();
         int newCropHeight = (int) heightSpinner.getValue();
 
-        Rectangle2D rectBeforeSizeChange = cropBox.getImCropRect();
-        // doesn't change due to spinner input,
-        // so "before" and "after" are the same for this flag
-        boolean allowGrowing = allowGrowingCB.isSelected();
+        Rectangle2D rectBefore = cropBox.getImCropRect();
+        boolean allowGrowingBefore = allowGrowingCB.isSelected();
 
         cropBox.setImSize(newCropWidth, newCropHeight, view);
 
-        BoxAdjustmentResult adjustmentResult = BoxAdjustmentResult.NO_CHANGE;
-        if (!allowGrowing) {
-            // this will also modify the spinners, preventing UI
-            // values that would lead to constraint violation
-            adjustmentResult = adjustCropBoxToCanvas(view,
-                rectBeforeSizeChange, allowGrowing);
-        }
-        if (adjustmentResult != BoxAdjustmentResult.RESET) {
-            // if it was reset, history was already handled
-            assert cropBox != null;
-            History.add(new CropBoxChangedEdit("Adjust Crop Size", view.getComp(),
-                rectBeforeSizeChange, cropBox.getImCropRect(),
-                allowGrowing, allowGrowing));
-        }
+        commitBoxChange(view, "Adjust Crop Size", rectBefore, allowGrowingBefore);
     }
 
     private static JSpinner createSpinner(ChangeListener listener, int max, String toolTip) {
@@ -228,7 +210,7 @@ public class CropTool extends DragTool {
             0, 0, max, 1));
         spinner.addChangeListener(listener);
         spinner.setToolTipText(toolTip);
-        // setting it to 3 columns seems enough
+        // setting it to 3 columns looks enough (Swing adds extra space)
         // for the range 1-9999, but leave it as 4 for safety
         ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField().setColumns(4);
         return spinner;
@@ -244,7 +226,7 @@ public class CropTool extends DragTool {
             ALLOW_GROWING_TEXT, false, "allowGrowingCB",
             "Enables enlarging the canvas.");
 
-        allowGrowingCB.addActionListener(e -> allowGrowingToggled());
+        allowGrowingCB.addActionListener(_ -> allowGrowingToggled());
     }
 
     private void allowGrowingToggled() {
@@ -255,36 +237,23 @@ public class CropTool extends DragTool {
         View view = Views.getActive();
         assert view != null;
 
-        Rectangle2D rectBeforeToggle = cropBox.getImCropRect();
-        boolean isAllowingGrowing = allowGrowingCB.isSelected();
-        boolean wasAllowingGrowing = !isAllowingGrowing;
+        Rectangle2D rectBefore = cropBox.getImCropRect();
+        boolean allowGrowingBefore = !allowGrowingCB.isSelected();
 
-        BoxAdjustmentResult adjustmentResult = BoxAdjustmentResult.NO_CHANGE;
-        if (wasAllowingGrowing) {
-            // if allow growing is unchecked, then adjust the crop box
-            adjustmentResult = adjustCropBoxToCanvas(view,
-                rectBeforeToggle, wasAllowingGrowing);
-        }
+        commitBoxChange(view, "Toggle Allow Growing", rectBefore, allowGrowingBefore);
 
-        if (adjustmentResult == BoxAdjustmentResult.ADJUSTED) {
-            assert cropBox != null;
-            updateSizeSpinners(getEffectiveImCropRect(view));
-            view.repaint();
-
-            History.add(new CropBoxChangedEdit("Toggle Allow Growing", view.getComp(),
-                rectBeforeToggle, cropBox.getImCropRect(),
-                wasAllowingGrowing, isAllowingGrowing));
-        }
+        updateSizeSpinners(getEffectiveImCropRect(view));
+        view.repaint();
     }
 
     private void addCropButton() {
         cropButton = new JButton("Crop");
-        cropButton.addActionListener(e -> crop());
+        cropButton.addActionListener(_ -> crop());
         settingsPanel.add(cropButton);
     }
 
     private void addCancelButton() {
-        cancelButton.addActionListener(e -> cancel());
+        cancelButton.addActionListener(_ -> cancel());
         settingsPanel.add(cancelButton);
     }
 
@@ -319,7 +288,7 @@ public class CropTool extends DragTool {
             rectBefore = null;
 
             // start defining a new crop area
-            setState(INITIAL_DRAG);
+            state = INITIAL_DRAG;
             setCropEnabled(true);
         } else if (state == TRANSFORM) {
             // interact with the existing crop box (move or resize)
@@ -340,7 +309,7 @@ public class CropTool extends DragTool {
         } else if (state == INITIAL_DRAG) {
             // define the initial crop rectangle
             drag.setExpandFromCenter(e.isAltDown());
-            drag.setEnforceEqualDimensions(e.isShiftDown());
+            drag.setForceSquareAspectRatio(e.isShiftDown());
         }
 
         // update the size spinners continuously
@@ -365,13 +334,12 @@ public class CropTool extends DragTool {
             // else ignore clicks - double clicks are handled separately
             return;
         }
-        if (drag.isEmptyRect() && state == INITIAL_DRAG) {
+        if (drag.isCoRectEmpty() && state == INITIAL_DRAG) {
             reset(); // can't create a crop box from an empty rectangle
             return;
         }
 
         View view = e.getView();
-        boolean needsRepaint = false;
         boolean boxJustCreated = false;
 
         switch (state) {
@@ -383,8 +351,7 @@ public class CropTool extends DragTool {
 
                 cropBox = new CropBox(rect, view);
                 boxJustCreated = true;
-                setState(TRANSFORM);
-                needsRepaint = true; // show the crop box
+                state = TRANSFORM;
                 break;
             case TRANSFORM:
                 cropBox.mouseReleased(e);
@@ -395,19 +362,10 @@ public class CropTool extends DragTool {
         assert cropBox != null;
         assert state == TRANSFORM;
 
-        BoxAdjustmentResult adjustmentResult = adjustCropBoxToCanvas(view,
+        commitBoxChange(view, boxJustCreated ? "Create Crop Box" : "Modify Crop Box",
             this.rectBefore, this.allowGrowingBefore);
-        needsRepaint = needsRepaint || (adjustmentResult != BoxAdjustmentResult.NO_CHANGE);
-        if (needsRepaint) {
-            view.repaint();
-        }
 
-        if (adjustmentResult != BoxAdjustmentResult.RESET) {
-            String editName = boxJustCreated ? "Create Crop Box" : "Modify Crop Box";
-            History.add(new CropBoxChangedEdit(editName, view.getComp(),
-                rectBefore, cropBox.getImCropRect(),
-                allowGrowingBefore, allowGrowingCB.isSelected()));
-        }
+        view.repaint();
     }
 
     @Override
@@ -571,10 +529,10 @@ public class CropTool extends DragTool {
 
         if (intersection.isEmpty()) {
             // true if a box was moved out, false if the initial drag was off-canvas
-            boolean addHistory = origRect != null;
+            boolean addToHistory = origRect != null;
 
             // crop box is entirely outside the canvas => cancel the crop
-            reset(addHistory, origRect, origAllowGrowing);
+            reset(addToHistory, origRect, origAllowGrowing);
             return BoxAdjustmentResult.RESET;
         }
         boolean needsAdjustment = !intersection.equals(currentImRect);
@@ -587,19 +545,27 @@ public class CropTool extends DragTool {
         }
     }
 
+    private void commitBoxChange(View view, String editName, Rectangle2D rectBefore, boolean allowGrowingBefore) {
+        BoxAdjustmentResult result = adjustCropBoxToCanvas(view, rectBefore, allowGrowingBefore);
+        if (result != BoxAdjustmentResult.RESET) {
+            History.add(new CropBoxChangedEdit(editName, view.getComp(),
+                rectBefore, cropBox.getImCropRect(), allowGrowingBefore, allowGrowingCB.isSelected()));
+        }
+    }
+
     @Override
     protected void toolDeactivated(View view) {
         super.toolDeactivated(view);
         reset();
     }
 
-    private void reset(boolean addHistory,
+    private void reset(boolean addToHistory,
                        Rectangle2D rectBeforeDismissal,
                        boolean allowGrowingBeforeDismissal) {
         View activeView = Views.getActive();
         Composition comp = (activeView != null) ? activeView.getComp() : null;
 
-        if (addHistory && comp != null) {
+        if (addToHistory && comp != null) {
             assert rectBeforeDismissal != null;
             History.add(new CropBoxChangedEdit("Dismiss Crop Box", comp,
                 rectBeforeDismissal, null,
@@ -608,7 +574,7 @@ public class CropTool extends DragTool {
         }
 
         cropBox = null;
-        setState(IDLE);
+        state = IDLE;
         setCropEnabled(false);
         updateSizeSpinners(0, 0);
         Views.repaintActive();
@@ -619,10 +585,6 @@ public class CropTool extends DragTool {
     @Override
     public void reset() {
         reset(false, null, allowGrowingCB.isSelected());
-    }
-
-    private void setState(DragToolState newState) {
-        state = newState;
     }
 
     public boolean hasCropBox() {
@@ -641,7 +603,7 @@ public class CropTool extends DragTool {
      */
     public void clearBoxForUndoRedo() {
         this.cropBox = null;
-        setState(IDLE);
+        state = IDLE;
     }
 
     public void setBoxForUndoRedo(Rectangle2D imRect, View view) {
@@ -653,7 +615,7 @@ public class CropTool extends DragTool {
             // changes the existing crop box
             cropBox.setImSize(imRect, view);
         }
-        setState(TRANSFORM);
+        state = TRANSFORM;
     }
 
     /**
@@ -707,26 +669,12 @@ public class CropTool extends DragTool {
             return false;
         }
 
-        Rectangle2D rectBeforeNudge = cropBox.getImCropRect();
-        boolean allowGrowingBeforeNudge = allowGrowingCB.isSelected();
+        Rectangle2D rectBefore = cropBox.getImCropRect();
+        boolean allowGrowingBefore = allowGrowingCB.isSelected();
 
         cropBox.arrowKeyPressed(key, view);
 
-        BoxAdjustmentResult adjustmentResult = BoxAdjustmentResult.NO_CHANGE;
-        if (!allowGrowingCB.isSelected()) {
-            // the crop area could shrink if the crop box
-            // is pushed out and growing is not allowed
-            adjustmentResult = adjustCropBoxToCanvas(view,
-                rectBeforeNudge, allowGrowingBeforeNudge);
-        }
-        // if canvas growing is allowed, then the crop area doesn't change
-
-        if (adjustmentResult != BoxAdjustmentResult.RESET) {
-            assert state == TRANSFORM;
-            History.add(new CropBoxChangedEdit("Nudge Crop Box", view.getComp(),
-                rectBeforeNudge, cropBox.getImCropRect(),
-                allowGrowingBeforeNudge, allowGrowingCB.isSelected()));
-        }
+        commitBoxChange(view, "Nudge Crop Box", rectBefore, allowGrowingBefore);
 
         return true;
     }
@@ -750,7 +698,7 @@ public class CropTool extends DragTool {
         Rectangle2D cropRect = getCropRect(view).getIm();
         if (cropRect.isEmpty()) {
             Messages.showInfo("Empty Crop Rectangle",
-                "Can't crop to %dx%d image.".formatted(
+                "Can't crop to a %dx%d image.".formatted(
                     (int) cropRect.getWidth(),
                     (int) cropRect.getHeight()));
             return false;
@@ -768,10 +716,14 @@ public class CropTool extends DragTool {
         );
 
         Crop.toolCrop(view.getComp(), cropRect,
-            allowGrowingCB.isSelected(), deleteCroppedCB.isSelected(),
+            allowGrowingCB.isSelected(), shouldDeleteCroppedPixels(),
             cropBoxRestorationEdit);
         reset();
         return true;
+    }
+
+    public boolean shouldDeleteCroppedPixels() {
+        return deleteCroppedCB.isSelected();
     }
 
     private void cancel() {
@@ -827,7 +779,7 @@ public class CropTool extends DragTool {
         maskOpacity.saveStateTo(preset);
         preset.put(CompositionGuideType.PRESET_KEY, getSelectedGuides().name());
 
-        preset.putBoolean(DELETE_CROPPED_TEXT, deleteCroppedCB.isSelected());
+        preset.putBoolean(DELETE_CROPPED_TEXT, shouldDeleteCroppedPixels());
         preset.putBoolean(ALLOW_GROWING_TEXT, allowGrowingCB.isSelected());
     }
 
@@ -845,7 +797,7 @@ public class CropTool extends DragTool {
         DebugNode node = super.createDebugNode(key);
 
         node.addDouble("mask opacity", maskOpacity.getPercentage());
-        node.addBoolean("delete cropped", deleteCroppedCB.isSelected());
+        node.addBoolean("delete cropped", shouldDeleteCroppedPixels());
         node.addBoolean("allow growing", allowGrowingCB.isSelected());
         node.addAsString("guide type", getSelectedGuides());
         node.addNullableDebuggable("cropBox", cropBox);

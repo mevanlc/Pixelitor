@@ -18,10 +18,7 @@
 package pixelitor.utils;
 
 import com.bric.util.JVM;
-import pixelitor.Features;
-import pixelitor.NewImage;
-import pixelitor.Pixelitor;
-import pixelitor.TipsOfTheDay;
+import pixelitor.*;
 import pixelitor.colors.FgBgColors;
 import pixelitor.gui.*;
 import pixelitor.gui.utils.Screens;
@@ -43,9 +40,7 @@ import pixelitor.tools.Tools;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Rectangle;
+import java.awt.*;
 import java.io.File;
 import java.util.Locale;
 import java.util.prefs.Preferences;
@@ -73,13 +68,13 @@ public final class AppPreferences {
     private static final int MIN_WINDOW_WIDTH = 300;
     private static final int MIN_WINDOW_HEIGHT = 200;
 
-    private static final String NEW_IMAGE_WIDTH = "new_image_width";
-    private static final String NEW_IMAGE_HEIGHT = "new_image_height";
+    private static final String NEW_IMAGE_WIDTH_KEY = "new_image_width";
+    private static final String NEW_IMAGE_HEIGHT_KEY = "new_image_height";
 
     private static final String UI_KEY = "ui";
     private static final String NATIVE_CHOOSERS_KEY = "native_choosers";
 
-    private static final String RECENT_FILE_PREFS_KEY = "recent_file_";
+    private static final String RECENT_FILE_KEY_PREFIX = "recent_file_";
 
     private static final String FG_COLOR_KEY = "fg_color";
     private static final String BG_COLOR_KEY = "bg_color";
@@ -124,14 +119,14 @@ public final class AppPreferences {
     public static final long FLAG_SWAP_PASTE_KEYS = 1L << 2;
     // subsequent flag masks would be 1L << 3, 1L << 4, etc.
 
-    // the default settings for the flags (binary OR between
-    // the masks of the flags that are true by default)
-    private static final long FLAG_DEFAULTS = 0;
+    // the default settings for the flags
+    // (0 means all flags are false by default)
+    private static final long DEFAULT_FLAGS = 0;
 
     // loaded and stored here to avoid initializing the ImageMagick class
-    // (which also searches for this directory), if ImageMagick is not needed
-    public static String magickDirName = "";
-    public static String gmicDirName = "";
+    // (which also searches for this directory) if ImageMagick is not needed
+    public static String magickDirPath = "";
+    public static String gmicDirPath = "";
 
     static {
         loadPaths();
@@ -141,34 +136,76 @@ public final class AppPreferences {
     private AppPreferences() {
     }
 
-    public static void loadFramePreferences(PixelitorWindow pw, Dimension screen) {
+    public static void loadFramePreferences(PixelitorWindow pw) {
         int x = mainPrefs.getInt(FRAME_X_KEY, 0);
         int y = mainPrefs.getInt(FRAME_Y_KEY, 0);
         int width = mainPrefs.getInt(FRAME_WIDTH_KEY, 0);
         int height = mainPrefs.getInt(FRAME_HEIGHT_KEY, 0);
 
-        if (width <= 0 || height <= 0) {
-            width = screen.width;
-            height = screen.height;
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice[] screenDevices = ge.getScreenDevices();
+
+        Rectangle primaryMaxBounds;
+        try {
+            // takes into account areas like the taskbar
+            primaryMaxBounds = ge.getMaximumWindowBounds();
+        } catch (Exception e) {
+            // fallback if https://github.com/lbalazscs/Pixelitor/issues/15 occurs
+            primaryMaxBounds = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
         }
 
-        if (!Screens.isMultiMonitorSetup()) {
-            // if there are multiple monitors, then negative coordinates
-            // are fine if there is an extended desktop, with the
-            // main monitor on the right side
-            if (x < 0 || y < 0) {
-                x = 0;
-                y = 0;
+        if (width <= 0 || height <= 0) {
+            width = primaryMaxBounds.width;
+            height = primaryMaxBounds.height;
+        }
+
+        // verify if the stored bounds are reachable on any currently active monitor
+        Rectangle savedBounds = new Rectangle(x, y, width, height);
+        boolean isReachable = false;
+
+        for (GraphicsDevice device : screenDevices) {
+            Rectangle screenBounds = device.getDefaultConfiguration().getBounds();
+            if (screenBounds.intersects(savedBounds)) {
+                Rectangle intersection = screenBounds.intersection(savedBounds);
+                // ensure a reasonable, accessible chunk of the window is visible (e.g., 40x40 px)
+                if (intersection.width > 40 && intersection.height > 40) {
+                    isReachable = true;
+                    break;
+                }
+            }
+        }
+
+        if (!isReachable) { // if off-screen (e.g., ghost monitor disconnected), reset to primary
+            x = primaryMaxBounds.x;
+            y = primaryMaxBounds.y;
+            if (width > primaryMaxBounds.width) {
+                width = primaryMaxBounds.width;
+            }
+            if (height > primaryMaxBounds.height) {
+                height = primaryMaxBounds.height;
+            }
+        } else if (screenDevices.length == 1) { // for single-monitor setups, strictly clamp to usable edges
+            // cap dimensions first to fit the screen
+            if (width > primaryMaxBounds.width) {
+                width = primaryMaxBounds.width;
+            }
+            if (height > primaryMaxBounds.height) {
+                height = primaryMaxBounds.height;
             }
 
-            // if there are multiple monitors, then screen refers to the
-            // primary monitor while the actual coordinates could be
-            // for the secondary one
-            if (width > screen.width) {
-                width = screen.width;
+            if (x < primaryMaxBounds.x) {
+                x = primaryMaxBounds.x;
             }
-            if (height > screen.height) {
-                height = screen.height;
+            if (y < primaryMaxBounds.y) {
+                y = primaryMaxBounds.y;
+            }
+
+            // prevent window from bleeding past the right/bottom edges
+            if (x + width > primaryMaxBounds.x + primaryMaxBounds.width) {
+                x = Math.max(primaryMaxBounds.x, primaryMaxBounds.x + primaryMaxBounds.width - width);
+            }
+            if (y + height > primaryMaxBounds.y + primaryMaxBounds.height) {
+                y = Math.max(primaryMaxBounds.y, primaryMaxBounds.y + primaryMaxBounds.height - height);
             }
         }
 
@@ -190,9 +227,9 @@ public final class AppPreferences {
 
     private static boolean shouldSaveMaximizedState() {
         // With multiple monitors it would maximize to the primary one
-        // even if it has saved coordinates in another one
-        // The active screen index or GraphicsDevice.getIDstring()
-        // could be also saved, but it seems error-prone...
+        // even if it has saved coordinates in another one.
+        // The active screen index or GraphicsDevice.getIDString()
+        // could also be saved, but it seems error-prone...
         return JVM.isWindows && !Screens.isMultiMonitorSetup();
     }
 
@@ -217,29 +254,21 @@ public final class AppPreferences {
     }
 
     public static Dimension loadNewImageSize() {
-        int defaultWidth = 600;
-        int defaultHeight = 400;
-        Dimension desktopSize = ImageArea.getSize();
-        if (desktopSize != null) {
-            // make sure the default new image fits at 100% zoom
-            defaultWidth = Math.max(defaultWidth, desktopSize.width - 30);
-            defaultHeight = Math.max(defaultHeight, desktopSize.height - 50);
-        }
-        int width = mainPrefs.getInt(NEW_IMAGE_WIDTH, defaultWidth);
-        int height = mainPrefs.getInt(NEW_IMAGE_HEIGHT, defaultHeight);
+        int width = mainPrefs.getInt(NEW_IMAGE_WIDTH_KEY, 600);
+        int height = mainPrefs.getInt(NEW_IMAGE_HEIGHT_KEY, 400);
         return new Dimension(width, height);
     }
 
     private static void saveNewImageSize() {
         Dimension lastSize = NewImage.getLastSize();
-        mainPrefs.putInt(NEW_IMAGE_WIDTH, lastSize.width);
-        mainPrefs.putInt(NEW_IMAGE_HEIGHT, lastSize.height);
+        mainPrefs.putInt(NEW_IMAGE_WIDTH_KEY, lastSize.width);
+        mainPrefs.putInt(NEW_IMAGE_HEIGHT_KEY, lastSize.height);
     }
 
     public static BoundedUniqueList<RecentFileEntry> loadRecentFiles() {
-        var retVal = new BoundedUniqueList<RecentFileEntry>(MAX_RECENT_FILES);
+        var recentFiles = new BoundedUniqueList<RecentFileEntry>(MAX_RECENT_FILES);
         for (int i = 0; i < MAX_RECENT_FILES; i++) {
-            String key = RECENT_FILE_PREFS_KEY + i;
+            String key = RECENT_FILE_KEY_PREFIX + i;
             String fileName = recentFilesPrefs.get(key, null);
             if (fileName == null) {
                 break;
@@ -247,23 +276,23 @@ public final class AppPreferences {
             File file = new File(fileName);
 
             if (file.exists()) {
-                retVal.addIfAbsent(new RecentFileEntry(file));
+                recentFiles.addIfAbsent(new RecentFileEntry(file));
             }
         }
-        return retVal;
+        return recentFiles;
     }
 
     private static void saveRecentFiles(BoundedUniqueList<RecentFileEntry> recentFiles) {
         // overwrite the beginning keys with the active items
         for (int i = 0; i < recentFiles.size(); i++) {
-            String key = RECENT_FILE_PREFS_KEY + i;
+            String key = RECENT_FILE_KEY_PREFIX + i;
             String filePath = recentFiles.get(i).getFullPath();
             recentFilesPrefs.put(key, filePath);
         }
 
         // erase any stale keys left over from previous runs
         for (int i = recentFiles.size(); i < MAX_RECENT_FILES; i++) {
-            recentFilesPrefs.remove(RECENT_FILE_PREFS_KEY + i);
+            recentFilesPrefs.remove(RECENT_FILE_KEY_PREFIX + i);
         }
     }
 
@@ -274,7 +303,7 @@ public final class AppPreferences {
      */
     public static void removeRecentFiles() {
         for (int i = 0; i < MAX_RECENT_FILES; i++) {
-            recentFilesPrefs.remove(RECENT_FILE_PREFS_KEY + i);
+            recentFilesPrefs.remove(RECENT_FILE_KEY_PREFIX + i);
         }
     }
 
@@ -304,16 +333,16 @@ public final class AppPreferences {
     }
 
     private static void saveLastOpenDir() {
-        saveDir(RecentDirs.getLastOpen(), LAST_OPEN_DIR_KEY);
+        saveDir(LAST_OPEN_DIR_KEY, RecentDirs.getLastOpen());
     }
 
     private static void saveLastSaveDir() {
-        saveDir(RecentDirs.getLastSave(), LAST_SAVE_DIR_KEY);
+        saveDir(LAST_SAVE_DIR_KEY, RecentDirs.getLastSave());
     }
 
-    private static void saveDir(File f, String key) {
-        if (f != null) {
-            mainPrefs.put(key, f.getAbsolutePath());
+    private static void saveDir(String key, File dir) {
+        if (dir != null) {
+            mainPrefs.put(key, dir.getAbsolutePath());
         } else {
             mainPrefs.remove(key);
         }
@@ -340,11 +369,11 @@ public final class AppPreferences {
     }
 
     public static int loadUndoLevels() {
-        int retVal = mainPrefs.getInt(UNDO_LEVELS_KEY, -1);
-        if (retVal == -1) {
+        int undoLevels = mainPrefs.getInt(UNDO_LEVELS_KEY, -1);
+        if (undoLevels == -1) {
             return 5;
         }
-        return retVal;
+        return undoLevels;
     }
 
     private static void saveUndoLevels() {
@@ -359,45 +388,53 @@ public final class AppPreferences {
         mainPrefs.putInt(THUMB_SIZE_KEY, Thumbnails.getMaxSize());
     }
 
-    public static synchronized GuideStyle getGuideStyle() {
+    public static GuideStyle getGuideStyle() {
+        assert Threads.calledOnEDT() || AppMode.isUnitTesting();
+
         if (guideStyle == null) {
             int colorRGB = mainPrefs.getInt(GUIDE_COLOR_KEY, Color.BLACK.getRGB());
             int strokeId = mainPrefs.getInt(GUIDE_STROKE_KEY, GuideStrokeType.DASHED.ordinal());
+            //noinspection NonThreadSafeLazyInitialization
             guideStyle = new GuideStyle();
-            guideStyle.setColorA(new Color(colorRGB));
+            guideStyle.setPrimaryColor(new Color(colorRGB));
             guideStyle.setStrokeType(GuideStrokeType.values()[strokeId]);
         }
 
         return guideStyle;
     }
 
-    public static synchronized GuideStyle getCropGuideStyle() {
+    public static GuideStyle getCropGuideStyle() {
+        assert Threads.calledOnEDT() || AppMode.isUnitTesting();
+
         if (cropGuideStyle == null) {
             int colorRGB = mainPrefs.getInt(CROP_GUIDE_COLOR_KEY, Color.BLACK.getRGB());
             int strokeId = mainPrefs.getInt(CROP_GUIDE_STROKE_KEY, GuideStrokeType.SOLID.ordinal());
+            //noinspection NonThreadSafeLazyInitialization
             cropGuideStyle = new GuideStyle();
-            cropGuideStyle.setColorA(new Color(colorRGB));
+            cropGuideStyle.setPrimaryColor(new Color(colorRGB));
             cropGuideStyle.setStrokeType(GuideStrokeType.values()[strokeId]);
         }
 
         return cropGuideStyle;
     }
 
-    private static void saveGuideStyles() {
-        GuideStyle style = getGuideStyle();
-        mainPrefs.putInt(GUIDE_COLOR_KEY, style.getColorA().getRGB());
-        mainPrefs.putInt(GUIDE_STROKE_KEY, style.getStrokeType().ordinal());
+    private static void saveGuideStyle() {
+        if (guideStyle != null) { // was loaded
+            mainPrefs.putInt(GUIDE_COLOR_KEY, guideStyle.getPrimaryColor().getRGB());
+            mainPrefs.putInt(GUIDE_STROKE_KEY, guideStyle.getStrokeType().ordinal());
+        }
     }
 
-    private static void saveCropGuideStyles() {
-        GuideStyle style = getCropGuideStyle();
-        mainPrefs.putInt(CROP_GUIDE_COLOR_KEY, style.getColorA().getRGB());
-        mainPrefs.putInt(CROP_GUIDE_STROKE_KEY, style.getStrokeType().ordinal());
+    private static void saveCropGuideStyle() {
+        if (cropGuideStyle != null) { // was loaded
+            mainPrefs.putInt(CROP_GUIDE_COLOR_KEY, cropGuideStyle.getPrimaryColor().getRGB());
+            mainPrefs.putInt(CROP_GUIDE_STROKE_KEY, cropGuideStyle.getStrokeType().ordinal());
+        }
     }
 
     public static void savePreferences() {
-        saveDesktopMode();
-        saveRecentFiles(RecentFilesMenu.INSTANCE.getRecentFileEntries());
+        saveImageAreaConfig();
+        saveRecentFiles(RecentFilesMenu.INSTANCE.getRecentFiles());
         saveFramePreferences(PixelitorWindow.get());
         saveLastOpenDir();
         saveLastSaveDir();
@@ -409,8 +446,8 @@ public final class AppPreferences {
         TipsOfTheDay.saveNextTipIndex();
         saveNewImageSize();
         saveLastToolName();
-        saveGuideStyles();
-        saveCropGuideStyles();
+        saveGuideStyle();
+        saveCropGuideStyle();
         saveTheme();
         saveUIFont();
         saveLanguage();
@@ -448,13 +485,13 @@ public final class AppPreferences {
         return mainPrefs;
     }
 
-    public static ImageAreaConfig loadDesktopMode() {
+    public static ImageAreaConfig loadImageAreaConfig() {
         String value = mainPrefs.get(UI_KEY, "TabsN");
         if (value.startsWith("Tabs")) {
             return loadSavedTabsInfo(value);
         } else {
-            // return TOP tab placement so that if the user
-            // changes the UI via preferences, this will be set
+            // return TOP tab placement so that if the user later
+            // switches to a tabbed UI, a default placement is ready
             return new ImageAreaConfig(FRAMES, SwingConstants.TOP);
         }
     }
@@ -469,7 +506,7 @@ public final class AppPreferences {
         return new ImageAreaConfig(TABS, tabPlacement);
     }
 
-    private static void saveDesktopMode() {
+    private static void saveImageAreaConfig() {
         String savedString;
         ImageArea.Mode mode = ImageArea.getMode();
         if (mode == FRAMES) {
@@ -530,11 +567,10 @@ public final class AppPreferences {
     }
 
     private static void saveUIFont() {
-        mainPrefs.putInt(UI_FONT_SIZE_KEY, customUIFontSize);
-
-        if (customUIFontType == null) { // should not happen
-            mainPrefs.remove(UI_FONT_TYPE_KEY);
-        } else {
+        if (customUIFontSize != -1) {
+            mainPrefs.putInt(UI_FONT_SIZE_KEY, customUIFontSize);
+        }
+        if (customUIFontType != null) {
             mainPrefs.put(UI_FONT_TYPE_KEY, customUIFontType);
         }
     }
@@ -564,17 +600,17 @@ public final class AppPreferences {
     }
 
     private static void loadPaths() {
-        magickDirName = mainPrefs.get(MAGICK_DIR_KEY, "");
-        gmicDirName = mainPrefs.get(GMIC_DIR_KEY, "");
+        magickDirPath = mainPrefs.get(MAGICK_DIR_KEY, "");
+        gmicDirPath = mainPrefs.get(GMIC_DIR_KEY, "");
     }
 
     private static void savePaths() {
-        mainPrefs.put(MAGICK_DIR_KEY, magickDirName);
-        mainPrefs.put(GMIC_DIR_KEY, gmicDirName);
+        mainPrefs.put(MAGICK_DIR_KEY, magickDirPath);
+        mainPrefs.put(GMIC_DIR_KEY, gmicDirPath);
     }
 
     private static void loadFlags() {
-        flags = mainPrefs.getLong(FLAGS_KEY, FLAG_DEFAULTS);
+        flags = mainPrefs.getLong(FLAGS_KEY, DEFAULT_FLAGS);
     }
 
     private static void saveFlags() {

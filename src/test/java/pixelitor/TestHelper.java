@@ -17,14 +17,17 @@
 
 package pixelitor;
 
+import org.jdesktop.swingx.painter.AbstractLayoutPainter;
 import org.junit.jupiter.params.provider.Arguments;
 import pixelitor.colors.FgBgColorSelector;
 import pixelitor.colors.FgBgColors;
 import pixelitor.compactions.Resize;
 import pixelitor.filters.Filter;
 import pixelitor.filters.Invert;
+import pixelitor.filters.painters.AreaEffects;
 import pixelitor.filters.painters.TextSettings;
 import pixelitor.gui.View;
+import pixelitor.gui.utils.MlpAlignmentSelector;
 import pixelitor.history.History;
 import pixelitor.history.HistoryChecker;
 import pixelitor.layers.*;
@@ -52,13 +55,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyDouble;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockingDetails;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.colors.Colors.toPackedARGB;
 import static pixelitor.layers.MaskInitMethod.REVEAL_ALL;
@@ -84,7 +81,7 @@ public class TestHelper {
     }
 
     /**
-     * Creates a real (non-mocked) composition with a layer of the given class
+     * Creates a real (non-mocked) composition with a layer of the given class.
      */
     public static Composition createRealComp(String name, Class<? extends Layer> layerClass) {
         return createRealComp(name, layerClass, TEST_WIDTH, TEST_HEIGHT);
@@ -107,7 +104,7 @@ public class TestHelper {
         comp.createDebugName();
 
         if (addMockView) {
-            setupMockViewFor(comp);
+            createMockViewFor(comp);
         }
 
         return comp;
@@ -218,16 +215,17 @@ public class TestHelper {
     }
 
     public static TextLayer createTextLayer(Composition comp, String name) {
-        TextSettings settings = new TextSettings();
-        settings.randomize();
-        var textLayer = new TextLayer(comp, name, settings);
-
         // ensure that the font is not too big for the tiny test layer
-        Font smallFont = settings.getFont().deriveFont(Font.PLAIN, 10.0f);
-        settings.setFont(smallFont);
-        textLayer.applySettings(settings);
+        Font font = new Font(Font.SANS_SERIF, Font.PLAIN, 10);
+        TextSettings settings = new TextSettings(
+            "test", font, Color.WHITE, new AreaEffects(),
+            AbstractLayoutPainter.HorizontalAlignment.CENTER, AbstractLayoutPainter.VerticalAlignment.CENTER,
+            MlpAlignmentSelector.LEFT, false, 0, 1, 1, 1, 0, 0, null);
 
+        TextLayer textLayer = new TextLayer(comp, name, settings);
+        textLayer.applySettings(settings);
         textLayer.createUI();
+
         return textLayer;
     }
 
@@ -289,7 +287,7 @@ public class TestHelper {
         return createImage().createGraphics();
     }
 
-    public static View setupMockViewFor(Composition comp) {
+    public static View createMockViewFor(Composition comp) {
         View view = createMockViewWithoutComp();
 
         // The view should be able to return the *new* composition
@@ -402,7 +400,7 @@ public class TestHelper {
     }
 
     public static Composition resize(Composition comp, int targetWidth, int targetHeight) {
-        assert comp.getView() != null;
+        assert comp.isOpen();
         return new Resize(targetWidth, targetHeight).process(comp).join();
     }
 
@@ -489,7 +487,7 @@ public class TestHelper {
     }
 
     /**
-     * Generates a stream of Arguments for every possible
+     * Generates a stream of {@link Arguments} for every possible
      * combination of elements from the given lists.
      */
     public static <A, B> Stream<Arguments> combinations(List<A> listA,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,6 +17,8 @@
 
 package pixelitor.tools.selection;
 
+import pixelitor.AppMode;
+import pixelitor.gui.GlobalEvents;
 import pixelitor.selection.SelectionType;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.util.OverlayType;
@@ -31,6 +33,7 @@ import java.util.function.Consumer;
  */
 public class LassoSelectionTool extends AbstractSelectionTool {
     public LassoSelectionTool() {
+        // the freehand and polygonal selection tools share the 'L' hotkey, with cycling
         super("Freehand Selection", 'L',
             "simply drag around the area that you want to select.",
             Cursors.DEFAULT, false);
@@ -41,9 +44,6 @@ public class LassoSelectionTool extends AbstractSelectionTool {
     @Override
     protected void dragStarted(PMouseEvent e) {
         initCombinatorAndBuilder(e, SelectionType.LASSO);
-
-        // add the starting point immediately?
-        // selectionBuilder.updateDraftSelection(drag, e.getComp(), e);
     }
 
     @Override
@@ -53,10 +53,13 @@ public class LassoSelectionTool extends AbstractSelectionTool {
             dragStarted(e);
         }
 
-        altDown = e.isAltDown();
-        // if Alt is released mid-drag, it no longer means subtract for this drag
+        boolean altDown = e.isAltDown();
+        assert altDown == GlobalEvents.isAltDown() || AppMode.isUnitTesting()
+            : "altDown = " + altDown + ", GlobalEvents.isAltDown() = " + GlobalEvents.isAltDown();
+
+        // if Alt is released mid-drag, it no longer means subtract/intersect for this drag
         if (!altDown) {
-            altMeansSubtract = false;
+            altUsedForCombinator = false;
         }
 
         // add the current point to the lasso path

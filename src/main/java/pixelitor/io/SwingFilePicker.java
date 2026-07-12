@@ -22,8 +22,8 @@ import pixelitor.gui.PixelitorWindow;
 import pixelitor.gui.utils.Dialogs;
 import pixelitor.gui.utils.ImagePreviewPanel;
 import pixelitor.gui.utils.SaveFileChooser;
+import pixelitor.progress.ProgressPanel;
 import pixelitor.utils.Messages;
-import pixelitor.utils.ProgressPanel;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
@@ -150,7 +150,7 @@ public class SwingFilePicker implements FilePicker {
             public void approveSelection() {
                 File selectedFile = getSelectedFile();
                 if (!selectedFile.exists()) {
-                    Dialogs.showErrorDialog(this, "File not found",
+                    Dialogs.showError(this, "File not found",
                         "<html>The file <b>" + selectedFile.getAbsolutePath()
                             + " </b> doesn't exist. " +
                             "<br>Check the file name and try again."

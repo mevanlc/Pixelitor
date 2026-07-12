@@ -17,7 +17,7 @@ limitations under the License.
 package com.jhlabs.image;
 
 import pixelitor.ThreadPool;
-import pixelitor.utils.ProgressTracker;
+import pixelitor.progress.ProgressTracker;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.Kernel;
@@ -101,8 +101,6 @@ public class GaussianFilter extends ConvolveFilter {
      * @param outPixels  the output pixels
      * @param width      the width of the pixel array
      * @param height     the height of the pixel array
-     * @param alpha      whether to blur the alpha channel
-     * @param edgeAction what to do at the edges
      */
     public static void convolveAndTranspose(Kernel kernel, int[] inPixels, int[] outPixels, int width, int height,
                                             boolean premultiply, boolean unpremultiply,

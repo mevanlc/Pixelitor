@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -32,7 +32,7 @@ import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
 import static javax.swing.BorderFactory.createEtchedBorder;
 
 /**
- * The close button of the tabs in {@link TabsUI}
+ * The close button of the tabs in {@link TabsUI}.
  */
 class CloseTabButton extends JButton {
     // shared mouse listener to handle hover effects for all instances
@@ -61,7 +61,7 @@ class CloseTabButton extends JButton {
         setBorderPainted(false);
         addMouseListener(HOVER_MOUSE_LISTENER);
         setRolloverEnabled(true);
-        addActionListener(e -> Views.warnAndClose(tab.getView()));
+        addActionListener(_ -> Views.warnAndClose(tab.getView()));
     }
 
     @Override
@@ -85,7 +85,7 @@ class CloseTabButton extends JButton {
                 : Color.BLACK);
         }
 
-        // draw an x
+        // draw an 'X'
         g2.drawLine(MARGIN, MARGIN, SIZE - MARGIN - 1, SIZE - MARGIN - 1);
         g2.drawLine(SIZE - MARGIN - 1, MARGIN, MARGIN, SIZE - MARGIN - 1);
 

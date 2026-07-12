@@ -59,8 +59,9 @@ import static pixelitor.utils.Threads.calledOnEDT;
  */
 public class GlobalEvents {
     private static boolean spaceDown = false;
+    private static boolean altDown = false;
 
-    // dialogs can be inside dialogs, and this keeps track of the nesting
+    // keeps track of the nesting level since modal dialogs can open other modal dialogs
     private static int modalDialogNesting = 0;
 
     private static final Action INCREASE_BRUSH_SIZE_ACTION =
@@ -68,7 +69,7 @@ public class GlobalEvents {
     private static final Action DECREASE_BRUSH_SIZE_ACTION =
         new TaskAction(Tools::decreaseBrushSize);
 
-    private static final Map<KeyStroke, Action> hotKeyMap = new HashMap<>();
+    private static final Map<KeyStroke, Action> hotkeyMap = new HashMap<>();
 
     private GlobalEvents() {
         // prevents instantiation of this utility class
@@ -83,7 +84,7 @@ public class GlobalEvents {
      * Useful when case sensitivity is needed (e.g. distinguishing 'r' from 'R').
      */
     public static void registerHotkey(KeyStroke keyStroke, Action action) {
-        hotKeyMap.put(keyStroke, action);
+        hotkeyMap.put(keyStroke, action);
     }
 
     private static void registerHotkey(char key, Action action, boolean caseSensitive) {
@@ -91,15 +92,27 @@ public class GlobalEvents {
             assert Character.isUpperCase(key) : "Non-case-sensitive keys must be uppercase";
 
             // see issue #31 for why key codes and not key characters are used here
-            hotKeyMap.put(KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK), action);
+            hotkeyMap.put(KeyStroke.getKeyStroke(key, InputEvent.SHIFT_DOWN_MASK), action);
         }
-        hotKeyMap.put(KeyStroke.getKeyStroke(key, 0), action);
+        hotkeyMap.put(KeyStroke.getKeyStroke(key, 0), action);
     }
 
     public static void init() {
         var keyboardFocusManager = configureKeyboardManager();
         configureFocusTraversal(keyboardFocusManager);
         registerBrushSizeShortcuts();
+
+        // prevent stuck modifier keys when the application loses focus (e.g. alt-tabbing)
+        keyboardFocusManager.addPropertyChangeListener("activeWindow", evt -> {
+            if (evt.getNewValue() == null) {
+                // the app has moved to the background
+                altReleased();
+
+                if (spaceDown) {
+                    spaceReleased();
+                }
+            }
+        });        
     }
 
     private static KeyboardFocusManager configureKeyboardManager() {
@@ -117,7 +130,7 @@ public class GlobalEvents {
             // hotkeys should be inactive while editing text
             if (!(e.getSource() instanceof JTextField)) {
                 KeyStroke keyStroke = KeyStroke.getKeyStrokeForEvent(e);
-                Action action = hotKeyMap.get(keyStroke);
+                Action action = hotkeyMap.get(keyStroke);
                 if (action != null) {
                     action.actionPerformed(null);
                     // hotkey was handled, so consume the event by returning true
@@ -162,7 +175,7 @@ public class GlobalEvents {
             case VK_UP, VK_KP_UP -> arrowKeyPressed(e, ArrowKey.up(e.isShiftDown()));
             case VK_DOWN, VK_KP_DOWN -> arrowKeyPressed(e, ArrowKey.down(e.isShiftDown()));
             case VK_ESCAPE -> activeTool.escPressed();
-            case VK_ALT -> activeTool.altPressed();
+            case VK_ALT -> altPressed();
             default -> activeTool.otherKeyPressed(e);
         }
     }
@@ -170,13 +183,21 @@ public class GlobalEvents {
     private static void spacePressed(KeyEvent e) {
         // Alt-space isn't treated as space-down because on Windows,
         // this opens the system menu, and we get the space-pressed
-        // event, but not the space released-event, and the app gets
+        // event, but not the space-released event, and the app gets
         // stuck in Hand mode. This looks like a freeze when there
         // are no scrollbars. See issue #29.
         if (modalDialogNesting == 0 && !e.isAltDown()) {
             activeTool.spacePressed();
             spaceDown = true;
             e.consume();
+        }
+    }
+
+    private static void altPressed() {
+        // tools should only receive a single pressed and a single released call
+        if (!altDown) {
+            altDown = true;
+            activeTool.altPressed();
         }
     }
 
@@ -195,7 +216,7 @@ public class GlobalEvents {
     private static void keyReleased(KeyEvent e) {
         switch (e.getKeyCode()) {
             case VK_SPACE -> spaceReleased();
-            case VK_ALT -> activeTool.altReleased();
+            case VK_ALT -> altReleased();
         }
     }
 
@@ -204,8 +225,19 @@ public class GlobalEvents {
         spaceDown = false;
     }
 
+    private static void altReleased() {
+        if (altDown) {
+            altDown = false;
+            activeTool.altReleased();
+        }
+    }
+
     public static boolean isSpaceDown() {
         return spaceDown;
+    }
+
+    public static boolean isAltDown() {
+        return altDown;
     }
 
     // used only by unit tests
@@ -234,9 +266,9 @@ public class GlobalEvents {
         }
     }
 
-    public static void assertDialogNestingIs(int expectedCount) {
+    public static void assertModalDialogNestingIs(int expectedCount) {
         if (modalDialogNesting != expectedCount) {
-            throw new AssertionError("numNestedDialogs = " + modalDialogNesting
+            throw new AssertionError("modalDialogNesting = " + modalDialogNesting
                 + ", expectedCount = " + expectedCount);
         }
     }
@@ -259,7 +291,7 @@ public class GlobalEvents {
     }
 
     /**
-     * Reports all events which take more than the given time to complete.
+     * Reports all events that take longer than the given time threshold to complete.
      *
      * See https://stackoverflow.com/questions/5541493/how-do-i-profile-the-edt-in-swing
      */
@@ -274,7 +306,8 @@ public class GlobalEvents {
                 long endTime = System.nanoTime();
 
                 if (endTime - startTime > thresholdNanos) {
-                    System.out.println(((endTime - startTime) / 1_000_000) + " ms: " + event);
+                    long durationMs = TimeUnit.NANOSECONDS.toMillis(endTime - startTime);
+                    System.out.println(durationMs + " ms: " + event);
                 }
             }
         });

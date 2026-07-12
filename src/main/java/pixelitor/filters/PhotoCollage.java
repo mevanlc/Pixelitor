@@ -21,10 +21,10 @@ import com.jhlabs.image.BoxBlurFilter;
 import pixelitor.colors.Colors;
 import pixelitor.filters.gui.*;
 import pixelitor.gui.GUIText;
+import pixelitor.progress.StatusBarProgressTracker;
 import pixelitor.tools.shapes.ShapeType;
 import pixelitor.utils.Geometry;
 import pixelitor.utils.ImageUtils;
-import pixelitor.utils.StatusBarProgressTracker;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
@@ -38,10 +38,7 @@ import java.util.Random;
 import static java.awt.AlphaComposite.SRC_OVER;
 import static java.awt.Color.BLACK;
 import static java.awt.Color.WHITE;
-import static java.awt.RenderingHints.KEY_ANTIALIASING;
-import static java.awt.RenderingHints.KEY_INTERPOLATION;
-import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
-import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
+import static java.awt.RenderingHints.*;
 import static pixelitor.filters.gui.TransparencyMode.MANUAL_ALPHA_ONLY;
 import static pixelitor.filters.gui.TransparencyMode.OPAQUE_ONLY;
 import static pixelitor.utils.AngleUnit.INTUITIVE_DEGREES;
@@ -98,7 +95,7 @@ public class PhotoCollage extends ParametrizedFilter {
         int numPhotos = numPhotosParam.getValue();
         var pt = new StatusBarProgressTracker(NAME, numPhotos);
 
-        Random rand = paramSet.getLastSeedRandom();
+        Random rand = paramSet.getRandomWithLastSeed();
 
         Graphics2D g = dest.createGraphics();
         g.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_ON);
@@ -116,6 +113,8 @@ public class PhotoCollage extends ParametrizedFilter {
         // adjust the inner photo shape to account for margins
         Shape innerShape = outerShape;
         if (margin > 0) {
+            // derive the inner shape by stroking the outer shape and subtracting
+            // the stroked region, effectively eroding it inward by `margin` pixels
             Stroke marginStroke = new BasicStroke(2 * margin, BasicStroke.CAP_ROUND, BasicStroke.JOIN_MITER);
             Shape marginShape = marginStroke.createStrokedShape(outerShape);
             Area innerArea = new Area(outerShape);
@@ -126,8 +125,8 @@ public class PhotoCollage extends ParametrizedFilter {
         // prepare a shadow image that must be larger than the
         // photo size so that there is room for soft shadows
         int blurRadius = shadowBlur.getValue();
-        int shadowPadding = 1 + (int) (2.3 * blurRadius);
-        BufferedImage shadowImage = createShadowImage(photoWidth, photoHeight, blurRadius, shadowPadding, shapeType);
+        int shadowBlurPadding = 1 + (int) (2.3 * blurRadius);
+        BufferedImage shadowImage = createShadowImage(photoWidth, photoHeight, blurRadius, shadowBlurPadding, shapeType);
 
         Point2D shadowOffset = Geometry.polarToCartesian(
             shadowDistance.getValue(),
@@ -135,22 +134,22 @@ public class PhotoCollage extends ParametrizedFilter {
 
         Composite shadowComposite = AlphaComposite.getInstance(SRC_OVER,
             (float) shadowOpacityParam.getPercentage());
+        Composite opaqueComposite = AlphaComposite.getInstance(SRC_OVER);
 
-        // use the original image as a texture for the photos
-        Paint imagePaint = new TexturePaint(src, new Rectangle2D.Float(
+        Paint srcImgTexture = new TexturePaint(src, new Rectangle2D.Float(
             0, 0, src.getWidth(), src.getHeight()));
 
         for (int i = 0; i < numPhotos; i++) {
             var imageTransform = calcImageTransform(
                 dest.getWidth(), dest.getHeight(), photoWidth, photoHeight, rand);
-            var shadowTransform = calcShadowTransform(imageTransform, shadowPadding, shadowOffset);
+            var shadowTransform = calcShadowTransform(imageTransform, shadowBlurPadding, shadowOffset);
 
             // draw the shadow behind the photo
             g.setComposite(shadowComposite);
             g.drawImage(shadowImage, shadowTransform, null);
 
             // draw the photo and its margin
-            g.setComposite(AlphaComposite.getInstance(SRC_OVER));
+            g.setComposite(opaqueComposite);
             Shape transformedShape = imageTransform.createTransformedShape(outerShape);
             Shape transformedImageShape;
             if (margin > 0) {
@@ -161,7 +160,7 @@ public class PhotoCollage extends ParametrizedFilter {
                 transformedImageShape = transformedShape;
             }
 
-            g.setPaint(imagePaint); // set the original image as a texture
+            g.setPaint(srcImgTexture);
             g.fill(transformedImageShape); // draw the photo
 
             pt.unitDone();
@@ -186,7 +185,7 @@ public class PhotoCollage extends ParametrizedFilter {
         gShadow.fill(shadowShape);
         gShadow.dispose();
         if (blurRadius > 0) {
-            shadowImage = new BoxBlurFilter(blurRadius, blurRadius, 1, NAME)
+            shadowImage = new BoxBlurFilter(NAME, blurRadius, blurRadius, 1)
                 .filter(shadowImage, shadowImage);
         }
         return shadowImage;
@@ -195,13 +194,14 @@ public class PhotoCollage extends ParametrizedFilter {
     // calculate the transform of the image
     private AffineTransform calcImageTransform(int areaWidth, int areaHeight, int photoWidth, int photoHeight, Random rand) {
         // step 2: translate
+        // (transforms are applied in reverse order of concatenation)
         double tx, ty;
         if (allowOutside.isChecked()) {
-            tx = rand.nextInt(areaWidth) - photoWidth / 2.0;
-            ty = rand.nextInt(areaHeight) - photoHeight / 2.0;
+            tx = rand.nextDouble() * areaWidth - photoWidth / 2.0;
+            ty = rand.nextDouble() * areaHeight - photoHeight / 2.0;
         } else {
             // a small part could be still outside because of the
-            // rotation, which is ignored here, but it's not a big deal.
+            // rotation, which is ignored here, but it's not a big deal
             int maxTranslateX = Math.max(1, areaWidth - photoWidth);
             tx = maxTranslateX * rand.nextDouble();
             int maxTranslateY = Math.max(1, areaHeight - photoHeight);
@@ -210,9 +210,9 @@ public class PhotoCollage extends ParametrizedFilter {
         var imageTransform = AffineTransform.getTranslateInstance(tx, ty);
 
         // step 1: rotate
-        // the rotation amount is a number between -PI and PI if maxRandomRot is 1.0
-        double angle = Math.PI * 2 * rand.nextFloat() - Math.PI;
-        angle *= randomRotation.getPercentage();
+        double maxAngle = 2 * Math.PI * rand.nextFloat() - Math.PI; // in [-π, π]
+        double rotationStrength = randomRotation.getPercentage(); // in [0, 1]
+        double angle = maxAngle * rotationStrength;
         imageTransform.rotate(angle, photoWidth / 2.0, photoHeight / 2.0);
 
         return imageTransform;

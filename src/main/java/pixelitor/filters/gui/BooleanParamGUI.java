@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -32,15 +32,15 @@ public class BooleanParamGUI extends JPanel implements ParamGUI {
     private final BooleanParam model;
     private final JCheckBox checkBox;
     private ResetButton resetButton;
-    private FilterButtonModel extraAction;
+    private FilterButtonModel sideButtonModel;
 
-    public BooleanParamGUI(BooleanParam model, boolean addResetButton, FilterButtonModel extraAction) {
+    public BooleanParamGUI(BooleanParam model, boolean addResetButton, FilterButtonModel sideButtonModel) {
         super(new FlowLayout(LEFT));
         this.model = model;
 
         checkBox = new JCheckBox();
         checkBox.setSelected(model.isChecked());
-        checkBox.addActionListener(e ->
+        checkBox.addActionListener(_ ->
             model.setValue(checkBox.isSelected(), false, true));
         add(checkBox);
 
@@ -52,13 +52,13 @@ public class BooleanParamGUI extends JPanel implements ParamGUI {
             // Use a ChangeListener to ensure that the reset button's state
             // is also updated when the checkbox is changed programmatically
             // (e.g., by reset). JCheckBox doesn't fire ActionEvents for such changes.
-            checkBox.addChangeListener(e -> resetButton.updateState());
+            checkBox.addChangeListener(_ -> resetButton.updateState());
         }
 
-        if (extraAction != null) {
-            this.extraAction = extraAction;
+        if (sideButtonModel != null) {
+            this.sideButtonModel = sideButtonModel;
             add(Box.createHorizontalStrut(BUTTON_SPACING));
-            add(extraAction.createGUI());
+            add(sideButtonModel.createGUI());
         }
     }
 
@@ -67,9 +67,6 @@ public class BooleanParamGUI extends JPanel implements ParamGUI {
         checkBox.setEnabled(enabled);
         if (resetButton != null) {
             resetButton.setEnabled(enabled);
-        }
-        if (extraAction != null) {
-            extraAction.setEnabled(enabled);
         }
         super.setEnabled(enabled);
     }
@@ -80,7 +77,6 @@ public class BooleanParamGUI extends JPanel implements ParamGUI {
 
         // help assertj-swing to find the checkBox in tests
         checkBox.setName(name);
-//        checkBox.setName(name + ".checkbox");
     }
 
     @Override

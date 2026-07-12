@@ -19,7 +19,7 @@ package pixelitor.layers;
 
 import pixelitor.AppMode;
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.Views;
 import pixelitor.compactions.FlipDirection;
 import pixelitor.compactions.Outsets;
@@ -58,7 +58,7 @@ import static pixelitor.utils.Threads.onEDT;
 import static pixelitor.utils.Thumbnails.createThumbnail;
 
 /**
- * A layer that embeds a {@link Composition},
+ * A layer that embeds a {@link Composition}
  * and supports non-destructive editing via smart filters.
  */
 public class SmartObject extends CompositeLayer {
@@ -137,12 +137,12 @@ public class SmartObject extends CompositeLayer {
     }
 
     // constructor for duplication.
-    private SmartObject(SmartObject orig, CopyType copyType, Composition newComp) {
-        super(newComp, copyType.createLayerCopyName(orig.getName()));
+    private SmartObject(SmartObject orig, CopyOptions copyOptions, Composition newComp) {
+        super(newComp, copyOptions.createLayerCopyName(orig.getName()));
         assert orig.content.checkInvariants();
-        if (copyType.isDeepContentCopy()) {
+        if (copyOptions.deepContentCopy()) {
             Composition origContent = orig.content;
-            Composition newContent = origContent.copy(copyType, true);
+            Composition newContent = origContent.copy(copyOptions);
             setContent(newContent);
             assert origContent.checkInvariants();
         } else {
@@ -151,7 +151,7 @@ public class SmartObject extends CompositeLayer {
         image = orig.image;
 
         for (SmartFilter origFilter : orig.filters) {
-            SmartFilter copy = (SmartFilter) origFilter.copy(copyType, true, newComp);
+            SmartFilter copy = (SmartFilter) origFilter.copy(copyOptions, newComp);
             copy.setSmartObject(this);
             addSmartFilter(copy, false, false);
         }
@@ -223,7 +223,7 @@ public class SmartObject extends CompositeLayer {
             filter.adaptToContext();
         }
 
-        recalculateImage();
+        recalcImage();
 
         assert checkInvariants();
     }
@@ -260,14 +260,14 @@ public class SmartObject extends CompositeLayer {
     private void handleMissingContent() {
         assert Threads.calledOnEDT();
 
-        String title = linkedContentFile.getName() + " not found.";
+        String title = linkedContentFile.getName() + " Not Found";
         String msg = "<html>The linked file <b>" + linkedContentFile.getAbsolutePath() +
             "</b> was not found.<br>You can search for it or use a transparent image.";
-        boolean search = Dialogs.showOKCancelDialog(msg, title,
+        boolean shouldSearch = Dialogs.showOKCancelQuestion(msg, title,
             new String[]{"Search...", "Use Transparent Image"}, 0, JOptionPane.ERROR_MESSAGE);
 
         File newFile = null;
-        if (search) {
+        if (shouldSearch) {
             newFile = FileChoosers.selectSupportedOpenFile();
         }
         if (newFile != null) { // user selected a new file
@@ -286,19 +286,20 @@ public class SmartObject extends CompositeLayer {
         }
     }
 
-    private void createContentFrom(Layer layer) {
+    private void createContentFrom(Layer srcLayer) {
         Composition newContent = Composition.createEmpty(comp.getCanvasWidth(), comp.getCanvasHeight(), comp.getMode());
         // the layer's mask stays outside the content and becomes the smart object's mask
-        if (layer instanceof LayerGroup group) {
+        if (srcLayer instanceof LayerGroup group) {
             // flatten the contents of the group
             int numLayers = group.getNumLayers();
             assert numLayers > 0;
             for (int i = 0; i < numLayers; i++) {
-                Layer layerCopy = group.getLayer(i).copy(CopyType.UNDO, true, newContent);
+                Layer layerCopy = group.getLayer(i).copy(CopyOptions.duplicateLayer(true), newContent);
                 newContent.addLayerWithoutUI(layerCopy);
             }
         } else {
-            Layer contentLayer = layer.copy(CopyType.UNDO, false, newContent);
+            CopyOptions options = CopyOptions.duplicateLayer(true).withoutMask();
+            Layer contentLayer = srcLayer.copy(options, newContent);
             contentLayer.setName("original content", false);
             contentLayer.setHolder(newContent);
             newContent.addLayerWithoutUI(contentLayer);
@@ -308,7 +309,7 @@ public class SmartObject extends CompositeLayer {
         setContent(newContent);
     }
 
-    private void recalculateImage() {
+    private void recalcImage() {
         image = filters.isEmpty()
             ? baseSource.getImage()
             : filters.getLast().getImage();
@@ -323,7 +324,7 @@ public class SmartObject extends CompositeLayer {
     @Override
     public void update() {
         if (invalidImageCache) {
-            recalculateImage();
+            recalcImage();
         }
         super.update();
     }
@@ -374,7 +375,7 @@ public class SmartObject extends CompositeLayer {
 
     public BufferedImage getVisibleImage() {
         if (invalidImageCache) {
-            recalculateImage();
+            recalcImage();
         }
         return image;
     }
@@ -385,13 +386,13 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    protected SmartObject createTypeSpecificCopy(CopyType copyType, Composition newComp) {
-        return new SmartObject(this, copyType, newComp);
+    protected SmartObject createTypeSpecificCopy(CopyOptions options, Composition newComp) {
+        return new SmartObject(this, options, newComp);
     }
 
     @Override
     public void replaceWithSmartObject() {
-        throw new IllegalStateException(); // it's already smart
+        throw new IllegalStateException(); // it's already a smart object
     }
 
     @Override
@@ -401,7 +402,7 @@ public class SmartObject extends CompositeLayer {
 
     @Override
     protected void addSmartObjectMenus(JPopupMenu popup) {
-        popup.add(new TaskAction("Edit Contents", this::edit));
+        popup.add(new TaskAction("Edit Contents", this::showEditUI));
         popup.add(new TaskAction("Clone", () ->
             comp.shallowDuplicate(this)));
         if (isContentLinked()) {
@@ -411,7 +412,7 @@ public class SmartObject extends CompositeLayer {
         if (SmartFilter.copiedSmartFilter != null) {
             popup.add(new TaskAction("Paste " + SmartFilter.copiedSmartFilter.getName(), () -> {
                 // copy again, so it can be pasted multiple times
-                SmartFilter newSF = (SmartFilter) SmartFilter.copiedSmartFilter.copy(CopyType.DUPLICATE_LAYER, true, comp);
+                SmartFilter newSF = (SmartFilter) SmartFilter.copiedSmartFilter.copy(CopyOptions.duplicateLayer(), comp);
                 newSF.setSmartObject(this);
                 addSmartFilter(newSF, true, true);
             }));
@@ -422,7 +423,7 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    public boolean edit() {
+    public boolean showEditUI() {
         View contentView = content.getView();
         if (contentView == null) {
             Views.addNew(content);
@@ -457,7 +458,7 @@ public class SmartObject extends CompositeLayer {
 
         if (hasDialog) {
             smartFilter.setTentative(true);
-            if (smartFilter.edit()) { // dialog was accepted
+            if (smartFilter.showEditUI()) { // dialog was accepted
                 smartFilter.setTentative(false);
                 History.add(new NewSmartFilterEdit(this, smartFilter));
             } else {
@@ -493,7 +494,7 @@ public class SmartObject extends CompositeLayer {
     }
 
     private void insertSmartFilter(SmartFilter newFilter, int index, boolean update, boolean activate) {
-        assert newFilter.getHolder() == this;
+        assert newFilter.isDirectChildOf(this);
 
         filters.add(index, newFilter);
         rewireFilterChain();
@@ -568,8 +569,8 @@ public class SmartObject extends CompositeLayer {
     }
 
     private void layerCountChanged() {
-        // notify the delete action only if not the whole
-        // smart object is selected and not during construction
+        // notify the delete action only if the whole smart
+        // object is not selected and not during construction
         if (!isActive() && hasUI()) {
             LayerEvents.fireLayerCountChanged(this, filters.size());
         }
@@ -582,7 +583,7 @@ public class SmartObject extends CompositeLayer {
         return comp.findParentView();
     }
 
-    public CompletableFuture<Composition> checkForAutoReload() {
+    public CompletableFuture<Composition> checkAutoReload() {
         assert !isContentOpen();
         assert checkInvariants();
 
@@ -602,7 +603,7 @@ public class SmartObject extends CompositeLayer {
         }
 
         // recursively check nested smart objects within the content
-        return content.checkForExternalModifications();
+        return content.checkAutoReload();
     }
 
     private CompletableFuture<Composition> reloadLinkedContentAsync() {
@@ -806,8 +807,9 @@ public class SmartObject extends CompositeLayer {
     }
 
     public SmartObject shallowDuplicate() {
-        SmartObject d = new SmartObject(this, CopyType.CLONE_SMART_OBJECT, comp);
-        copyMaskTo(d, CopyType.CLONE_SMART_OBJECT, comp);
+        CopyOptions options = CopyOptions.smartObjectShallowDuplicate();
+        SmartObject d = new SmartObject(this, options, comp);
+        copyMaskTo(d, options, comp);
         return d;
     }
 
@@ -872,10 +874,10 @@ public class SmartObject extends CompositeLayer {
 
         SmartFilter selected = getSelectedSmartFilter();
         if (selected != null) {
-            selected.edit();
+            selected.showEditUI();
         } else {
             // edit the last smart filter if none is selected
-            filters.getLast().edit();
+            filters.getLast().showEditUI();
         }
     }
 
@@ -1144,11 +1146,6 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    public void reorderLayerUI(int oldIndex, int newIndex) {
-        updateChildrenUI();
-    }
-
-    @Override
     public void removeLayerFromList(Layer layer) {
         // it's not enough to just remove it from the list; invariants must be preserved.
         deleteSmartFilter((SmartFilter) layer, false, false);
@@ -1157,7 +1154,7 @@ public class SmartObject extends CompositeLayer {
     @Override
     public BufferedImage createIconThumbnail() {
         // TODO: The thumbnail isn't created from the canvas-visible region of the image.
-        return createThumbnail(getVisibleImage(), thumbCheckerBoardPainter);
+        return createThumbnail(getVisibleImage(), thumbCheckerboardPainter);
     }
 
     @Override

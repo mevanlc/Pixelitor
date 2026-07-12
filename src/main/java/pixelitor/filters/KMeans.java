@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -20,10 +20,10 @@ package pixelitor.filters;
 import pixelitor.filters.gui.BooleanParam;
 import pixelitor.filters.gui.IntChoiceParam;
 import pixelitor.filters.gui.RangeParam;
+import pixelitor.progress.StatusBarProgressTracker;
 import pixelitor.utils.Dithering;
 import pixelitor.utils.ImageUtils;
 import pixelitor.utils.KMeansClustering;
-import pixelitor.utils.StatusBarProgressTracker;
 
 import java.awt.image.BufferedImage;
 import java.io.Serial;
@@ -52,7 +52,7 @@ public class KMeans extends ParametrizedFilter {
     public KMeans() {
         super(true);
 
-        diffusionStrengthParam.setupEnableOtherIfNotZero(ditheringMethodParam);
+        diffusionStrengthParam.enableOtherWhenNotZero(ditheringMethodParam);
 
         initParams(
             k,
@@ -67,7 +67,7 @@ public class KMeans extends ParametrizedFilter {
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
         int[] srcPixels = ImageUtils.getPixels(src);
         int[] destPixels = ImageUtils.getPixels(dest);
-        Random random = paramSet.getLastSeedRandom();
+        Random random = paramSet.getRandomWithLastSeed();
         int numIterations = iterations.getValue();
 
         boolean dither = diffusionStrengthParam.getValue() != 0;

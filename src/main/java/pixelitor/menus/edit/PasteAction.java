@@ -20,8 +20,9 @@ package pixelitor.menus.edit;
 import pixelitor.Views;
 import pixelitor.gui.View;
 import pixelitor.gui.utils.NamedAction;
-import pixelitor.utils.*;
-import pixelitor.utils.Error;
+import pixelitor.utils.ImageUtils;
+import pixelitor.utils.Messages;
+import pixelitor.utils.ViewActivationListener;
 
 import java.awt.Image;
 import java.awt.event.ActionEvent;
@@ -62,29 +63,28 @@ public class PasteAction extends NamedAction implements ViewActivationListener {
 
     @Override
     protected void onClick(ActionEvent e) {
-        switch (retrieveClipboardImage()) {
-            case Success<BufferedImage, ?>(BufferedImage img) -> {
-                PasteTarget effectiveTarget =
-                    (primary && pasteTarget.requiresOpenView() && Views.getActive() == null)
-                        ? PasteTarget.NEW_IMAGE
-                        : pasteTarget;
-                effectiveTarget.paste(img);
-            }
-            case Error<?, String>(String errorMsg) -> Messages.showInfo("Paste Error", errorMsg);
+        BufferedImage image = retrieveClipboardImage();
+        if (image != null) {
+            PasteTarget effectiveTarget =
+                (primary && pasteTarget.requiresOpenView() && Views.getActive() == null)
+                    ? PasteTarget.NEW_IMAGE
+                    : pasteTarget;
+            effectiveTarget.paste(image);
         }
     }
 
-    private static Result<BufferedImage, String> retrieveClipboardImage() {
+    private static BufferedImage retrieveClipboardImage() {
         Image clipImage = ImageUtils.getClipboardImage();
         if (clipImage == null) {
-            return Result.error("The clipboard doesn't contain an image.");
+            Messages.showInfo("Paste Error",
+                "The clipboard doesn't contain an image.");
+            return null;
         }
         try {
-            BufferedImage pastedImage = ImageUtils.copyToBufferedImage(clipImage);
-            return Result.success(pastedImage);
+            return ImageUtils.copyToBufferedImage(clipImage);
         } catch (Exception ex) {
             Messages.showException(ex);
-            return Result.error(ex.getMessage());
+            return null;
         }
     }
 

@@ -19,6 +19,7 @@ package pixelitor.utils;
 
 import com.jhlabs.image.BoxBlurFilter;
 import pixelitor.colors.Colors;
+import pixelitor.progress.ProgressTracker;
 import pixelitor.tools.shapes.ShapeType;
 import pixelitor.tools.shapes.StarSettings;
 import pixelitor.tools.util.Drag;
@@ -152,8 +153,7 @@ public class GenericBlurredShape implements BlurredShape {
         // cast first to int in order to avoid fractional blurring
         float hRadius = (int) (shapeStartX / iterations);
         float vRadius = (int) (shapeStartY / iterations);
-        var blurFilter = new BoxBlurFilter(hRadius, vRadius, iterations, "");
-        blurFilter.setPremultiplyAlpha(false);
+        var blurFilter = new BoxBlurFilter("", hRadius, vRadius, iterations, false);
 
         // it would be complicated to set up better progress tracking
         // because we would have to know in advance whether we can cache
@@ -175,6 +175,6 @@ public class GenericBlurredShape implements BlurredShape {
         // inside the image bounds return the normalized pixel intensity
         int pixel = pixels[imgX + imgWidth * imgY];
         // transform from unsigned byte to int
-        return (pixel & 0xff) / 255.0;
+        return (pixel & 0xFF) / 255.0;
     }
 }

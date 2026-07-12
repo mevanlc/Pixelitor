@@ -65,7 +65,7 @@ public class SmudgeTool extends AbstractBrushTool {
     }
 
     @Override
-    protected void updateLazyMouseEnabledState() {
+    protected void updateLazyMouseState() {
         if (lazyMouseEnabled.isChecked()) {
             lazyMouseBrush = new LazyMouseBrush(smudgeBrush);
             brush = new AffectedAreaTracker(lazyMouseBrush, affectedArea);

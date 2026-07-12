@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -32,7 +32,7 @@ import static java.awt.Color.BLUE;
 import static java.awt.Color.GREEN;
 import static java.awt.Color.RED;
 import static org.assertj.core.api.Assertions.assertThat;
-import static pixelitor.filters.gui.TransparencyMode.ALPHA_ENABLED;
+import static pixelitor.filters.gui.TransparencyMode.RANDOMIZED_ALPHA;
 import static pixelitor.utils.AngleUnit.INTUITIVE_DEGREES;
 
 @DisplayName("ParamState tests")
@@ -63,8 +63,8 @@ class ParamStateTest {
         var imagePositionParamStart = new ImagePositionParam("ImagePositionParam", 0.1f, 0.0f);
         var imagePositionParamEnd = new ImagePositionParam("ImagePositionParam", 0.9f, 1.0f);
 
-        var colorParamStart = new ColorParam("ColorParam", RED, ALPHA_ENABLED);
-        var colorParamEnd = new ColorParam("ColorParam", BLUE, ALPHA_ENABLED);
+        var colorParamStart = new ColorParam("ColorParam", RED, RANDOMIZED_ALPHA);
+        var colorParamEnd = new ColorParam("ColorParam", BLUE, RANDOMIZED_ALPHA);
 
         return Stream.of(
             Arguments.of(angleParamStart.copyState(), angleParamEnd.copyState()),
@@ -80,13 +80,11 @@ class ParamStateTest {
     @ParameterizedTest(name = "#{index}: interpolate between {0} and {1}")
     @MethodSource("instancesToTest")
     <T extends ParamState<T>> void interpolate(T start, T end) {
-        ParamState<T> interpolated = start.interpolate(end, 0.0);
-        assertThat(interpolated).isNotNull();
+        double[] progresses = {0.0, 0.5, 1.0};
 
-        interpolated = start.interpolate(end, 0.5);
-        assertThat(interpolated).isNotNull();
-
-        interpolated = start.interpolate(end, 1.0);
-        assertThat(interpolated).isNotNull();
+        for (double progress : progresses) {
+            ParamState<T> interpolated = start.interpolate(end, progress);
+            assertThat(interpolated).isNotNull();
+        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -66,15 +66,32 @@ public class Drag implements Serializable, Debuggable {
     private transient double coEndY;
     private transient boolean hasCoCoords;
 
-    private transient double prevCoEndX;
-    private transient double prevCoEndY;
+    // the actual, unconstrained mouse cursor position
+    private transient double rawCoEndX;
+    private transient double rawCoEndY;
 
+    // whether the interaction is currently ongoing (mouse down)
     private transient boolean dragging;
+
+    // if true, DragTool immediately stops processing
+    // further mouse events for this specific drag
     private transient boolean canceled;
+
+    // whether the initial starting point was moved after
+    // the drag started (panning with the Space key down)
     private transient boolean startAdjusted;
+
+    // if true (Shift down in some tools), the drag restricts the angle
+    // between the start and end points to multiples of 45 degrees
     private transient boolean angleConstrained;
+
+    // if true (Alt down in some tools), the initial mouse press
+    // acts as the center of the shape rather than a corner
     private transient boolean expandFromCenter;
-    private transient boolean enforceEqualDimensions;
+
+    // if true (Shift down in some tools), it forces the
+    // bounding box of the drag to maintain a perfect 1:1 ratio
+    private transient boolean forceSquareAspectRatio;
 
     public Drag() {
         hasCoCoords = false;
@@ -105,21 +122,21 @@ public class Drag implements Serializable, Debuggable {
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
 
-        // Initializes all transient fields to their default values
+        // initializes all transient fields to their default values
         hasCoCoords = false;
         coStartX = 0;
         coEndX = 0;
         coStartY = 0;
         coEndY = 0;
-        prevCoEndX = 0;
-        prevCoEndY = 0;
+        rawCoEndX = 0;
+        rawCoEndY = 0;
 
         dragging = false;
         canceled = false;
         startAdjusted = false;
         angleConstrained = false;
         expandFromCenter = false;
-        enforceEqualDimensions = false;
+        forceSquareAspectRatio = false;
     }
 
     public Drag copy() {
@@ -153,14 +170,17 @@ public class Drag implements Serializable, Debuggable {
     }
 
     public void setEnd(PPoint e) {
-        coEndX = e.getCoX();
-        coEndY = e.getCoY();
+        rawCoEndX = e.getCoX();
+        rawCoEndY = e.getCoY();
+
+        coEndX = rawCoEndX;
+        coEndY = rawCoEndY;
 
         if (angleConstrained) {
             Point2D newEnd = Utils.constrainToNearestAngle(coStartX, coStartY, coEndX, coEndY);
             coEndX = newEnd.getX();
             coEndY = newEnd.getY();
-        } else if (enforceEqualDimensions) { // the two special cases are not used at the same time
+        } else if (forceSquareAspectRatio) { // the two special cases are not used at the same time
             double width = Math.abs(coEndX - coStartX);
             double height = Math.abs(coEndY - coStartY);
             double max = Math.max(width, height);
@@ -193,38 +213,6 @@ public class Drag implements Serializable, Debuggable {
     public PPoint getEnd(View view) {
         assert hasCoCoords;
         return new PPoint(coEndX, coEndY, imEndX, imEndY, view);
-    }
-
-    // returns the start x coordinate in component space
-    public double getCoStartX(boolean centerAdjust) {
-        assert hasCoCoords;
-        if (centerAdjust && expandFromCenter) {
-            return coStartX - (coEndX - coStartX);
-        } else {
-            return coStartX;
-        }
-    }
-
-    // returns the start y coordinate in component space
-    public double getCoStartY(boolean centerAdjust) {
-        assert hasCoCoords;
-        if (centerAdjust && expandFromCenter) {
-            return coStartY - (coEndY - coStartY);
-        } else {
-            return coStartY;
-        }
-    }
-
-    // returns the end x coordinate in component space
-    public double getCoEndX() {
-        assert hasCoCoords;
-        return coEndX;
-    }
-
-    // returns the end y coordinate in component space
-    public double getCoEndY() {
-        assert hasCoCoords;
-        return coEndY;
     }
 
     public double getStartX() {
@@ -288,7 +276,7 @@ public class Drag implements Serializable, Debuggable {
     }
 
     /**
-     * Return the horizontal line that runs through the center in image space
+     * Returns the horizontal line that runs through the center in image space.
      */
     public Drag getCenterHorizontalDrag() {
         double centerY;
@@ -310,12 +298,12 @@ public class Drag implements Serializable, Debuggable {
         return imStartX == imEndX && imStartY == imEndY;
     }
 
-    public boolean isEmptyRect() {
+    public boolean isCoRectEmpty() {
         assert hasCoCoords;
         return coStartX == coEndX || coStartY == coEndY;
     }
 
-    public boolean isEmptyImRect() {
+    public boolean isImRectEmpty() {
         return imStartX == imEndX || imStartY == imEndY;
     }
 
@@ -340,21 +328,31 @@ public class Drag implements Serializable, Debuggable {
         CustomShapes.drawDirectionArrow(g, imStartX, imStartY, imEndX, imEndY);
     }
 
-    public void saveEndValues() {
-        prevCoEndX = coEndX;
-        prevCoEndY = coEndY;
-    }
-
-    public void panStartPoint(View view) {
+    public void pan(PPoint e) {
         assert hasCoCoords;
-        double dx = coEndX - prevCoEndX;
-        double dy = coEndY - prevCoEndY;
+        double rawX = e.getCoX();
+        double rawY = e.getCoY();
 
+        // calculate delta based purely on unconstrained mouse movement
+        double dx = rawX - rawCoEndX;
+        double dy = rawY - rawCoEndY;
+
+        // update raw trackers
+        rawCoEndX = rawX;
+        rawCoEndY = rawY;
+
+        // pan both start and end, freezing the drag bounds
+        // (stops the constraint logic from fighting the panning)
         coStartX += dx;
         coStartY += dy;
+        coEndX += dx;
+        coEndY += dy;
 
+        View view = e.getView();
         imStartX = view.componentXToImageSpace(coStartX);
         imStartY = view.componentYToImageSpace(coStartY);
+        imEndX = view.componentXToImageSpace(coEndX);
+        imEndY = view.componentYToImageSpace(coEndY);
 
         startAdjusted = true;
     }
@@ -367,8 +365,8 @@ public class Drag implements Serializable, Debuggable {
         return expandFromCenter;
     }
 
-    public void setEnforceEqualDimensions(boolean enforceEqualDimensions) {
-        this.enforceEqualDimensions = enforceEqualDimensions;
+    public void setForceSquareAspectRatio(boolean forceSquareAspectRatio) {
+        this.forceSquareAspectRatio = forceSquareAspectRatio;
     }
 
     public Line2D asLine() {
@@ -385,6 +383,7 @@ public class Drag implements Serializable, Debuggable {
 
     public void cancel() {
         canceled = true;
+        dragging = false; // to stop drag overlays
     }
 
     public void mouseReleased() {
@@ -416,7 +415,10 @@ public class Drag implements Serializable, Debuggable {
         return new Rectangle(x, y, width, height);
     }
 
-    public Rectangle2D toImRect() {
+    /**
+     * Creates a Rectangle where the signs of the width and height indicate the drawing direction.
+     */
+    public Rectangle2D toSignedImRect() {
         double x;
         double y;
         double width;
@@ -445,7 +447,7 @@ public class Drag implements Serializable, Debuggable {
     }
 
     public Rectangle2D toPosImRect() {
-        return Shapes.toPositiveRect(toImRect());
+        return Shapes.toPositiveRect(toSignedImRect());
     }
 
     public PRectangle toPosPRect(View view) {
@@ -453,88 +455,23 @@ public class Drag implements Serializable, Debuggable {
     }
 
     /**
-     * Creates a Rectangle where the sign of with/height indicate the direction of drawing
-     *
-     * @return a Rectangle where the width and height can be < 0
-     */
-    public Rectangle2D createSignedImRect() {
-        double x;
-        double y;
-        double width;
-        double height;
-
-        if (expandFromCenter) {
-            double halfWidth = imEndX - imStartX; // can be negative
-            double halfHeight = imEndY - imStartY; // can be negative
-
-            x = imStartX - halfWidth;
-            y = imStartY - halfHeight;
-
-            width = 2 * halfWidth;
-            height = 2 * halfHeight;
-        } else {
-            x = imStartX;
-            y = imStartY;
-            width = imEndX - imStartX;
-            height = imEndY - imStartY;
-        }
-
-        return new Rectangle2D.Double(x, y, width, height);
-    }
-
-    /**
-     * Creates a Rectangle where the width/height are >=0 independently of the direction of the drawing
-     *
-     * @return a Rectangle where the width and height are >= 0
+     * Creates a Rectangle where the width and height are >= 0, regardless of the drawing direction.
      */
     public Rectangle2D createPositiveImRect() {
-        double x;
-        double y;
-        double width;
-        double height;
+        double x, y, width, height;
 
         if (expandFromCenter) {
-            double halfWidth;  // positive or zero
-            if (imEndX > imStartX) {
-                halfWidth = imEndX - imStartX;
-                x = imStartX - halfWidth;
-            } else {
-                halfWidth = imStartX - imEndX;
-                x = imEndX;
-            }
-
-            double halfHeight; // positive or zero
-            if (imEndY > imStartY) {
-                halfHeight = imEndY - imStartY;
-                y = imStartY - halfHeight;
-            } else {
-                halfHeight = imStartY - imEndY;
-                y = imEndY;
-            }
-
+            double halfWidth = Math.abs(imEndX - imStartX);
+            double halfHeight = Math.abs(imEndY - imStartY);
+            x = imStartX - halfWidth;
+            y = imStartY - halfHeight;
             width = 2 * halfWidth;
             height = 2 * halfHeight;
         } else {
-            double tmpEndX;
-            if (imEndX > imStartX) {
-                x = imStartX;
-                tmpEndX = imEndX;
-            } else {
-                x = imEndX;
-                tmpEndX = imStartX;
-            }
-
-            double tmpEndY;
-            if (imEndY > imStartY) {
-                y = imStartY;
-                tmpEndY = imEndY;
-            } else {
-                y = imEndY;
-                tmpEndY = imStartY;
-            }
-
-            width = tmpEndX - x;
-            height = tmpEndY - y;
+            x = Math.min(imStartX, imEndX);
+            y = Math.min(imStartY, imEndY);
+            width = Math.abs(imEndX - imStartX);
+            height = Math.abs(imEndY - imStartY);
         }
         return new Rectangle2D.Double(x, y, width, height);
     }
@@ -560,11 +497,11 @@ public class Drag implements Serializable, Debuggable {
         return length;
     }
 
-    public double taxiCabMetric(int x, int y) {
+    public double taxicabDistTo(double x, double y) {
         return Math.abs(x - imStartX) + Math.abs(y - imStartY);
     }
 
-    public double calcStartDistanceFrom(double x, double y) {
+    public double calcDistFromStart(double x, double y) {
         double dx = imStartX - x;
         double dy = imStartY - y;
         return Math.sqrt(dx * dx + dy * dy);
@@ -584,7 +521,7 @@ public class Drag implements Serializable, Debuggable {
     }
 
     public double calcDrawAngle() {
-        return Math.atan2(imEndX - imStartX, imEndY - imStartY); //  between -PI and PI
+        return Math.atan2(imEndX - imStartX, imEndY - imStartY); // between -PI and PI
     }
 
     public double calcAngleFromStartTo(double x, double y) {
@@ -690,14 +627,13 @@ public class Drag implements Serializable, Debuggable {
         int dragLength = (int) calcImLength();
         String distInfo = "d = " + dragLength + " px";
 
-        MeasurementOverlay overlay = new MeasurementOverlay(g, MeasurementOverlay.BG_WIDTH_PIXELS);
+        MeasurementOverlay overlay = new MeasurementOverlay(g, MeasurementOverlay.BG_WIDTH_ANGLES);
         overlay.drawTwoLines(angleInfo, distInfo, calcAngleDistOverlayPosition());
         overlay.cleanup();
     }
 
     private Point2D.Double calcAngleDistOverlayPosition() {
         double coDx = coEndX - coStartX;
-        double coDy = coEndY - coStartY;
 
         double posX;
         boolean xDistIsSmall = false;
@@ -709,7 +645,7 @@ public class Drag implements Serializable, Debuggable {
             posX = coEndX - MeasurementOverlay.OFFSET_FROM_MOUSE - MeasurementOverlay.BG_WIDTH_PIXELS;
         } else {
             xDistIsSmall = true;
-            // display it so that it has no sudden jumps
+            // prevent sudden jumps
             posX = coEndX - MeasurementOverlay.BG_WIDTH_PIXELS / 2.0
                 + ((MeasurementOverlay.BG_WIDTH_PIXELS / 2.0 + MeasurementOverlay.OFFSET_FROM_MOUSE)
                 * coDx / MeasurementOverlay.BG_WIDTH_PIXELS);
@@ -721,6 +657,7 @@ public class Drag implements Serializable, Debuggable {
             yInterpolationLimit = 0;
         }
 
+        double coDy = coEndY - coStartY;
         double posY;
         if (coDy <= -yInterpolationLimit) {
             // display it above the mouse
@@ -729,7 +666,7 @@ public class Drag implements Serializable, Debuggable {
             // display it below the mouse
             posY = coEndY + MeasurementOverlay.OFFSET_FROM_MOUSE + MeasurementOverlay.DOUBLE_LINE_HEIGHT;
         } else {
-            // display it so that it has no sudden jumps
+            // prevent sudden jumps
             posY = coEndY + MeasurementOverlay.DOUBLE_LINE_HEIGHT / 2.0
                 + ((MeasurementOverlay.DOUBLE_LINE_HEIGHT / 2.0 + MeasurementOverlay.OFFSET_FROM_MOUSE)
                 * coDy / MeasurementOverlay.DOUBLE_LINE_HEIGHT);

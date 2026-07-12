@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -20,6 +20,7 @@ package pixelitor.utils;
 import pixelitor.Composition;
 import pixelitor.layers.Layer;
 import pixelitor.layers.LayerGroup;
+import pixelitor.progress.ProgressHandler;
 import pixelitor.utils.test.RandomGUITest;
 
 import java.awt.Component;
@@ -131,7 +132,9 @@ public class Messages {
         showError("Not an Image Layer or Mask", msg);
     }
 
-    // Shows a performance timing message in the status bar.
+    /**
+     * Shows a performance timing message in the status bar.
+     */
     public static void showPerformanceMessage(String filterName, long timeMillis) {
         String msg;
         if (timeMillis < 1000) {
@@ -159,13 +162,18 @@ public class Messages {
     public static void showUnrasterizableLayerGroupError(LayerGroup group, String name) {
         String msg = "<html>The active layer <i>\"%s\"</i> is a layer group." +
             "<br><br>%s can't be used on layer groups." +
-            "<br>Pass through groups can't even be rasterized.";
+            "<br>Pass-through groups can't even be rasterized.";
         showError("Layer Group", msg.formatted(group.getName(), name));
     }
 
-    public static void showSmartObjectUnsupportedWarning(String what) {
+    public static void showSmartObjectUnsupportedInfo(String opName) {
         msgHandler.showInfo("Feature Not Supported",
-            what + " isn't yet supported if one of the layers is a smart object.", null);
+            opName + " isn't yet supported if one of the layers is a smart object.", null);
+    }
+
+    public static void showTextLayerUnsupportedWarning(String what) {
+        msgHandler.showInfo("Feature Not Supported",
+            what + " isn't yet supported if one of the layers is a text layer.", null);
     }
 
     public static void showFileOpenedMessage(Composition comp) {

@@ -33,6 +33,7 @@ import pixelitor.gui.utils.Dialogs;
 import pixelitor.layers.ContentLayer;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
+import pixelitor.progress.ProgressTracker;
 import pixelitor.selection.Selection;
 import pixelitor.tools.Tools;
 import pixelitor.utils.debug.Debug;
@@ -58,21 +59,14 @@ import java.util.concurrent.CompletableFuture;
 import static java.awt.AlphaComposite.SRC_OVER;
 import static java.awt.Color.BLACK;
 import static java.awt.Color.WHITE;
-import static java.awt.RenderingHints.KEY_ANTIALIASING;
-import static java.awt.RenderingHints.KEY_INTERPOLATION;
-import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
-import static java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC;
-import static java.awt.image.BufferedImage.TRANSLUCENT;
-import static java.awt.image.BufferedImage.TYPE_BYTE_GRAY;
-import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
-import static java.awt.image.BufferedImage.TYPE_INT_ARGB_PRE;
-import static java.awt.image.BufferedImage.TYPE_INT_RGB;
+import static java.awt.RenderingHints.*;
+import static java.awt.image.BufferedImage.*;
 import static java.awt.image.DataBuffer.TYPE_INT;
 import static java.lang.String.format;
 import static pixelitor.utils.Threads.onPool;
 
 /**
- * Static image-related utility methods
+ * Static image-related utility methods.
  */
 public class ImageUtils {
     private static final double DEG_315_IN_RADIANS = Math.PI / 4;
@@ -220,13 +214,13 @@ public class ImageUtils {
         boolean isTranslucent = img.getTransparency() != Transparency.OPAQUE;
 
         if (progressiveBilinear) {
-            // Use multi-step technique: start with original size, then
+            // use multi-step technique: start with original size, then
             // scale down in multiple passes with drawImage()
             // until the target size is reached
             w = img.getWidth();
             h = img.getHeight();
         } else {
-            // Use one-step technique: scale directly from original
+            // use one-step technique: scale directly from original
             // size to target size with a single drawImage() call
             w = targetWidth;
             h = targetHeight;
@@ -250,7 +244,7 @@ public class ImageUtils {
             }
 
             if (scratchImage == null || isTranslucent) {
-                // Use a single scratch buffer for all iterations
+                // use a single scratch buffer for all iterations
                 // and then copy to the final, correctly-sized image
                 // before returning
                 scratchImage = new BufferedImage(w, h, type);
@@ -268,7 +262,7 @@ public class ImageUtils {
             g2.dispose();
         }
 
-        // If we used a scratch buffer that is larger than our target size,
+        // if we used a scratch buffer that is larger than our target size,
         // create an image of the right size and copy the results into it
         if (targetWidth != ret.getWidth() || targetHeight != ret.getHeight()) {
             scratchImage = new BufferedImage(targetWidth, targetHeight, type);
@@ -282,7 +276,7 @@ public class ImageUtils {
     }
 
     /**
-     * Also an iterative approach, but using even smaller steps
+     * Also an iterative approach, but using even smaller steps.
      */
     public static BufferedImage enlargeSmoothly(BufferedImage src,
                                                 int targetWidth, int targetHeight,
@@ -292,7 +286,7 @@ public class ImageUtils {
         double factorX = targetWidth / (double) srcWidth;
         double factorY = targetHeight / (double) srcHeight;
 
-        // they should be the same, but rounding errors can cause small problems
+        // they should be the same, but rounding errors can cause small discrepancies
         assert Math.abs(factorX - factorY) < 0.05;
 
         double factor = (factorX + factorY) / 2.0;
@@ -371,10 +365,10 @@ public class ImageUtils {
             DataBufferInt srcDataBuffer = (DataBufferInt) src.getRaster().getDataBuffer();
             pixels = srcDataBuffer.getData();
         } else {
-            // If the image's pixels are not stored in an int array,
+            // if the image's pixels are not stored in an int array,
             // a correct int array could still be retrieved with
             // src.getRGB(0, 0, width, height, null, 0, width);
-            // but modifying that array wouldn't have any effect on the image.
+            // but modifying that array wouldn't have any effect on the image
             throw new UnsupportedOperationException("type is " + Debug.bufferedImageTypeToString(src.getType()));
         }
 
@@ -410,7 +404,7 @@ public class ImageUtils {
     }
 
     /**
-     * Converts an image filename to a resource URL within the images directory.
+     * Converts an image filename to a resource URL within the 'images' directory.
      */
     public static URL findImageURL(String fileName) {
         assert fileName != null;
@@ -539,16 +533,9 @@ public class ImageUtils {
         return dest;
     }
 
-    public static void main(String[] args) {
-        BufferedImage img = createSysCompatibleImage(100, 100);
-        copyImage(img);
-        BufferedImage sub = img.getSubimage(20, 20, 50, 50);
-        copyImage(sub); // throws exception
-    }
-
     // There are two cases when this method can't be used to
     // copy an image: (1) for images with an IndexColorModel
-    // this returns an image with a shared raster (jdk bug?)
+    // this returns an image with a shared raster (JDK bug?)
     // (2) for an image created with BufferedImage.getSubimage
     // it throws an exception if the raster doesn't start at (0, 0).
     public static BufferedImage copyImage(BufferedImage src) {
@@ -559,12 +546,12 @@ public class ImageUtils {
             WritableRaster raster = src.copyData(null);
             copy = new BufferedImage(src.getColorModel(), raster, src.isAlphaPremultiplied(), null);
         } catch (OutOfMemoryError e) {
-            Dialogs.showOutOfMemoryDialog(e);
+            Dialogs.showOutOfMemoryError(e);
         }
         return copy;
     }
 
-    public static Boolean isSubImage(BufferedImage src) {
+    public static boolean isSubImage(BufferedImage src) {
         WritableRaster raster = src.getRaster();
         return raster.getSampleModelTranslateX() != 0
             || raster.getSampleModelTranslateY() != 0;
@@ -576,7 +563,7 @@ public class ImageUtils {
     }
 
     /**
-     * Unlike BufferedImage.getSubimage, this method creates a copy of the data
+     * Unlike BufferedImage.getSubimage, this method creates a copy of the data.
      */
     public static BufferedImage copySubImage(BufferedImage src, Rectangle bounds) {
         assert src != null;
@@ -747,16 +734,16 @@ public class ImageUtils {
         assert original != null;
         assert blurred != null;
 
-        // The blurred image is the low-pass filtered version of the image,
+        // the blurred image is the low-pass filtered version of the image,
         // so we subtract it from the original by inverting it...
-        blurred = Invert.invertImage(blurred);
+        BufferedImage retVal = Invert.invertImage(blurred);
         // ... and blending it at 50% with the original
-        Graphics2D g = blurred.createGraphics();
+        Graphics2D g = retVal.createGraphics();
         g.setComposite(AlphaComposite.getInstance(SRC_OVER, 0.5f));
         g.drawImage(original, 0, 0, null);
         g.dispose();
 
-        return blurred;
+        return retVal;
     }
 
     public static BufferedImage toHighPassSharpenedImage(BufferedImage original, BufferedImage blurred) {
@@ -779,7 +766,7 @@ public class ImageUtils {
         BufferedImage brushImage = new BufferedImage(diameter, diameter, TYPE_BYTE_GRAY);
 
         int radius = diameter / 2;
-        int radius2 = radius * radius;
+        int radiusSq = radius * radius;
         Random random = new Random();
 
         byte[] pixels = getGrayPixels(brushImage);
@@ -787,9 +774,9 @@ public class ImageUtils {
             for (int y = 0; y < diameter; y++) {
                 int dx = x - radius;
                 int dy = y - radius;
-                int centerDistance2 = dx * dx + dy * dy;
+                int centerDistSq = dx * dx + dy * dy;
                 int index = x + y * diameter;
-                if (centerDistance2 < radius2) {
+                if (centerDistSq < radiusSq) {
                     float rn = random.nextFloat();
                     if (density > rn) {
                         pixels[index] = (byte) random.nextInt(256);
@@ -819,7 +806,7 @@ public class ImageUtils {
         g.dispose();
 
         // blur it
-        var blur = new BoxBlurFilter(softness, softness, 1, "Blur");
+        var blur = new BoxBlurFilter("Blur", softness, softness, 1);
         blur.setProgressTracker(ProgressTracker.NO_OP_TRACKER);
         brushImage = blur.filter(brushImage, brushImage);
 
@@ -874,8 +861,8 @@ public class ImageUtils {
         Graphics2D g = dest.createGraphics();
         g.setComposite(BlendComposite.HardLight);
         if (tile) {
-            // If 3 is not subtracted here, then for some reason
-            // there are 3 pixel wide gaps between the tiles.
+            // TODO if 3 is not subtracted here, then for some reason
+            //   there are 3-pixel-wide gaps between the tiles
             int bumpMapWidth = Math.max(bumpMap.getWidth() - 3, 1);
             int bumpMapHeight = Math.max(bumpMap.getHeight() - 3, 1);
 
@@ -968,14 +955,27 @@ public class ImageUtils {
             g.dispose();
             return src;
         } else {  // non-rectangular selection: do soft clipping
-            BufferedImage tmpImg = createSysCompatibleImage(selBounds);
-            Graphics2D tmpG = createSoftSelectionMask(tmpImg, selection.getShape(), selBounds.x, selBounds.y);
+            // 1. create the mask for the selection
+            BufferedImage maskImg = createSysCompatibleImage(selBounds);
+            Graphics2D maskG = createSoftSelectionMask(maskImg, selection.getShape(), selBounds.x, selBounds.y);
+            maskG.dispose();
 
-            tmpG.drawImage(replacement, 0, 0, null);
-            tmpG.dispose();
+            // 2. prepare a temporary buffer the exact size of the selection to avoid Java2D coordinate bugs
+            BufferedImage blended = createSysCompatibleImage(selBounds);
+            Graphics2D blendG = blended.createGraphics();
 
+            // 3. extract the background from the source image by drawing it with a negative offset
+            blendG.drawImage(src, -(selBounds.x - tx), -(selBounds.y - ty), null);
+
+            // 4. blend the replacement using the custom composite cleanly at 0,0
+            blendG.setComposite(new MaskedReplaceComposite(maskImg, 0, 0));
+            blendG.drawImage(replacement, 0, 0, null);
+            blendG.dispose();
+
+            // 5. overwrite the original image with the fully composited tile
             Graphics2D srcG = src.createGraphics();
-            srcG.drawImage(tmpImg, selBounds.x - tx, selBounds.y - ty, null);
+            srcG.setComposite(AlphaComposite.Src); // force replace mode
+            srcG.drawImage(blended, selBounds.x - tx, selBounds.y - ty, null);
             srcG.dispose();
 
             return src;
@@ -1154,9 +1154,15 @@ public class ImageUtils {
 
     /**
      * Returns the minimum enclosing rectangle around the non-transparent region in the given image.
+     * Returns null if the image is entirely transparent.
      */
     public static Rectangle calcOpaqueBounds(BufferedImage image) {
         WritableRaster alphaRaster = image.getAlphaRaster();
+        if (alphaRaster == null) {
+            // no alpha channel implies the whole image is opaque
+            return new Rectangle(0, 0, image.getWidth(), image.getHeight());
+        }
+
         int width = alphaRaster.getWidth();
         int height = alphaRaster.getHeight();
 
@@ -1173,7 +1179,7 @@ public class ImageUtils {
         // iterates through the rows from the top and stops
         // when it finds the first non-transparent pixel
         topLabel:
-        for (; top < bottom; top++) {
+        for (; top <= bottom; top++) { // use <= so we don't miss the final row
             for (int x = 0; x < width; x++) {
                 if (alphaRaster.getSample(x, top, 0) != 0) {
                     minRight = x;
@@ -1181,6 +1187,10 @@ public class ImageUtils {
                     break topLabel;
                 }
             }
+        }
+
+        if (top > bottom) { // we found no opaque pixels
+            return null;
         }
 
         // iterates through the columns from the left
@@ -1219,26 +1229,6 @@ public class ImageUtils {
     }
 
     /**
-     * Blends two source images based on a mask image. The blend ratio for
-     * each pixel is determined by the corresponding pixel in the mask image.
-     */
-    public static BufferedImage blendWithMask(BufferedImage srcA, BufferedImage srcB, BufferedImage mask) {
-        BufferedImage dest = createImageWithSameCM(srcA);
-        int[] srcAPixels = getPixels(srcA);
-        int[] srcBPixels = getPixels(srcB);
-        int[] maskPixels = getPixels(mask);
-        int[] destPixels = getPixels(dest);
-
-        for (int i = 0, numPixels = destPixels.length; i < numPixels; i++) {
-            // take the blue channel, assuming that all channels are the same
-            float transparency = (maskPixels[i] & 0xFF) / 255.0f;
-            destPixels[i] = ImageMath.mixColors(transparency, srcAPixels[i], srcBPixels[i]);
-        }
-
-        return dest;
-    }
-
-    /**
      * Returns true if the coordinates (x, y) are within the image.
      */
     public static boolean isWithinBounds(int x, int y, BufferedImage img) {
@@ -1272,22 +1262,21 @@ public class ImageUtils {
     public static int getPixelAt(ContentLayer layer, BufferedImage image, Point p) {
         int x = p.x - layer.getTx();
         int y = p.y - layer.getTy();
-        if (isWithinBounds(x, y, image)) {
-            if (layer.hasMask() && layer.isMaskEnabled()) {
-                int maskPixel = layer.getMask().getPixelAtPoint(p);
-                if (maskPixel != 0) {
-                    int imagePixel = image.getRGB(x, y);
-                    float maskAlpha = (maskPixel & 0xFF) / 255.0f;
-                    int imageAlpha = (imagePixel >> 24) & 0xFF;
-                    int effectiveAlpha = (int) (imageAlpha * maskAlpha);
-                    return Colors.setAlpha(imagePixel, effectiveAlpha);
-                }
-            }
 
-            return image.getRGB(x, y);
+        if (!isWithinBounds(x, y, image)) {
+            return 0x00_00_00_00;
         }
 
-        return 0x00_00_00_00;
+        if (layer.hasMask() && layer.isMaskEnabled()) {
+            int maskPixel = layer.getMask().getPixelAtPoint(p);
+            int imagePixel = image.getRGB(x, y);
+            float maskAlpha = (maskPixel & 0xFF) / 255.0f;
+            int imageAlpha = (imagePixel >> 24) & 0xFF;
+            int effectiveAlpha = (int) (imageAlpha * maskAlpha);
+            return Colors.setAlpha(imagePixel, effectiveAlpha);
+        }
+
+        return image.getRGB(x, y);
     }
 
     /**
@@ -1389,6 +1378,10 @@ public class ImageUtils {
 
     // maximizes the contrast in the given image
     public static void normalizeImage(BufferedImage img) {
+        // stretching the color channels without unpremultiplying them first
+        // would break the premultiplication invariant (color channels must be <= alpha)
+        assert !img.isAlphaPremultiplied();
+
         int[] pixels = getPixels(img);
         int max = 0;
 
@@ -1401,9 +1394,9 @@ public class ImageUtils {
                 continue;
             }
 
-            int r = (rgb >> 16) & 0xff;
-            int g = (rgb >> 8) & 0xff;
-            int b = rgb & 0xff;
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8) & 0xFF;
+            int b = rgb & 0xFF;
 
             int localMax = Math.max(r, Math.max(g, b));
             if (localMax > max) {
@@ -1425,11 +1418,11 @@ public class ImageUtils {
                 int rgb = pixels[i];
 
                 // preserve the original alpha channel bits
-                int a = rgb & 0xff000000;
+                int a = rgb & 0xFF_00_00_00;
 
-                int r = lut[(rgb >> 16) & 0xff];
-                int g = lut[(rgb >> 8) & 0xff];
-                int b = lut[rgb & 0xff];
+                int r = lut[(rgb >> 16) & 0xFF];
+                int g = lut[(rgb >> 8) & 0xFF];
+                int b = lut[rgb & 0xFF];
 
                 pixels[i] = a | (r << 16) | (g << 8) | b;
             }

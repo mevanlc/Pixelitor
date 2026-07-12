@@ -42,8 +42,6 @@ public class JHDifferenceOfGaussians extends ParametrizedFilter {
     private final BooleanParam normalize = new BooleanParam("Maximize Contrast", true);
     private final BooleanParam invert = new BooleanParam("Invert");
 
-    private DoGFilter filter;
-
     public JHDifferenceOfGaussians() {
         super(true);
 
@@ -59,22 +57,10 @@ public class JHDifferenceOfGaussians extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new DoGFilter(NAME);
-        }
-
-        if (src.getWidth() == 1 || src.getHeight() == 1) {
-            // BoxBlurFilter throws ArrayIndexOutOfBoundsException for such images
-
-            // Give up. A workaround would be to use a filter that can use another
-            // blurring algorithm, but it isn't worth it, because this case is very
-            // unlikely to occur.
-            return src;
-        }
-
-        filter.setRadius1(radius1.getValueAsFloat());
-        filter.setRadius2(radius2.getValueAsFloat());
-        filter.setNormalize(normalize.isChecked());
+        DoGFilter filter = new DoGFilter(NAME,
+            radius1.getValueAsFloat(),
+            radius2.getValueAsFloat(),
+            normalize.isChecked());
 
         dest = filter.filter(src, dest);
 

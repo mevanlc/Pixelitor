@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -50,7 +50,7 @@ public class PixelitorUndoManager extends TwoLimitsUndoManager implements ListMo
 
     public PixelitorUndoManager() {
         selectionModel = new HistoryListSelectionModel();
-        selectionModel.addListSelectionListener(e -> selectionChanged());
+        selectionModel.addListSelectionListener(_ -> selectionChanged());
     }
 
     @Override
@@ -138,7 +138,7 @@ public class PixelitorUndoManager extends TwoLimitsUndoManager implements ListMo
     }
 
     /**
-     * Navigates the undo history to to the state after the given
+     * Navigates the undo history to the state after the given
      * edit, performing the necessary undo or redo operations.
      */
     private void navigateTo(PixelitorEdit targetEdit) {
@@ -272,7 +272,7 @@ public class PixelitorUndoManager extends TwoLimitsUndoManager implements ListMo
             return;
         }
 
-        // discard form the history
+        // discard from the history
         super.discardAllEdits();
 
         // discard from the GUI

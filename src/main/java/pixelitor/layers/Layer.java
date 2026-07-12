@@ -20,7 +20,7 @@ package pixelitor.layers;
 import org.jdesktop.swingx.painter.CheckerboardPainter;
 import pixelitor.AppMode;
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.Features;
 import pixelitor.gui.BlendingModePanel;
 import pixelitor.gui.GUIText;
@@ -56,10 +56,7 @@ import static java.awt.AlphaComposite.DstIn;
 import static java.awt.AlphaComposite.SRC_OVER;
 import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
 import static java.lang.String.format;
-import static pixelitor.layers.MaskInitMethod.HIDE_ALL;
-import static pixelitor.layers.MaskInitMethod.HIDE_SELECTION;
-import static pixelitor.layers.MaskInitMethod.REVEAL_ALL;
-import static pixelitor.layers.MaskInitMethod.REVEAL_SELECTION;
+import static pixelitor.layers.MaskInitMethod.*;
 import static pixelitor.utils.Threads.calledOnEDT;
 
 /**
@@ -75,7 +72,7 @@ public abstract class Layer implements Serializable, Debuggable {
     protected String name;
 
     private boolean visible = true;
-    protected float opacity = 1.0f;
+    protected float opacity;
     protected BlendingMode blendingMode = BlendingMode.NORMAL;
 
     protected LayerMask mask;
@@ -110,7 +107,7 @@ public abstract class Layer implements Serializable, Debuggable {
     // by assigning a different UI factory
     public static Function<Layer, LayerUI> uiFactory = LayerGUI::new;
 
-    protected static final CheckerboardPainter thumbCheckerBoardPainter
+    protected static final CheckerboardPainter thumbCheckerboardPainter
         = ImageUtils.createCheckerboardPainter();
 
     // can be called on any thread
@@ -196,8 +193,8 @@ public abstract class Layer implements Serializable, Debuggable {
     /**
      * Creates a copy of this layer.
      */
-    public final Layer copy(CopyType copyType, boolean copyMask, Composition newComp) {
-        Layer copy = createTypeSpecificCopy(copyType, newComp);
+    public final Layer copy(CopyOptions options, Composition newComp) {
+        Layer copy = createTypeSpecificCopy(options, newComp);
         assert copy.comp == newComp : "layer type = " + getClass().getSimpleName();
 
         copyCommonPropertiesTo(copy);
@@ -206,8 +203,8 @@ public abstract class Layer implements Serializable, Debuggable {
             newComp.setActiveLayerRef(copy);
         }
 
-        if (copyMask) {
-            copyMaskTo(copy, copyType, newComp);
+        if (options.copyMask()) {
+            copyMaskTo(copy, options, newComp);
         }
 
         return copy;
@@ -217,7 +214,7 @@ public abstract class Layer implements Serializable, Debuggable {
      * Creates a copy of the subclass-specific content,
      * without handling the common layer properties or mask.
      */
-    protected abstract Layer createTypeSpecificCopy(CopyType copyType, Composition newComp);
+    protected abstract Layer createTypeSpecificCopy(CopyOptions options, Composition newComp);
 
     /**
      * Copies common layer properties to the target layer.
@@ -231,10 +228,10 @@ public abstract class Layer implements Serializable, Debuggable {
     /**
      * Copies the mask of this layer to the target layer.
      */
-    protected void copyMaskTo(Layer target, CopyType copyType, Composition newComp) {
+    protected void copyMaskTo(Layer target, CopyOptions options, Composition newComp) {
         if (hasMask()) {
             LayerMask newMask = mask.duplicate(target, newComp);
-            if (copyType == CopyType.UNDO) {
+            if (options.skipUIUpdates()) {
                 // this could be running outside the EDT, and direct assignment is fine
                 // as no UI interaction or history is needed for UNDO mask restoration
                 target.mask = newMask;
@@ -265,7 +262,7 @@ public abstract class Layer implements Serializable, Debuggable {
         }
 
         if (hasUI()) {
-            ui.setOpenEye(newVisibility);
+            ui.setEyeIconOpen(newVisibility);
         }
 
         if (addToHistory) {
@@ -276,7 +273,7 @@ public abstract class Layer implements Serializable, Debuggable {
     /**
      * Returns the visibility as a string for the OpenRaster format.
      */
-    public Object getVisibilityAsORAString() {
+    public String getVisibilityAsORAString() {
         return isVisible() ? "visible" : "hidden";
     }
 
@@ -345,7 +342,7 @@ public abstract class Layer implements Serializable, Debuggable {
         }
 
         if (addToHistory) {
-            History.add(new LayerBlendingEdit(this, prevMode));
+            History.add(new LayerBlendingModeEdit(this, prevMode));
         }
     }
 
@@ -354,13 +351,13 @@ public abstract class Layer implements Serializable, Debuggable {
     }
 
     public void setName(String newName, boolean addToHistory) {
-        String prevName = name;
-        name = newName;
-
         // important because this might be called twice for a single rename
-        if (name.equals(prevName)) {
+        if (newName.equals(name)) {
             return;
         }
+
+        String prevName = name;
+        name = newName;
 
         // the ui could be null when setting the name of a smart object's content
         if (ui != null) {
@@ -387,6 +384,10 @@ public abstract class Layer implements Serializable, Debuggable {
         return holder;
     }
 
+    public boolean isDirectChildOf(LayerHolder parent) {
+        return holder == parent;
+    }
+
     /**
      * Returns the holder where new layers should be added.
      */
@@ -405,13 +406,6 @@ public abstract class Layer implements Serializable, Debuggable {
         if (hasMask()) {
             mask.setComp(comp);
         }
-    }
-
-    /**
-     * Checks if this layer is the active top-level layer in the composition.
-     */
-    public boolean isActiveTopLevel() {
-        return comp.isActiveTopLevelLayer(this);
     }
 
     /**
@@ -438,14 +432,15 @@ public abstract class Layer implements Serializable, Debuggable {
     }
 
     /**
-     * Checks if this layer is a direct child of the composition.
+     * Checks if this layer is a direct child of the composition,
+     * i.e. it's not in a layer group or other composite layer.
      */
     public boolean isTopLevel() {
         return holder == comp;
     }
 
     /**
-     * Return the current layer or the owner if this is a mask.
+     * Returns the current layer or the owner if this is a mask.
      */
     public Layer getLayer() {
         return this;
@@ -466,12 +461,12 @@ public abstract class Layer implements Serializable, Debuggable {
         return mask;
     }
 
-    public void addMask(boolean ctrlPressed) {
+    public void addMask(boolean inverted) {
         MaskInitMethod initMethod;
         if (comp.hasSelection()) {
-            initMethod = ctrlPressed ? HIDE_SELECTION : REVEAL_SELECTION;
+            initMethod = inverted ? HIDE_SELECTION : REVEAL_SELECTION;
         } else {
-            initMethod = ctrlPressed ? HIDE_ALL : REVEAL_ALL;
+            initMethod = inverted ? HIDE_ALL : REVEAL_ALL;
         }
         addMask(initMethod);
     }
@@ -480,7 +475,7 @@ public abstract class Layer implements Serializable, Debuggable {
         addMask(initMethod, true);
     }
 
-    public void addMask(MaskInitMethod initMethod, boolean addHistory) {
+    public void addMask(MaskInitMethod initMethod, boolean addToHistory) {
         if (hasMask()) {
             LayerRestriction.NO_LAYER_MASK.showErrorMessage(this);
             return;
@@ -499,7 +494,7 @@ public abstract class Layer implements Serializable, Debuggable {
         String editName = initMethod.needsSelection()
             ? "Layer Mask from Selection"
             : "Add Layer Mask";
-        addImageAsMask(bwMask, addHistory, addHistory,
+        addImageAsMask(bwMask, addToHistory, addToHistory,
             editName, initMethod.needsSelection());
     }
 
@@ -507,7 +502,7 @@ public abstract class Layer implements Serializable, Debuggable {
      * Adds the given grayscale image as a mask to this layer.
      */
     public PixelitorEdit addImageAsMask(BufferedImage bwMask,
-                                        boolean createEdit, boolean addEdit,
+                                        boolean createEdit, boolean addToHistory,
                                         String editName, boolean deselect) {
         assert mask == null;
 
@@ -524,14 +519,16 @@ public abstract class Layer implements Serializable, Debuggable {
 
         if (!createEdit) {
             // either history and UI update will be handled by
-            // the caller or we are in a test setup
+            // the caller, or we are in a test setup
             return null;
         }
 
         maskChanged();
         holder.update();
 
-        LayerEvents.fireMaskAdded(this); // notify global mask listeners
+        if (isActive()) {
+            LayerEvents.fireMaskAdded(this); // notify global mask listeners
+        }
 
         PixelitorEdit edit = new AddLayerMaskEdit(editName, comp, this);
         if (deselect) {
@@ -547,7 +544,7 @@ public abstract class Layer implements Serializable, Debuggable {
             comp.setMaskViewMode(MaskViewMode.EDIT_MASK, this);
         }
 
-        if (addEdit) {
+        if (addToHistory) {
             History.add(edit);
             return null; // edit was added, nothing to return
         } else {
@@ -606,6 +603,9 @@ public abstract class Layer implements Serializable, Debuggable {
 
         if (hasUI()) {
             ui.removeMaskIcon();
+        }
+
+        if (isActive()) {
             LayerEvents.fireMaskDeleted(this); // notify global mask listeners
         }
 
@@ -636,19 +636,19 @@ public abstract class Layer implements Serializable, Debuggable {
     }
 
     public boolean isMaskEditing() {
-        //noinspection SimplifiableConditionalExpression
-        assert maskEditing ? hasMask() : true;
+        assert !maskEditing || hasMask();
 
         return maskEditing;
     }
 
     public void setMaskEditing(boolean newValue) {
-        //noinspection SimplifiableConditionalExpression
-        assert newValue ? hasMask() : true;
+        assert !newValue || hasMask();
 
         if (maskEditing != newValue) {
             maskEditing = newValue;
-            ui.updateSelectionState();
+            if (hasUI()) {
+                ui.updateSelectionState();
+            }
             Tools.editingTargetChanged(this);
         }
     }
@@ -656,11 +656,11 @@ public abstract class Layer implements Serializable, Debuggable {
     /**
      * Adds a mask corresponding to the given shape if there is no mask,
      * or modifies the existing one.
-     * It doesn't add an edit to the history, only returns one, if requested.
+     * Instead of adding an edit to the history, it returns the edit if requested.
      */
     public PixelitorEdit hideWithMask(Shape shape, boolean createEdit) {
         if (hasMask()) {
-            return mask.modifyToHide(shape, createEdit);
+            return mask.hideOutsideShape(shape, createEdit);
         } else {
             // create a new mask that reveals only the shape area
             var maskImage = REVEAL_SELECTION.createMaskImage(this, shape);
@@ -709,24 +709,26 @@ public abstract class Layer implements Serializable, Debuggable {
         }
 
         newOwner.ui = this.ui;
-        if (newOwner.hasMask()) {
-            newOwner.mask.ui = ui;
+        if (this.ui != null) {
+            if (newOwner.hasMask()) {
+                newOwner.mask.ui = ui;
+            }
+            newOwner.ui.changeLayer(newOwner);
+            this.ui = null;
         }
-        newOwner.ui.changeLayer(newOwner);
-        this.ui = null;
     }
 
     /**
      * Renders this layer onto the given Graphics2D
      * or transforms the given image.
-     * Adjustment layers and watermarked text layers change the
+     * Adjustment layers and watermarking text layers change the
      * BufferedImage, while other layers just paint on the Graphics2D.
      * Returns the new image if transformation occurs, otherwise null.
      */
     public BufferedImage render(Graphics2D g,
                                 BufferedImage currentComposite,
                                 boolean firstVisibleLayer) {
-        if (isAdjustment) { // adjustment layer or watermarked text layer
+        if (isAdjustment) {
             return adjustImage(currentComposite, firstVisibleLayer);
         } else {
             setupComposite(g, firstVisibleLayer);
@@ -756,12 +758,12 @@ public abstract class Layer implements Serializable, Debuggable {
         if (cachedMaskedImage == null || cachedMaskedImage.getWidth() != w || cachedMaskedImage.getHeight() != h) {
             invalidateMaskedImageCache();
             cachedMaskedImage = new BufferedImage(w, h, TYPE_INT_ARGB);
-            Graphics2D mig = cachedMaskedImage.createGraphics();
-            paint(mig, firstVisibleLayer);
-            mig.setComposite(DstIn);
-            mig.drawImage(mask.getTransparencyImage(),
+            Graphics2D maskG = cachedMaskedImage.createGraphics();
+            paint(maskG, firstVisibleLayer);
+            maskG.setComposite(DstIn);
+            maskG.drawImage(mask.getTransparencyImage(),
                 mask.getTx(), mask.getTy(), null);
-            mig.dispose();
+            maskG.dispose();
         }
 
         // 2. paint the masked image onto the graphics
@@ -807,7 +809,7 @@ public abstract class Layer implements Serializable, Debuggable {
     protected abstract BufferedImage transformImage(BufferedImage src);
 
     /**
-     * Resizes the layer content to new canvas dimensions.
+     * Resizes the layer content to the new canvas dimensions.
      */
     public abstract CompletableFuture<Void> resize(Dimension newSize);
 
@@ -864,7 +866,7 @@ public abstract class Layer implements Serializable, Debuggable {
 
     /**
      * Prepares a movement with the Move Tool.
-     * On this level prepareMovement(), moveWhileDragging and finalizeMovement
+     * At this level, prepareMovement(), moveWhileDragging() and finalizeMovement()
      * only care about the movement of the linked mask or owner.
      * This object's own movement is handled in {@link ContentLayer}.
      */
@@ -943,7 +945,7 @@ public abstract class Layer implements Serializable, Debuggable {
      * Returns null if no such image can be returned (adjustment layer).
      * The layer's blending mode is always ignored.
      *
-     * @param applyMask    if false, then the mask is ignored
+     * @param applyMask    if false, then the mask is ignored.
      * @param applyOpacity if false, then the layer's opacity is ignored.
      */
     public BufferedImage toImage(boolean applyMask, boolean applyOpacity) {
@@ -974,7 +976,7 @@ public abstract class Layer implements Serializable, Debuggable {
     /**
      * Removes all layer state listeners from this layer.
      */
-    public void removeAllListeners() {
+    protected void removeAllListeners() {
         listeners.clear();
     }
 
@@ -991,9 +993,8 @@ public abstract class Layer implements Serializable, Debuggable {
      * Creates a popup menu for this layer's icon in the layers panel.
      */
     public JPopupMenu createLayerIconPopupMenu() {
-        JPopupMenu popup = null;
+        JPopupMenu popup = new JPopupMenu();
         if (holder.canMergeDown(this)) {
-            popup = new JPopupMenu();
             var mergeDownAction = new TaskAction(GUIText.MERGE_DOWN, () -> {
                 // check again to be sure that the layer below
                 // this didn't change in the meantime
@@ -1006,18 +1007,16 @@ public abstract class Layer implements Serializable, Debuggable {
         }
 
         if (isRasterizable()) {
-            if (popup == null) {
-                popup = new JPopupMenu();
-            }
             popup.add(new TaskAction("Rasterize", this::replaceWithRasterized));
         }
 
         if (Features.enableExperimental) {
-            if (popup == null) {
-                popup = new JPopupMenu();
-            }
-
             addSmartObjectMenus(popup);
+        }
+
+        if (AppMode.isDevelopment()) {
+            // a way to test deleting a non-active layer
+            popup.add(new TaskAction("Delete", () -> holder.deleteLayer(this, true)));
         }
 
         return popup;
@@ -1054,7 +1053,7 @@ public abstract class Layer implements Serializable, Debuggable {
         assert hasRasterIcon();
 
         if (ui != null) {
-            ui.updateLayerIconImageAsync(this);
+            ui.updateIconImageAsync(this);
         }
         if (!isTopLevel()) {
             ((CompositeLayer) holder).updateIconImage();
@@ -1062,8 +1061,8 @@ public abstract class Layer implements Serializable, Debuggable {
     }
 
     /**
-     * Returns whether this layer type has a raster
-     * (dynamically changing, based on the layer contents) icon image.
+     * Returns whether this layer type has a raster icon image
+     * (one that changes dynamically based on the layer contents).
      */
     public boolean hasRasterIcon() {
         return true;
@@ -1079,9 +1078,10 @@ public abstract class Layer implements Serializable, Debuggable {
 
     /**
      * Activates the UI for editing this layer.
-     * Returns true if the user accepted the edit.
+     * It could show a dialog, or it could activate a tool.
+     * Returns true if a modal dialog was shown and the user accepted the edit.
      */
-    public boolean edit() {
+    public boolean showEditUI() {
         // by default does nothing, but overridden for non-image layers
         return true;
     }
@@ -1140,7 +1140,7 @@ public abstract class Layer implements Serializable, Debuggable {
     /**
      * Ungroups this layer if it's part of a layer group.
      */
-    public void unGroup() {
+    public void ungroup() {
         if (holder instanceof LayerGroup group) {
             group.replaceWithUnGrouped(null, true);
         } else {
@@ -1158,7 +1158,7 @@ public abstract class Layer implements Serializable, Debuggable {
     }
 
     /**
-     * Checks if this layer (or its children) is of or contains the given type.
+     * Checks if this layer (or its children) is an instance of, or contains a layer of, the given type.
      */
     public boolean containsLayerOfType(Class<? extends Layer> type) {
         // by default check only itself, overridden for composite layers
@@ -1247,16 +1247,13 @@ public abstract class Layer implements Serializable, Debuggable {
         node.addQuotedString("comp debug name", comp.getDebugName());
         node.addQuotedString("holder name", holder.getName());
 
-        node.addBoolean("active top-level", isActiveTopLevel());
         node.addBoolean("active", isActive());
 
+        node.addBoolean("has mask", hasMask());
         if (hasMask()) {
-            node.addString("has mask", "yes");
             node.addBoolean("mask enabled", isMaskEnabled());
             node.addBoolean("mask editing", isMaskEditing());
             node.add(getMask().createDebugNode());
-        } else {
-            node.addString("has mask", "no");
         }
 
         node.addBoolean("visible", isVisible());

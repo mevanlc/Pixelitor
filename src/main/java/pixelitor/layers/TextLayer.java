@@ -18,7 +18,7 @@
 package pixelitor.layers;
 
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.compactions.FlipDirection;
 import pixelitor.compactions.Outsets;
 import pixelitor.compactions.QuadrantAngle;
@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import static pixelitor.gui.utils.Screens.Align.FRAME_RIGHT;
@@ -126,7 +127,7 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
         var prevActiveLayer = comp.getActiveLayer();
         var prevViewMode = comp.getView().getMaskViewMode();
 
-        // don't add it yet to history, only after the user presses OK (and not Cancel!)
+        // don't add it to the history yet; only do so after the user presses OK (and not Cancel!)
         LayerHolder holder = comp.getHolderForNewLayers();
         holder.add(textLayer);
 
@@ -159,7 +160,7 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
      * Shows a dialog to edit the settings of this text layer.
      */
     @Override
-    public boolean edit() {
+    public boolean showEditUI() {
         TextSettings prevSettings = getSettings();
 
         return new DialogBuilder()
@@ -169,7 +170,7 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
             .withScrollbars()
             .align(FRAME_RIGHT)
             .okAction(() -> commitSettings(prevSettings))
-            .cancelAction(() -> resetPrevSettings(prevSettings))
+            .cancelAction(() -> restorePrevSettings(prevSettings))
             .show()
             .wasAccepted();
     }
@@ -188,14 +189,14 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
         History.add(new TextLayerChangeEdit(comp, this, prevSettings));
     }
 
-    private void resetPrevSettings(TextSettings prevSettings) {
+    private void restorePrevSettings(TextSettings prevSettings) {
         applySettings(prevSettings);
         holder.update();
     }
 
     @Override
-    protected TextLayer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
-        String duplicateName = copyType.createLayerCopyName(name);
+    protected TextLayer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
+        String duplicateName = options.createLayerCopyName(name);
         TextLayer d = new TextLayer(this, newComp, duplicateName);
         d.setTranslation(getTx(), getTy());
         return d;
@@ -212,7 +213,7 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     public Rectangle getContentBounds(boolean includeTransparent) {
         if (includeTransparent) {
             // a quick and rough estimate of the text content,
-            // it can include some transparency at the edges
+            // which can include some transparency at the edges
             return painter.getBoundingBox();
         } else {
             // make an image-based calculation for an exact "content crop"
@@ -252,17 +253,6 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     }
 
     @Override
-    public BufferedImage render(Graphics2D g, BufferedImage currentComposite, boolean firstVisibleLayer) {
-        if (settings == null) {
-            // the layer was just created, nothing to paint yet
-            return null;
-        }
-
-        // the text will be painted normally
-        return super.render(g, currentComposite, firstVisibleLayer);
-    }
-
-    @Override
     public BufferedImage transformImage(BufferedImage src) {
         assert settings.hasWatermark(); // should be called only in this case
         return painter.createWatermark(src, comp);
@@ -293,9 +283,9 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     }
 
     @Override
-    public void setTranslation(int x, int y) {
-        super.setTranslation(x, y);
-        painter.setTranslation(x, y);
+    public void setTranslation(int tx, int ty) {
+        super.setTranslation(tx, ty);
+        painter.setTranslation(tx, ty);
     }
 
     /**
@@ -315,11 +305,6 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
 
     public TextSettings getSettings() {
         return settings;
-    }
-
-    public void randomizeSettings() {
-        settings.randomize();
-        applySettings(settings); // to re-configure the painter
     }
 
     /**
@@ -360,15 +345,15 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
         }
 
         int newTx = getTx() + switch (alignment.getHorizontal()) {
-            case LEFT -> out.left;
-            case CENTER -> (out.left - out.right) / 2;
-            case RIGHT -> -out.right;
+            case LEFT -> out.left();
+            case CENTER -> (out.left() - out.right()) / 2;
+            case RIGHT -> -out.right();
         };
 
         int newTy = getTy() + switch (alignment.getVertical()) {
-            case TOP -> out.top;
-            case CENTER -> (out.top - out.bottom) / 2;
-            case BOTTOM -> -out.bottom;
+            case TOP -> out.top();
+            case CENTER -> (out.top() - out.bottom()) / 2;
+            case BOTTOM -> -out.bottom();
         };
 
         setTranslation(newTx, newTy);
@@ -385,6 +370,11 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     }
 
     @Override
+    public void rotate(double angleRadians, boolean layerTransform) {
+        throw new UnsupportedOperationException("TextLayer arbitrary-angle rotation is not implemented.");
+    }
+
+    @Override
     public CompletableFuture<Void> resize(Dimension newSize) {
         // TODO
         return CompletableFuture.completedFuture(null);
@@ -398,16 +388,16 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     public void crop(Rectangle cropRect, boolean deleteCropped, boolean allowGrowing) {
         // the text will not be cropped, but the translations have to be adjusted
 
-        // as the cropping is the exact opposite of "enlarge canvas",
+        // as cropping is the exact opposite of enlarging the canvas,
         // calculate the corresponding margins...
-        int northMargin = cropRect.y;
-        int westMargin = cropRect.x;
-        int southMargin = comp.getCanvasHeight() - cropRect.height - cropRect.y;
-        int eastMargin = comp.getCanvasWidth() - cropRect.width - cropRect.x;
+        int topMargin = cropRect.y;
+        int leftMargin = cropRect.x;
+        int bottomMargin = comp.getCanvasHeight() - cropRect.height - cropRect.y;
+        int rightMargin = comp.getCanvasWidth() - cropRect.width - cropRect.x;
 
         // ...and do a negative enlargement
         enlargeCanvas(new Outsets(
-            -northMargin, -eastMargin, -southMargin, -westMargin));
+            -topMargin, -rightMargin, -bottomMargin, -leftMargin));
     }
 
     @Override
@@ -423,12 +413,9 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     @Override
     public JPopupMenu createLayerIconPopupMenu() {
         JPopupMenu popup = super.createLayerIconPopupMenu();
-        if (popup == null) {
-            popup = new JPopupMenu();
-        }
 
         var editMenuItem = new JMenuItem("Edit");
-        editMenuItem.addActionListener(e -> edit());
+        editMenuItem.addActionListener(_ -> showEditUI());
         editMenuItem.setAccelerator(CTRL_T);
         popup.add(editMenuItem);
 
@@ -472,7 +459,13 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
 
     @Override
     public void loadUserPreset(UserPreset preset) {
-        settings.loadUserPreset(preset);
+        Consumer<TextSettings> cb = settings.getGuiUpdateCallback();
+        TextSettings newSettings = new TextSettings(preset, cb);
+        applySettings(newSettings);
+        if (cb != null) {
+            // propagate changes visually to the open dialog
+            cb.accept(newSettings);
+        }
     }
 
     @Override
@@ -485,12 +478,12 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
      */
     public void pathChanged(boolean deleted) {
         if (painter.isOnPath()) {
+            // history is managed by path edits, here we just update the text
             painter.pathChanged();
-            holder.invalidateImageCache();
+            holder.update();
 
             if (deleted) {
-                settings.setAlignment(BoxAlignment.CENTER_CENTER);
-                painter.setBoxAlignment(BoxAlignment.CENTER_CENTER);
+                applySettings(settings.withAlignment(BoxAlignment.CENTER_CENTER));
             }
         }
     }
@@ -499,9 +492,7 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
      * Switches this text layer to use path-based alignment.
      */
     public void usePathEditing() {
-        settings.setAlignment(BoxAlignment.PATH);
-        painter.setBoxAlignment(BoxAlignment.PATH);
-
+        applySettings(settings.withAlignment(BoxAlignment.PATH));
         painter.pathChanged();
         holder.invalidateImageCache();
     }

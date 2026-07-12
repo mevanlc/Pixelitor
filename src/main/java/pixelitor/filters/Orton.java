@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -21,8 +21,8 @@ import com.jhlabs.composite.MultiplyComposite;
 import com.jhlabs.image.BoxBlurFilter;
 import pixelitor.filters.gui.Help;
 import pixelitor.filters.gui.RangeParam;
+import pixelitor.progress.StatusBarProgressTracker;
 import pixelitor.utils.ImageUtils;
-import pixelitor.utils.StatusBarProgressTracker;
 import pixelitor.utils.Texts;
 
 import java.awt.Graphics2D;
@@ -73,12 +73,7 @@ public class Orton extends ParametrizedFilter {
         pt.unitsDone(blurWorkUnits / 2);
 
         if (radius > 0) {
-            if (width == 1 || height == 1) {
-                // otherwise we get ArrayIndexOutOfBoundsException in BoxBlurFilter
-                return src;
-            }
-
-            var boxBlur = new BoxBlurFilter(radius, radius, 3, NAME);
+            var boxBlur = new BoxBlurFilter(NAME, radius, radius, 3);
             boxBlur.setProgressTracker(pt);
             blurredMultiplied = boxBlur.filter(blurredMultiplied, blurredMultiplied);
         }

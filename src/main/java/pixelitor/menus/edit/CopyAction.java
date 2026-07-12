@@ -20,8 +20,11 @@ package pixelitor.menus.edit;
 import pixelitor.Composition;
 import pixelitor.gui.utils.Dialogs;
 import pixelitor.gui.utils.ViewEnabledAction;
+import pixelitor.progress.ProgressHandler;
 import pixelitor.utils.Error;
-import pixelitor.utils.*;
+import pixelitor.utils.ImageUtils;
+import pixelitor.utils.Messages;
+import pixelitor.utils.Success;
 
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
@@ -46,7 +49,7 @@ public class CopyAction extends ViewEnabledAction {
     private static void copy(Composition comp, CopySource source) {
         switch (source.getImage(comp)) {
             case Success<BufferedImage, ?>(var img) -> startAsyncCopy(img);
-            case Error<?, String>(var errorMsg) -> Dialogs.showErrorDialog(
+            case Error<?, String>(var errorMsg) -> Dialogs.showError(
                 "Copy Failed", "Could not copy because " + errorMsg);
         }
     }

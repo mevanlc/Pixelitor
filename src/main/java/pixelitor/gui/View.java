@@ -21,7 +21,6 @@ import org.jdesktop.swingx.painter.CheckerboardPainter;
 import pixelitor.Canvas;
 import pixelitor.*;
 import pixelitor.colors.FgBgColors;
-import pixelitor.gui.utils.Dialogs;
 import pixelitor.history.CompositionReplacedEdit;
 import pixelitor.history.History;
 import pixelitor.io.FileIO;
@@ -94,7 +93,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
     private static boolean pixelGridVisible = false;
 
-    // true if the snapping preference is set and the tool also approves
+    // true if the snapping preference is set and the active tool also approves
     private static boolean pixelSnapping = false;
 
     public View(Composition comp) {
@@ -129,8 +128,8 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         return Views.getActive() == this;
     }
 
-    public CompletableFuture<Composition> checkForExternalModifications() {
-        return comp.checkForExternalModifications();
+    public CompletableFuture<Composition> checkAutoReload() {
+        return comp.checkAutoReload();
     }
 
     /**
@@ -258,7 +257,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
         LayerEvents.fireActiveCompChanged(newComp, reloaded);
 
-        // is this needed?
         setMaskViewMode(newMaskViewMode, newComp.getActiveLayer());
 
         repaintNavigator(true);
@@ -283,37 +281,37 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
     @Override
     public void mouseClicked(MouseEvent e) {
-        Tools.EventDispatcher.mouseClicked(e, this);
+        Tools.MouseDispatcher.mouseClicked(e, this);
     }
 
     @Override
     public void mouseEntered(MouseEvent e) {
-        Tools.EventDispatcher.mouseEntered(e, this);
+        Tools.MouseDispatcher.mouseEntered(e, this);
     }
 
     @Override
     public void mouseExited(MouseEvent e) {
-        Tools.EventDispatcher.mouseExited(e, this);
+        Tools.MouseDispatcher.mouseExited(e, this);
     }
 
     @Override
     public void mousePressed(MouseEvent e) {
-        Tools.EventDispatcher.mousePressed(e, this);
+        Tools.MouseDispatcher.mousePressed(e, this);
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
-        Tools.EventDispatcher.mouseReleased(e, this);
+        Tools.MouseDispatcher.mouseReleased(e, this);
     }
 
     @Override
     public void mouseDragged(MouseEvent e) {
-        Tools.EventDispatcher.mouseDragged(e, this);
+        Tools.MouseDispatcher.mouseDragged(e, this);
     }
 
     @Override
     public void mouseMoved(MouseEvent e) {
-        Tools.EventDispatcher.mouseMoved(e, this);
+        Tools.MouseDispatcher.mouseMoved(e, this);
     }
 
     public void setViewContainer(ViewContainer container) {
@@ -339,7 +337,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
     public void updateTitle() {
         if (viewContainer != null) {
-            viewContainer.updateTitle(this);
+            viewContainer.updateTitle();
         }
     }
 
@@ -381,13 +379,9 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
     @Override
     public void paint(Graphics g) {
-        try {
-            // no borders, no children, double-buffering is happening
-            // in the parent
-            paintComponent(g);
-        } catch (OutOfMemoryError e) {
-            Dialogs.showOutOfMemoryDialog(e);
-        }
+        // no borders, no child components,
+        // double-buffering is handled by the parent
+        paintComponent(g);
     }
 
     @Override
@@ -465,7 +459,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
      * Paints overlays that appear on top of the image content (grid, guides, tools).
      */
     private void paintOverlays(Graphics2D g2) {
-        if (pixelGridVisible && allowPixelGrid()) {
+        if (pixelGridVisible && zoomLevel.allowsPixelGrid()) {
             // use XOR mode for visibility on any background
             g2.setColor(WHITE);
             g2.setXORMode(BLACK);
@@ -494,22 +488,27 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
         Rectangle visibleRect = getVisibleRegion();
 
-        // calculate bounds in component space
+        // calculate horizontal bounds in component space
         double startX = canvasStartX;
-        if (visibleRect.x > 0) {
-            startX += Math.floor(visibleRect.x / pixelSize) * pixelSize;
+        if (visibleRect.x > canvasStartX) {
+            startX += Math.floor((visibleRect.x - canvasStartX) / pixelSize) * pixelSize;
         }
 
-        double endX = startX + Math.min(
-            visibleRect.width + pixelSize, canvas.getCoWidth()) - 1;
+        double endX = Math.min(
+            visibleRect.x + visibleRect.width + pixelSize,
+            canvasStartX + canvas.getCoWidth()
+        ) - 1;
 
+        // calculate vertical bounds in component space
         double startY = canvasStartY;
-        if (visibleRect.y > 0) {
-            startY += Math.floor(visibleRect.y / pixelSize) * pixelSize;
+        if (visibleRect.y > canvasStartY) {
+            startY += Math.floor((visibleRect.y - canvasStartY) / pixelSize) * pixelSize;
         }
 
-        double endY = startY + Math.min(
-            visibleRect.height + pixelSize, canvas.getCoHeight()) - 1;
+        double endY = Math.min(
+            visibleRect.y + visibleRect.height + pixelSize,
+            canvasStartY + canvas.getCoHeight()
+        ) - 1;
 
         // vertical lines
         for (double x = startX + pixelSize; x < endX; x += pixelSize) {
@@ -537,16 +536,12 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         }
     }
 
-    public boolean allowPixelGrid() {
-        return zoomLevel.allowPixelGrid();
-    }
-
     public void paintImmediately() {
-        paintImmediately(getX(), getY(), getWidth(), getHeight());
+        paintImmediately(0, 0, getWidth(), getHeight());
     }
 
     /**
-     * Repaints only a region of the image
+     * Repaints only a region of the image.
      */
     public void repaintRegion(PPoint start, PPoint end, double thickness) {
         double startX = start.getCoX();
@@ -572,7 +567,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     /**
-     * Repaints only a region of the image
+     * Repaints only a region of the image.
      */
     public void repaintRegion(PRectangle area) {
         repaint(area.getCo());
@@ -589,7 +584,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     /**
-     * Activates this mask view mode on the given layer.
+     * Activates the given mask view mode on the given layer.
      */
     public void setMaskViewMode(MaskViewMode maskViewMode, Layer layer) {
         assert layer.getComp() == comp;
@@ -679,7 +674,28 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
             return;
         }
 
-        ZoomLevel prevZoom = zoomLevel;
+        // gather all state required for adjusting scrollbars BEFORE scaling changes
+        Rectangle oldVisibleRegion = null;
+        Point focusPoint = coFocusPoint;
+        Point2D imFocus = null;
+
+        if (viewContainer != null) {
+            oldVisibleRegion = getVisibleRegion();
+            if (focusPoint == null) {
+                // started from a keyboard event/menu: focus on the center of the current viewport
+                focusPoint = new Point(
+                    oldVisibleRegion.x + oldVisibleRegion.width / 2,
+                    oldVisibleRegion.y + oldVisibleRegion.height / 2
+                );
+            }
+        }
+
+        // map the determined focus point into image-space coordinates
+        if (focusPoint != null) {
+            imFocus = componentToImageSpace(focusPoint);
+        }
+
+        // apply the zoom logic
         this.zoomLevel = newZoom;
         zoomScale = newZoom.getScale();
         canvas.recalcCoSize(this, true);
@@ -691,7 +707,10 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         }
 
         if (viewContainer != null) {
-            adjustScrollbarsAfterZoom(prevZoom, newZoom, coFocusPoint);
+            // force synchronous layout so View bounds and canvas offsets are correct
+            viewContainer.getScrollPane().validate();
+
+            adjustScrollbarsAfterZoom(focusPoint, imFocus, oldVisibleRegion);
         }
 
         if (isActive()) {
@@ -699,26 +718,26 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         }
     }
 
-    private void adjustScrollbarsAfterZoom(ZoomLevel prevZoom,
-                                           ZoomLevel newZoom,
-                                           Point coFocusPoint) {
+    private void adjustScrollbarsAfterZoom(Point oldCoFocusPoint,
+                                           Point2D imFocus,
+                                           Rectangle oldVisibleRegion) {
+        // the tracked image point in the newly-scaled component-space
+        Point newCoFocusPoint = fromImageToComponentSpace(imFocus, zoomLevel);
+
+        // the physical offset of the mouse from the old viewport's top-left corner
+        int offsetX = oldCoFocusPoint.x - oldVisibleRegion.x;
+        int offsetY = oldCoFocusPoint.y - oldVisibleRegion.y;
+
+        // shift the target viewport's top-left corner so the coordinate retains the same offset
+        int targetX = newCoFocusPoint.x - offsetX;
+        int targetY = newCoFocusPoint.y - offsetY;
+
+        // fetch current visible region to get potentially updated viewport dimensions
         Rectangle visibleRegion = getVisibleRegion();
-        Point zoomCenter;
-        if (coFocusPoint != null) { // started from a mouse event
-            zoomCenter = coFocusPoint;
-        } else {
-            zoomCenter = new Point(
-                visibleRegion.x + visibleRegion.width / 2,
-                visibleRegion.y + visibleRegion.height / 2);
-        }
-        // the center coordinates were generated BEFORE the zooming,
-        // now find the corresponding coordinates after zooming
-        Point2D imCenter = fromComponentToImageSpace(zoomCenter, prevZoom);
-        zoomCenter = fromImageToComponentSpace(imCenter, newZoom);
 
         Rectangle targetRegion = new Rectangle(
-            zoomCenter.x - visibleRegion.width / 2,
-            zoomCenter.y - visibleRegion.height / 2,
+            targetX,
+            targetY,
             visibleRegion.width,
             visibleRegion.height
         );
@@ -763,8 +782,8 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     // It seems that all Swing resizing goes through this method, so we don't
     // have to listen to componentResized events, which might come too late.
     @Override
-    public void setSize(int width, int height) {
-        super.setSize(width, height);
+    public void setBounds(int x, int y, int width, int height) {
+        super.setBounds(x, y, width, height);
 
         updateLayout();
         repaint();
@@ -791,7 +810,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         canvasStartY = (int) ((viewHeight - canvasCoHeight) / 2.0);
 
         // one can zoom an inactive image with the mouse wheel,
-        // but the tools are interacting only with the active image
+        // but the tools interact only with the active image
         if (isActive()) {
             Tools.coCoordsChanged(this);
         }
@@ -992,7 +1011,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     /**
-     * The return value is changed only in the unit tests using mocked views
+     * The return value is changed only in the unit tests using mocked views.
      */
     @SuppressWarnings({"MethodMayBeStatic", "SameReturnValue"})
     public boolean isMock() {
@@ -1018,7 +1037,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
             SwingUtilities.invokeLater(() -> {
                 if (navigator != null) { // check again for safety
                     // will also repaint
-                    navigator.recalculateSize(this, false,
+                    navigator.updateSize(this, false,
                         true, false);
                 }
             });

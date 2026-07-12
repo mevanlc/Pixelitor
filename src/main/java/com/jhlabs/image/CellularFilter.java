@@ -166,7 +166,7 @@ public class CellularFilter extends WholeImageFilter {
     /**
      * Sets the grid type for the texture.
      *
-     * @param gt the code representing the grid type
+     * @param gridType the code representing the grid type
      */
     public void setGridType(GridType gridType) {
         this.gridType = gridType;
@@ -377,7 +377,7 @@ public class CellularFilter extends WholeImageFilter {
                 d = gridType.checkCell(fx - 1, fy + 1, ix + 1, iy - 1, results, randomness);
             }
             if (d > 1 - fy) {
-                d = gridType.checkCell(fx - 1, fy - 1, ix + 1, iy + 1, results, randomness);
+                gridType.checkCell(fx - 1, fy - 1, ix + 1, iy + 1, results, randomness);
             }
         }
 

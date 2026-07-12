@@ -52,8 +52,6 @@ public class JHSmear extends ParametrizedFilter {
         new Item("Diamonds", SmearFilter.DIAMONDS),
     });
 
-    private SmearFilter filter;
-
     public JHSmear() {
         super(true);
 
@@ -67,9 +65,9 @@ public class JHSmear extends ParametrizedFilter {
             mix
         );
 
-        // disable the angle if the shape isn't "lines"
-        shape.setupDisableOtherIf(angle,
-            selected -> selected.valueIsNot(SmearFilter.LINES));
+        // disable the angle selector if the shape isn't "lines"
+        shape.disableOtherWhen(angle,
+            selected -> !selected.hasValue(SmearFilter.LINES));
     }
 
     @Override
@@ -79,16 +77,13 @@ public class JHSmear extends ParametrizedFilter {
             return src;
         }
 
-        if (filter == null) {
-            filter = new SmearFilter(NAME);
-        }
-
-        filter.setDistance(distanceValue);
-        filter.setDensity((float) density.getPercentage());
-        filter.setAngle((float) angle.getValueInRadians());
-        filter.setMix((float) mix.getPercentage());
-        filter.setShape(shape.getValue());
-        filter.setRandom(paramSet.getLastSeedRandom());
+        SmearFilter filter = new SmearFilter(NAME,
+            shape.getValue(),
+            distanceValue,
+            (float) density.getPercentage(),
+            (float) angle.getValueInRadians(),
+            (float) mix.getPercentage(),
+            paramSet.getRandomWithLastSeed());
 
         return filter.filter(src, dest);
     }

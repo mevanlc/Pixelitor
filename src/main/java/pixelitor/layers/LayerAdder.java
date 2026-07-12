@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -89,16 +89,7 @@ public class LayerAdder {
     private void calcIndexFromPosition() {
         int activeIndex;
 
-        if (holder == comp) {
-            // for the root composition, insertion is always
-            // relative to the top-level root of the active layer
-            activeIndex = comp.indexOf(comp.getActiveTopLevelLayer()); // not -1
-        } else {
-            // for a layer group, insertion is relative to the globally
-            // active layer, but only if it's a direct child of this group
-            activeIndex = holder.indexOf(comp.getActiveLayer()); // could be -1
-        }
-
+        activeIndex = holder.indexOf(comp.getActiveLayer());
         if (activeIndex == -1) {
             // the active layer is not a direct child of the target holder:
             // default to adding at the top or bottom of the current holder
@@ -139,7 +130,7 @@ public class LayerAdder {
         if (addToUI) {
             if (holder == comp) {
                 comp.getView().addLayerUI(layer, insertionIndex);
-                comp.layerUICountChanged();
+                comp.fireLayerUICountChanged();
             } else {
                 ((CompositeLayer) holder).updateChildrenUI();
             }

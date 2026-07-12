@@ -19,8 +19,8 @@ package pixelitor.filters;
 
 import pixelitor.filters.gui.*;
 import pixelitor.gui.GUIText;
+import pixelitor.progress.StatusBarProgressTracker;
 import pixelitor.utils.CustomShapes;
-import pixelitor.utils.StatusBarProgressTracker;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -81,13 +81,13 @@ public class Spheres extends ParametrizedFilter {
 
         // enable "Light Direction" and "Highlight Elevation"
         // only if "Add Highlights" is checked
-        addHighLightsCB.setupEnableOtherIfChecked(lightAzimuth);
-        addHighLightsCB.setupEnableOtherIfChecked(lightElevation);
+        addHighLightsCB.enableOtherWhenChecked(lightAzimuth);
+        addHighLightsCB.enableOtherWhenChecked(lightElevation);
 
         opacity.setPresetKey("Opacity");
 
         FilterButtonModel reseedAction = paramSet.createReseedAction();
-        layout.setupEnableOtherIf(reseedAction, layoutType -> layoutType == Layout.RANDOM);
+        layout.enableOtherWhen(reseedAction, layoutType -> layoutType == Layout.RANDOM);
 
         initParams(
             layout.withSideButton(reseedAction),
@@ -133,7 +133,7 @@ public class Spheres extends ParametrizedFilter {
 
         boolean addHighlights = addHighLightsCB.isChecked();
 
-        Random rand = paramSet.getLastSeedRandom();
+        Random rand = paramSet.getRandomWithLastSeed();
         double radiusStep = (maxR - minR) / numCircles;
         for (int i = 0; i < numCircles; i++) {
             double r = minR == maxR ? minR : maxR - i * radiusStep;

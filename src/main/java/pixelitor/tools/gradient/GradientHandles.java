@@ -49,9 +49,9 @@ public class GradientHandles implements ToolWidget, Debuggable {
         end = new GradientDefiningPoint("end", endPos, view, this);
         center = new GradientCenterPoint(start, end, view);
 
-        end.setOther(start);
+        end.setOpposite(start);
         end.setCenter(center);
-        start.setOther(end);
+        start.setOpposite(end);
         start.setCenter(center);
     }
 
@@ -79,13 +79,8 @@ public class GradientHandles implements ToolWidget, Debuggable {
         center.paintHandle(g);
     }
 
-    public Drag toDrag(View view) {
-        double startX = view.componentXToImageSpace(start.x);
-        double startY = view.componentYToImageSpace(start.y);
-        double endX = view.componentXToImageSpace(end.x);
-        double endY = view.componentYToImageSpace(end.y);
-
-        return new Drag(startX, startY, endX, endY);
+    public Drag toDrag() {
+        return new Drag(start.imX, start.imY, end.imX, end.imY);
     }
 
     public Drag toOverlayDrag(GradientDefiningPoint movedPoint) {

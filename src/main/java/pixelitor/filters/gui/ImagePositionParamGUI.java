@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -42,7 +42,7 @@ public class ImagePositionParamGUI extends JPanel implements ParamGUI {
     private final JComponent ySlider;
 
     // flag to prevent infinite update loops between GUI components
-    private boolean sliderUpdatesEnabled = true;
+    private boolean updateModelFromSliders = true;
 
     public ImagePositionParamGUI(ImagePositionParam model,
                                  double defaultRelativeX,
@@ -61,7 +61,7 @@ public class ImagePositionParamGUI extends JPanel implements ParamGUI {
         ySliderModel.setDecimalPlaces(decimalPlaces);
 
         // add the thumbnail-based selector
-        positionSelector = new ImagePositionSelector(this, model, 100);
+        positionSelector = new ImagePositionSelector(model);
         add(positionSelector, WEST);
 
         // add the two sliders
@@ -87,12 +87,12 @@ public class ImagePositionParamGUI extends JPanel implements ParamGUI {
     // if one of the sliders was moved by the user,
     // update the model and the position selector
     private void linkSliderChangesToModel() {
-        xSliderModel.addChangeListener(e -> sliderChanged(xSliderModel, model::setRelativeX));
-        ySliderModel.addChangeListener(e -> sliderChanged(ySliderModel, model::setRelativeY));
+        xSliderModel.addChangeListener(_ -> sliderChanged(xSliderModel, model::setRelativeX));
+        ySliderModel.addChangeListener(_ -> sliderChanged(ySliderModel, model::setRelativeY));
     }
 
     private void sliderChanged(RangeParam sliderModel, BiConsumer<Double, Boolean> modelUpdater) {
-        if (sliderUpdatesEnabled) {
+        if (updateModelFromSliders) {
             modelUpdater.accept(sliderModel.getPercentage(), sliderModel.getValueIsAdjusting());
             positionSelector.repaint();
         }
@@ -102,12 +102,12 @@ public class ImagePositionParamGUI extends JPanel implements ParamGUI {
      * Updates the sliders based on model changes without triggering filter execution.
      */
     public void updateSlidersFromModel() {
-        sliderUpdatesEnabled = false;
+        updateModelFromSliders = false;
         try {
             updateSlider(xSliderModel, model.getRelativeX() * 100);
             updateSlider(ySliderModel, model.getRelativeY() * 100);
         } finally {
-            sliderUpdatesEnabled = true;
+            updateModelFromSliders = true;
         }
     }
 

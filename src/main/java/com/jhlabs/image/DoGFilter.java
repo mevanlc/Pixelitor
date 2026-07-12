@@ -28,33 +28,25 @@ import java.awt.image.BufferedImage;
  * @author Jerry Huxtable
  */
 public class DoGFilter extends AbstractBufferedImageOp {
-    private float radius1 = 1;
-    private float radius2 = 2;
-    private boolean normalize = true;
+    private static final int BLUR_ITERATIONS = 3;
 
-    public DoGFilter(String filterName) {
+    private final float radius1;
+    private final float radius2;
+    private final boolean normalize;
+
+    /**
+     * Creates a new Difference of Gaussians filter.
+     *
+     * @param filterName the name of the filter
+     * @param radius1    the radius of the first Gaussian blur kernel, in pixels
+     * @param radius2    the radius of the second Gaussian blur kernel, in pixels
+     * @param normalize  whether to normalize (maximize contrast of) the output image
+     */
+    public DoGFilter(String filterName, float radius1, float radius2, boolean normalize) {
         super(filterName);
-    }
 
-    /**
-     * Sets the radius of the first kernel, and hence the amount of blur. The bigger the radius, the longer this filter will take.
-     *
-     * @param radius1 the radius of the blur in pixels.
-     */
-    public void setRadius1(float radius1) {
         this.radius1 = radius1;
-    }
-
-    /**
-     * Sets the radius of the second kernel, and hence the amount of blur. The bigger the radius, the longer this filter will take.
-     *
-     * @param radius2 the radius of the blur in pixels.
-     */
-    public void setRadius2(float radius2) {
         this.radius2 = radius2;
-    }
-
-    public void setNormalize(boolean normalize) {
         this.normalize = normalize;
     }
 
@@ -64,8 +56,9 @@ public class DoGFilter extends AbstractBufferedImageOp {
         int height = src.getHeight();
         BufferedImage image1;
 
-        int singleBlurUnit = 3 * (width + height);
-        int workUnits = 0;
+        int singleBlurUnit = BLUR_ITERATIONS * (width + height);
+        int subtractWorkUnits = singleBlurUnit / 2;
+        int workUnits = subtractWorkUnits;
 
         if (radius1 > 0.0f) {
             workUnits += singleBlurUnit;
@@ -74,16 +67,14 @@ public class DoGFilter extends AbstractBufferedImageOp {
             workUnits += singleBlurUnit;
         }
 
-        workUnits += singleBlurUnit / 2; // subtract
-
-        if (doNormalize()) {
+        if (shouldNormalize()) {
             workUnits += (int) (singleBlurUnit * 0.16); // normalize
         }
 
         pt = createProgressTracker(workUnits);
 
         if (radius1 > 0.0f) {
-            BoxBlurFilter blur = new BoxBlurFilter(radius1, radius1, 3, filterName);
+            BoxBlurFilter blur = new BoxBlurFilter(filterName, radius1, radius1, BLUR_ITERATIONS);
             blur.setProgressTracker(pt);
             image1 = blur.filter(src, null);
         } else {
@@ -92,7 +83,7 @@ public class DoGFilter extends AbstractBufferedImageOp {
 
         Graphics2D dstG;
         if (radius2 > 0.0f) {
-            BoxBlurFilter blur = new BoxBlurFilter(radius2, radius2, 3, filterName);
+            BoxBlurFilter blur = new BoxBlurFilter(filterName, radius2, radius2, BLUR_ITERATIONS);
             blur.setProgressTracker(pt);
             dst = blur.filter(src, dst);
             dstG = dst.createGraphics();
@@ -105,9 +96,9 @@ public class DoGFilter extends AbstractBufferedImageOp {
         dstG.drawImage(image1, 0, 0, null);
         dstG.dispose();
 
-        pt.unitsDone(singleBlurUnit / 2);
+        pt.unitsDone(subtractWorkUnits);
 
-        if (doNormalize()) {
+        if (shouldNormalize()) {
             ImageUtils.normalizeImage(dst);
         }
 
@@ -116,7 +107,7 @@ public class DoGFilter extends AbstractBufferedImageOp {
         return dst;
     }
 
-    private boolean doNormalize() {
+    private boolean shouldNormalize() {
         return normalize && radius1 != radius2;
     }
 }

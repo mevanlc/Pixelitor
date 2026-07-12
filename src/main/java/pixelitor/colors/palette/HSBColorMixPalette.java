@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -24,8 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.jhlabs.image.ImageMath.lerp;
-import static pixelitor.colors.FgBgColors.getBGColor;
-import static pixelitor.colors.FgBgColors.getFGColor;
+import static pixelitor.colors.FgBgColors.getBgColor;
+import static pixelitor.colors.FgBgColors.getFgColor;
 
 /**
  * A palette that mixes foreground and background colors using HSB interpolation.
@@ -48,8 +48,8 @@ public class HSBColorMixPalette extends DynamicPalette {
         super(lastRowCount, lastColumnCount);
         this.startWithFg = startWithFg;
 
-        Color colorA = startWithFg ? getFGColor() : getBGColor();
-        Color colorB = startWithFg ? getBGColor() : getFGColor();
+        Color colorA = startWithFg ? getFgColor() : getBgColor();
+        Color colorB = startWithFg ? getBgColor() : getFgColor();
 
         float[] hsbA = Colors.toHSB(colorA);
         float[] hsbB = Colors.toHSB(colorB);
@@ -95,7 +95,7 @@ public class HSBColorMixPalette extends DynamicPalette {
                 if (rowCount > 1) {
                     float startBri = b - MAX_BRI_DEVIATION;
                     b = startBri + row * briStep;
-                    b = Math.max(0.0f, Math.min(1.0f, b));
+                    b = Math.clamp(b, 0.0f, 1.0f);
                 }
 
                 int rgb = Color.HSBtoRGB(h, s, b);

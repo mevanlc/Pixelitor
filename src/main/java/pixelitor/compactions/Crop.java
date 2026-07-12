@@ -19,7 +19,7 @@ package pixelitor.compactions;
 
 import pixelitor.Canvas;
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.Views;
 import pixelitor.gui.GUIText;
 import pixelitor.gui.View;
@@ -33,6 +33,8 @@ import pixelitor.layers.Layer;
 import pixelitor.layers.SmartObject;
 import pixelitor.selection.Selection;
 import pixelitor.selection.SelectionActions;
+import pixelitor.selection.ShapeCombinator;
+import pixelitor.tools.Tools;
 import pixelitor.utils.Messages;
 import pixelitor.utils.Shapes;
 import pixelitor.utils.test.RandomGUITest;
@@ -61,7 +63,8 @@ public class Crop implements CompAction {
     private final boolean deleteCroppedPixels;
 
     // whether a mask should be added to hide cropped areas
-    private final boolean addMaskForHiding;
+    private final boolean addHidingMask;
+
     private final PixelitorEdit cropBoxRestorationEdit;
 
     /**
@@ -69,13 +72,13 @@ public class Crop implements CompAction {
      */
     public Crop(Rectangle2D imCropRect,
                 boolean fromSelection, boolean allowGrowing,
-                boolean deleteCroppedPixels, boolean addMaskForHiding,
+                boolean deleteCroppedPixels, boolean addHidingMask,
                 PixelitorEdit cropBoxRestorationEdit) {
         this.imCropRect = imCropRect;
         this.fromSelection = fromSelection;
         this.allowGrowing = allowGrowing;
         this.deleteCroppedPixels = deleteCroppedPixels;
-        this.addMaskForHiding = addMaskForHiding;
+        this.addHidingMask = addHidingMask;
         this.cropBoxRestorationEdit = cropBoxRestorationEdit;
     }
 
@@ -85,7 +88,7 @@ public class Crop implements CompAction {
     @Override
     public CompletableFuture<Composition> process(Composition srcComp) {
         if (srcComp.containsLayerOfType(SmartObject.class)) {
-            Messages.showSmartObjectUnsupportedWarning("Cropping");
+            Messages.showSmartObjectUnsupportedInfo("Cropping");
             return CompletableFuture.completedFuture(srcComp);
         }
 
@@ -99,7 +102,7 @@ public class Crop implements CompAction {
             roundedImCropRect = roundedImCropRect.intersection(canvasBounds);
         }
 
-        // from here it's effectively final, so it can be used in a lambda
+        // an effectively final variable used in the lambda below
         Rectangle cropRect = roundedImCropRect;
 
         if (cropRect.isEmpty()) {
@@ -112,43 +115,46 @@ public class Crop implements CompAction {
         var canvasTransform = createCropTransform(cropRect);
 
         View view = srcComp.getView();
-        // create a copy for undo; copy selection only if the crop didn't originate
-        // from the selection itself (if it did, the selection is consumed by the crop)
-        Composition croppedComp = srcComp.copy(CopyType.UNDO, !fromSelection);
 
-        // crop guides relative to the new canvas origin and size
-        Guides guides = srcComp.getGuides();
-        if (guides != null) {
-            Guides newGuides = guides.copyCropped(cropRect, view);
-            croppedComp.setGuides(newGuides);
-        }
+        // when cropping from a selection, the selection should be cleared in the result
+        Composition croppedComp = srcComp.copy(CopyOptions.fullStateBackup(!fromSelection, false));
 
         if (!fromSelection) {
             // if cropping wasn't based on a selection,
             // ensure any existing selection is also cropped
-            croppedComp.intersectSelectionWith(cropRect);
+            Selection sel = croppedComp.getSelection();
+            if (sel != null) {
+                Shape intersection = ShapeCombinator.INTERSECT.combine(
+                    sel.getShape(), cropRect);
+
+                if (intersection.getBounds().isEmpty()) {
+                    croppedComp.deselect(false);
+                } else {
+                    sel.setShape(intersection);
+                }
+            }
         }
 
-        // crop individual layers
+        // crop individual layers and masks
         croppedComp.forEachNestedLayerAndMask(layer ->
             layer.crop(cropRect, deleteCroppedPixels, allowGrowing));
 
         // resize the canvas to the crop dimensions
         croppedComp.getCanvas().resize(cropRect.width, cropRect.height, view, false);
 
-        // Move the intersected selection, tool widgets, etc.,
+        // Translate the intersected selection, tool widgets, etc.,
         // into the coordinate system of the new, cropped image.
         // This must happen *after* the canvas size has changed!
         croppedComp.imCoordsChanged(canvasTransform, false, view);
 
-        if (addMaskForHiding) {
+        if (addHidingMask) {
             assert fromSelection;
             assert srcComp.hasSelection();
 
             // add a mask based on the original selection shape
             Shape hidingShape = srcComp.getSelectionShape();
             hidingShape = canvasTransform.createTransformedShape(hidingShape);
-            addMaskDerivedFromShape(croppedComp, hidingShape, false);
+            addHidingMaskFromShape(croppedComp, hidingShape, false);
         }
 
         // if before the crop the internal frame started
@@ -156,7 +162,7 @@ public class Crop implements CompAction {
         // unreachable after the crop, so move it
         view.ensurePositiveLocation();
 
-        String editName = addMaskForHiding ? "Crop and Hide" : "Crop";
+        String editName = addHidingMask ? "Crop and Hide" : "Crop";
         CompositionReplacedEdit compReplacedEdit = new CompositionReplacedEdit(
             editName, view, srcComp, croppedComp, canvasTransform, false);
         if (cropBoxRestorationEdit != null) {
@@ -164,11 +170,18 @@ public class Crop implements CompAction {
             History.add(new MultiEdit(editName, croppedComp,
                 cropBoxRestorationEdit, compReplacedEdit));
         } else {
-            // crop from other sources (selection, content trim), no crop box to manage
+            // this crop originated from other sources (selection,
+            // content crop), so there is no crop box to restore
             History.add(compReplacedEdit);
         }
 
         view.replaceComp(croppedComp);
+
+        Guides guides = srcComp.getGuides();
+        if (guides != null) {
+            Guides newGuides = guides.copyCropped(cropRect, view, srcCanvas);
+            croppedComp.setGuides(newGuides);
+        }
 
         croppedComp.updateAllIconImages();
         SelectionActions.update(croppedComp);
@@ -183,7 +196,7 @@ public class Crop implements CompAction {
     }
 
     /**
-     * Crops the given composition based on the crop tool.
+     * Performs a crop initiated from the crop tool.
      */
     public static void toolCrop(Composition comp,
                                 Rectangle2D cropRect,
@@ -201,8 +214,9 @@ public class Crop implements CompAction {
     public static void contentCrop(Composition comp) {
         Rectangle2D bounds = comp.calcContentBounds(false);
         if (bounds == null) {
-            Messages.showError("Cannot Determine Bounds",
-                "<html>No bounds found in <b>%s</b>".formatted(comp.getName()));
+            Messages.showError("Transparent Image",
+                ("<html><b>%s</b> is completely transparent." +
+                    "<br>There’s no visible content to keep after cropping.").formatted(comp.getName()));
         } else if (bounds.equals(comp.getCanvasBounds())) {
             Messages.showInfo("Nothing to Crop",
                 "<html><b>%s</b> has no transparent border pixels to remove.".formatted(comp.getName()));
@@ -215,34 +229,28 @@ public class Crop implements CompAction {
     /**
      * Starts a crop based on the selection in the active composition.
      */
-    public static void selectionCropActiveComp() {
-        Views.onActiveComp(Crop::selectionCrop);
-    }
-
-    private static void selectionCrop(Composition comp) {
+    public static void cropActiveCompToSelection() {
+        // the menu should be disabled if either of these is null
+        Composition comp = Views.getActiveComp();
         Selection sel = comp.getSelection();
-        if (sel == null) {
-            // the menu should be disabled
-            throw new IllegalStateException();
-        }
 
         if (RandomGUITest.isRunning()) {
             // ask no questions, just do the simplest crop
-            rectangularSelectionCrop(comp, sel, false);
+            cropToRectangularSelection(comp, sel, false);
             return;
         }
 
         if (sel.isRectangular()) {
-            rectangularSelectionCrop(comp, sel, false);
+            cropToRectangularSelection(comp, sel, false);
         } else {
-            askNonRectangularSelectionCropType(comp, sel);
+            showNonRectangularCropDialog(comp, sel);
         }
     }
 
     /**
      * Asks the user how to handle cropping a non-rectangular selection.
      */
-    private static void askNonRectangularSelectionCropType(Composition comp, Selection sel) {
+    private static void showNonRectangularCropDialog(Composition comp, Selection sel) {
         String title = "Non-Rectangular Selection Crop";
         String question = "<html>The selection is not rectangular, but the canvas must be." +
             "<br>Choose how to proceed:<ul>" +
@@ -250,17 +258,17 @@ public class Crop implements CompAction {
             "<li><b>Only Crop:</b> Crop to the rectangular bounds of the selection.</li>" +
             "<li><b>Only Hide:</b> Add a mask based on the selection without changing the canvas size.</li></ul>";
         String[] options = {"Crop and Hide", "Only Crop", "Only Hide", GUIText.CANCEL};
-        int answer = Dialogs.showManyOptionsDialog(comp.getDialogParent(), title, question,
+        int answer = Dialogs.showCustomOptions(comp.getDialogParent(), title, question,
             options, JOptionPane.QUESTION_MESSAGE);
         switch (answer) {
             case 0: // crop and hide
-                rectangularSelectionCrop(comp, sel, true);
+                cropToRectangularSelection(comp, sel, true);
                 break;
             case 1: // only crop
-                rectangularSelectionCrop(comp, sel, false);
+                cropToRectangularSelection(comp, sel, false);
                 break;
             case 2: // only hide
-                addMaskDerivedFromShape(comp, sel.getShape(), true);
+                addHidingMaskFromShape(comp, sel.getShape(), true);
                 comp.update();
                 break;
             case JOptionPane.CLOSED_OPTION: // dialog closed
@@ -274,17 +282,24 @@ public class Crop implements CompAction {
     /**
      * Crops based on the rectangular bounds of a selection.
      */
-    private static void rectangularSelectionCrop(Composition comp,
-                                                 Selection sel,
-                                                 boolean addHidingMask) {
+    private static void cropToRectangularSelection(Composition comp,
+                                                   Selection sel,
+                                                   boolean addHidingMask) {
+        boolean deleteCroppedPixels = true;
+        if (addHidingMask) {
+            // the pixels inside the selection's bounding box will be hidden,
+            // and the fate of the pixels outside it depends on the tool setting
+            deleteCroppedPixels = Tools.CROP.shouldDeleteCroppedPixels();
+        }
+
         new Crop(sel.getShapeBounds2D(), true,
-            true, true, addHidingMask, null).process(comp);
+            true, deleteCroppedPixels, addHidingMask, null).process(comp);
     }
 
     /**
      * Adds a layer mask derived from the given shape to all layers.
      */
-    private static void addMaskDerivedFromShape(Composition comp, Shape shape, boolean addToHistory) {
+    private static void addHidingMaskFromShape(Composition comp, Shape shape, boolean addToHistory) {
         MultiEdit multiEdit = null;
         if (addToHistory) {
             multiEdit = new MultiEdit("Add Hiding Mask", comp);
@@ -322,7 +337,7 @@ public class Crop implements CompAction {
      * Starts an inverse crop based on the selection in the active composition.
      */
     public static void inverseCropActiveComp() {
-        Views.onActiveComp(Crop::inverseCrop);
+        inverseCrop(Views.getActiveComp());
     }
 
     private static void inverseCrop(Composition comp) {
@@ -363,7 +378,7 @@ public class Crop implements CompAction {
                                     Rectangle removedBand,
                                     boolean horizontal) {
         if (comp.containsLayerOfType(SmartObject.class)) {
-            Messages.showSmartObjectUnsupportedWarning("Inverse Crop");
+            Messages.showSmartObjectUnsupportedInfo("Inverse Crop");
             return;
         }
 
@@ -384,7 +399,7 @@ public class Crop implements CompAction {
         }
 
         View view = comp.getView();
-        Composition newComp = comp.copy(CopyType.UNDO, false);
+        Composition newComp = comp.copy(CopyOptions.fullStateBackup(false, false));
 
         // handle guides
         Guides guides = comp.getGuides();

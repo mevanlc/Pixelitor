@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -25,8 +25,7 @@ import java.util.List;
 
 /**
  * The settings of a {@link Brush}.
- * Settings are shared between different symmetry-instances for
- * a given tool.
+ * Settings are shared between different symmetry instances for a given tool.
  */
 public abstract class BrushSettings extends Configurable {
     protected Tool tool;
@@ -41,15 +40,15 @@ public abstract class BrushSettings extends Configurable {
     public void registerBrush(AbstractBrush brush) {
         brushes.add(brush);
 
-        assert brushes.size() <= 4;
+        assert brushes.size() <= SymmetryBrush.MAX_BRUSHES;
     }
 
-    public void unregisterBrush(DabsBrush brush) {
+    public void unregisterBrush(AbstractBrush brush) {
         brushes.remove(brush);
     }
 
     /**
-     * Notify the brushes sharing this object that the settings have changed
+     * Notify the brushes sharing this object that the settings have changed.
      */
     protected void notifyBrushes() {
         for (AbstractBrush brush : brushes) {

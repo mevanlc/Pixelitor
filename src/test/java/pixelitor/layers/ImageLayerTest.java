@@ -39,11 +39,11 @@ import java.util.stream.Stream;
 
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static pixelitor.FilterContext.FILTER_WITHOUT_DIALOG;
-import static pixelitor.FilterContext.PREVIEWING;
 import static pixelitor.TestHelper.createEmptyImageLayer;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.assertions.PixelitorAssertions.assertThatThrownBy;
+import static pixelitor.filters.FilterContext.FILTER_WITHOUT_DIALOG;
+import static pixelitor.filters.FilterContext.PREVIEWING;
 import static pixelitor.layers.ImageLayer.State.NORMAL;
 import static pixelitor.layers.ImageLayer.State.PREVIEW;
 
@@ -452,7 +452,7 @@ class ImageLayerTest {
 
     @Test
     void cropToCanvasSize() {
-        layer.toCanvasSize();
+        layer.cropToCanvasSize();
 
         Canvas canvas = layer.getComp().getCanvas();
         BufferedImage image = layer.getImage();
@@ -463,7 +463,7 @@ class ImageLayerTest {
 
     @Test
     void enlargeCanvas() {
-        layer.enlargeCanvas(new Outsets(5, 5, 5, 10));
+        layer.enlargeCanvas(new Outsets(5, 10, 5, 5));
 
         iconChecker.verifyUpdateCounts(0, 0);
     }
@@ -478,12 +478,12 @@ class ImageLayerTest {
 
     @Test
     void duplicate() {
-        ImageLayer duplicate = (ImageLayer) layer.copy(CopyType.DUPLICATE_LAYER, true, comp);
+        ImageLayer duplicate = (ImageLayer) layer.copy(CopyOptions.duplicateLayer(), comp);
 
         assertThat(duplicate)
             .contentBoundsIsEqualTo(layer.getContentBounds())
-            .blendingModeIs(layer.getBlendingMode())
-            .opacityIs(layer.getOpacity());
+            .hasBlendingMode(layer.getBlendingMode())
+            .hasOpacity(layer.getOpacity());
 
         BufferedImage image = layer.getImage();
         BufferedImage duplicateImage = duplicate.getImage();

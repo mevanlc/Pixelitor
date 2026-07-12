@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -27,10 +27,7 @@ import java.awt.FlowLayout;
 
 import static java.awt.FlowLayout.LEFT;
 import static javax.swing.BorderFactory.createEmptyBorder;
-import static pixelitor.gui.AutoZoom.ACTUAL_PIXELS_ACTION;
-import static pixelitor.gui.AutoZoom.ACTUAL_PIXELS_TOOLTIP;
-import static pixelitor.gui.AutoZoom.FIT_SPACE_ACTION;
-import static pixelitor.gui.AutoZoom.FIT_SPACE_TOOLTIP;
+import static pixelitor.gui.AutoZoom.*;
 import static pixelitor.gui.GUIText.ZOOM;
 import static pixelitor.menus.view.ZoomLevel.zoomLevels;
 
@@ -66,7 +63,7 @@ public class ZoomControl extends JPanel implements ViewActivationListener {
         Dimension preferredSize = new Dimension(ZOOM_PERCENTAGE_WIDTH, (int) preferredHeight);
         zoomPercentageLabel.setPreferredSize(preferredSize);
 
-        zoomSlider.addChangeListener(e -> Views.onActive(this::applyZoomToView));
+        zoomSlider.addChangeListener(_ -> applyZoomToActiveView());
 
         zoomTextLabel = new JLabel("  " + ZOOM + ": ");
 
@@ -122,9 +119,9 @@ public class ZoomControl extends JPanel implements ViewActivationListener {
         zoomPercentageLabel.setText("");
     }
 
-    private void applyZoomToView(View view) {
+    private void applyZoomToActiveView() {
         ZoomLevel newZoom = zoomLevels[zoomSlider.getValue()];
-        view.setZoom(newZoom);
+        Views.getActive().setZoom(newZoom);
         setZoomText(newZoom);
     }
 

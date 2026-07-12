@@ -18,9 +18,16 @@
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.FourColorFilter;
+import com.jhlabs.image.FourColorFilter.ColorSpaceType;
+import com.jhlabs.image.FourColorFilter.InterpolationType;
+import com.jhlabs.image.FourColorRectFilter;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.gui.*;
 import pixelitor.filters.gui.IntChoiceParam.Item;
+import pixelitor.filters.impl.FourColorAngularFilter;
+import pixelitor.filters.impl.FourColorMetaballFilter;
+import pixelitor.filters.impl.FourColorPolarFilter;
+import pixelitor.filters.impl.FourColorTriangularFilter;
 import pixelitor.filters.util.ColorSpace;
 import pixelitor.gui.GUIText;
 import pixelitor.layers.Filterable;
@@ -28,17 +35,24 @@ import pixelitor.layers.Filterable;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
+import java.util.List;
 
 import static pixelitor.filters.gui.TransparencyMode.MANUAL_ALPHA_ONLY;
 
 /**
- * Four Color Gradient filter based on the JHLabs {@link FourColorFilter}.
+ * The "Four Color Gradient" filter based on JHLabs {@link FourColorFilter} subclasses.
  */
 public class JHFourColorGradient extends ParametrizedFilter {
-    public static final String NAME = "Four Color Gradient";
-
     @Serial
     private static final long serialVersionUID = -3344171912935129684L;
+
+    public static final String NAME = "Four Color Gradient";
+
+    private static final int TYPE_RECTANGULAR = 0;
+    private static final int TYPE_ANGULAR = 1;
+    private static final int TYPE_POLAR = 2;
+    private static final int TYPE_METABALL = 3;
+    private static final int TYPE_TRIANGULAR = 4;
 
     private final ColorParam northWestParam =
         new ColorParam("Northwest", new Color(20, 128, 20), MANUAL_ALPHA_ONLY);
@@ -51,17 +65,18 @@ public class JHFourColorGradient extends ParametrizedFilter {
 
     private final ImagePositionParam midpoint = new ImagePositionParam("Midpoint");
 
-    private final IntChoiceParam interpolation = new IntChoiceParam("Interpolation", new Item[]{
-        new Item("Linear", FourColorFilter.INTERPOLATION_LINEAR),
-        new Item("Cubic", FourColorFilter.INTERPOLATION_CUBIC),
-        new Item("Quintic", FourColorFilter.INTERPOLATION_QUINTIC),
-        new Item("Septic", FourColorFilter.INTERPOLATION_SEPTIC),
-    });
+    private final EnumParam<InterpolationType> interpolation = new EnumParam<>(
+        "Interpolation", InterpolationType.class);
 
-    private final IntChoiceParam space = new IntChoiceParam(GUIText.COLOR_SPACE, ColorSpace.PRESET_KEY, new Item[]{
-        new Item("Oklab", FourColorFilter.SPACE_OKLAB),
-        new Item("Linear RGB", FourColorFilter.SPACE_LINEAR_RGB),
-        new Item("sRGB", FourColorFilter.SPACE_SRGB)
+    private final EnumParam<ColorSpaceType> space = new EnumParam<>(
+        GUIText.COLOR_SPACE, ColorSpace.PRESET_KEY, ColorSpaceType.class);
+
+    private final IntChoiceParam type = new IntChoiceParam("Type", new Item[]{
+        new Item("Rectangular", TYPE_RECTANGULAR),
+        new Item("Angular", TYPE_ANGULAR),
+        new Item("Polar", TYPE_POLAR),
+        new Item("Metaball", TYPE_METABALL),
+        new Item("Triangular", TYPE_TRIANGULAR),
     });
 
     public JHFourColorGradient() {
@@ -78,9 +93,10 @@ public class JHFourColorGradient extends ParametrizedFilter {
             southWestParam,
             southEastParam,
             midpoint,
+            type,
             interpolation,
             space
-        ).withActionsAtFront(darkenAll, brightenAll);
+        ).withActionsAtFront(List.of(brightenAll, darkenAll));
     }
 
     private void darkenColors() {
@@ -99,23 +115,50 @@ public class JHFourColorGradient extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        FourColorFilter filter = new FourColorFilter(
-            NAME,
-            northWestParam.getColor().getRGB(),
-            northEastParam.getColor().getRGB(),
-            southWestParam.getColor().getRGB(),
-            southEastParam.getColor().getRGB(),
-            interpolation.getValue(),
-            space.getValue(),
-            midpoint.getRelativeX(),
-            midpoint.getRelativeY()
-        );
+        int colorNW = northWestParam.getColor().getRGB();
+        int colorNE = northEastParam.getColor().getRGB();
+        int colorSW = southWestParam.getColor().getRGB();
+        int colorSE = southEastParam.getColor().getRGB();
+
+        FourColorFilter filter = switch (type.getValue()) {
+            case TYPE_RECTANGULAR -> new FourColorRectFilter(NAME,
+                colorNW, colorNE, colorSW, colorSE,
+                interpolation.getSelected(),
+                space.getSelected(),
+                midpoint.getRelativeX(), midpoint.getRelativeY(),
+                src.getWidth(), src.getHeight());
+            case TYPE_ANGULAR -> new FourColorAngularFilter(NAME,
+                colorNW, colorNE, colorSW, colorSE,
+                interpolation.getSelected(),
+                space.getSelected(),
+                midpoint.getRelativeX(), midpoint.getRelativeY(),
+                src.getWidth(), src.getHeight());
+            case TYPE_POLAR -> new FourColorPolarFilter(NAME,
+                colorNW, colorNE, colorSW, colorSE,
+                interpolation.getSelected(),
+                space.getSelected(),
+                midpoint.getRelativeX(), midpoint.getRelativeY(),
+                src.getWidth(), src.getHeight());
+            case TYPE_METABALL -> new FourColorMetaballFilter(NAME,
+                colorNW, colorNE, colorSW, colorSE,
+                interpolation.getSelected(),
+                space.getSelected(),
+                midpoint.getRelativeX(), midpoint.getRelativeY(),
+                src.getWidth(), src.getHeight());
+            case TYPE_TRIANGULAR -> new FourColorTriangularFilter(NAME,
+                colorNW, colorNE, colorSW, colorSE,
+                interpolation.getSelected(),
+                space.getSelected(),
+                midpoint.getRelativeX(), midpoint.getRelativeY(),
+                src.getWidth(), src.getHeight());
+            default -> throw new IllegalStateException("Unexpected value: " + type.getValue());
+        };
 
         return filter.filter(src, dest);
     }
 
     @Override
-    public FilterGUI createGUI(Filterable layer, boolean reset) {
-        return new GridAdjustmentPanel(this, layer, true, false, reset);
+    public FilterGUI createGUI(Filterable layer, boolean resetSettings) {
+        return new GridAdjustmentPanel(this, layer, true, false, resetSettings);
     }
 }

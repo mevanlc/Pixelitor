@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -22,7 +22,7 @@ import javax.swing.*;
 import static pixelitor.utils.Texts.i18n;
 
 /**
- * Common strings
+ * Common strings in the UI.
  */
 public class GUIText {
     public static final String OK = UIManager.getString("OptionPane.okButtonText");
@@ -58,6 +58,15 @@ public class GUIText {
 
     public static final String COLOR_SPACE = "Color Space";
     public static final String CHANNEL = "Channel";
+
+    public static final String TOP = "Top";
+    public static final String RIGHT = "Right";
+    public static final String BOTTOM = "Bottom";
+    public static final String LEFT = "Left";
+
+    public static final String UP = "Up";
+    public static final String DOWN = "Down";
+
 
     private GUIText() {
     }

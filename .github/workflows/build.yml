@@ -16,12 +16,12 @@ jobs:
 
     strategy:
       matrix:
-        java-version: [ 21, 25 ]
+        java-version: [ 25, 26 ]
 
     name: Build with Java ${{ matrix.java-version }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up JDK ${{ matrix.java-version }}
         uses: actions/setup-java@v5
@@ -39,7 +39,7 @@ jobs:
         run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Archive artifacts
-        if: matrix.java-version == 21
+        if: matrix.java-version == 25
         uses: actions/upload-artifact@v7
         with:
           name: PixelitorJAR-${{ env.DATE }}
@@ -56,7 +56,7 @@ jobs:
     steps:
       # `gh release create` needs the repository context
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # downloads the previously archived artifacts into the target directory
       - name: Download artifacts

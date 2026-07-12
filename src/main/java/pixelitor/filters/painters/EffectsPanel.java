@@ -30,14 +30,11 @@ import java.awt.FlowLayout;
 import java.awt.geom.Point2D;
 
 import static java.awt.BorderLayout.CENTER;
-import static java.awt.Color.BLACK;
-import static java.awt.Color.GREEN;
-import static java.awt.Color.RED;
-import static java.awt.Color.WHITE;
+import static java.awt.Color.*;
 import static java.awt.FlowLayout.LEFT;
 
 /**
- * A GUI panel for configuring the effects in an {@link AreaEffects}.
+ * A GUI panel for configuring the effects in an {@link AreaEffects} object.
  * This class acts as the {@link ParamGUI} for an {@link EffectsParam}.
  */
 public class EffectsPanel extends JPanel implements Resettable, ParamGUI {
@@ -82,7 +79,6 @@ public class EffectsPanel extends JPanel implements Resettable, ParamGUI {
      * Sets the listener to be notified of parameter adjustments.
      */
     public void setAdjustmentListener(ParamAdjustmentListener listener) {
-        assert listener != null;
         for (EffectPanel panel : panels) {
             panel.setAdjustmentListener(listener);
         }
@@ -257,7 +253,7 @@ public class EffectsPanel extends JPanel implements Resettable, ParamGUI {
         tabPanel.add(tabCB);
         tabPanel.add(new JLabel(name));
 
-        tabCB.addActionListener(e -> {
+        tabCB.addActionListener(_ -> {
             if (tabCB.isSelected()) {
                 tabs.setSelectedIndex(tabs.indexOfComponent(panel));
             }

@@ -58,6 +58,20 @@ public interface LayerHolder extends Debuggable {
 
     /**
      * Recursively checks if this layer holder contains
+     * the given layer at any nesting level.
+     */
+    boolean contains(Layer layer);
+
+    /**
+     * Recursively checks if this layer holder contains
+     * the composition's active layer any nesting level.
+     */
+    default boolean containsActiveLayer() {
+        return contains(getComp().getActiveLayer());
+    }
+
+    /**
+     * Recursively checks if this layer holder contains
      * a layer of the given type at any nesting level.
      */
     boolean containsLayerOfType(Class<? extends Layer> type);
@@ -106,7 +120,7 @@ public interface LayerHolder extends Debuggable {
     /**
      * Inserts a layer at the given index.
      * The update flag controls whether this is a full-featured insertion
-     * (with UI updates and history) or just a low-level list modification.
+     * (with UI updates but without history) or just a low-level list modification.
      */
     void insertLayer(Layer layer, int index, boolean update);
 
@@ -207,19 +221,11 @@ public interface LayerHolder extends Debuggable {
     }
 
     /**
-     * Changes the position of a layer within this holder.
+     * Changes the position of a layer within this holder, and updates the GUI.
      */
     default void reorderLayer(int oldIndex, int newIndex,
                               boolean addToHistory, String editName) {
-        // Called when the layer order is changed by an action.
-        // The GUI has to be updated.
-        if (newIndex < 0) {
-            return;
-        }
-        if (newIndex >= getNumLayers()) {
-            return;
-        }
-        if (oldIndex == newIndex) {
+        if (oldIndex == newIndex || newIndex < 0 || newIndex >= getNumLayers()) {
             return;
         }
 
@@ -256,7 +262,7 @@ public interface LayerHolder extends Debuggable {
     default void raiseLayerSelection() {
         Composition comp = getComp();
         Layer activeLayer = comp.getActiveLayer();
-        Layer newTarget;
+        Layer newActive;
 
         int prevIndex = indexOf(activeLayer);
 
@@ -265,17 +271,18 @@ public interface LayerHolder extends Debuggable {
             if (activeLayer.isTopLevel()) {
                 return;
             } else {
-                // if the top layer is selected, then
-                // raise selection selects the holder itself
-                // select the target's parent holder
-                assert activeLayer.getHolder() == this;
-                newTarget = (CompositeLayer) this;
+                // if the top layer is selected and this holder isn't the composition,
+                // then raise selection selects the target's parent holder (this)
+                assert activeLayer.isDirectChildOf(this);
+
+                // the cast is safe because this isn't Composition (the only non-CompositeLayer implementer)
+                newActive = (CompositeLayer) this;
             }
         } else {
-            newTarget = getLayer(newIndex);
+            newActive = getLayer(newIndex);
         }
 
-        comp.setActiveLayer(newTarget, true,
+        comp.setActiveLayer(newActive, true,
             LayerMoveAction.RAISE_LAYER_SELECTION);
 
         assert Invariants.fadeWouldWorkOn(comp);
@@ -390,8 +397,9 @@ public interface LayerHolder extends Debuggable {
     /**
      * Converts the layers at the given indices to a group,
      * optionally using an existing group as the target.
+     * The given indices array must be sorted in ascending order.
      */
-    default void convertToGroup(int[] indices, LayerGroup target, boolean addHistory) {
+    default void convertToGroup(int[] indices, LayerGroup target, boolean addToHistory) {
         List<Layer> movedLayers = new ArrayList<>(indices.length);
         for (int index : indices) {
             movedLayers.add(getLayer(index));
@@ -403,13 +411,13 @@ public interface LayerHolder extends Debuggable {
         LayerGroup newGroup;
         if (target != null) {
             // history edits must use a specific instance for consistency
-            assert !addHistory;
+            assert !addToHistory;
             newGroup = target;
             newGroup.setLayers(movedLayers);
             // restore the UI-level invariants
             newGroup.updateChildrenUI();
         } else {
-            assert addHistory;
+            assert addToHistory;
             newGroup = new LayerGroup(getComp(), LayerGroup.generateName(), movedLayers);
         }
 
@@ -417,7 +425,7 @@ public interface LayerHolder extends Debuggable {
         int newIndex = lastMovedIndex + 1 - indices.length;
         adder().atIndex(newIndex).add(newGroup);
 
-        if (addHistory) {
+        if (addToHistory) {
             History.add(new GroupingEdit(this, newGroup, indices, null, true));
         }
     }

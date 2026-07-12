@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -27,6 +27,7 @@ import pixelitor.utils.ImageUtils;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
+import java.util.function.Consumer;
 
 /**
  * A filter that adds a text to the active image layer.
@@ -72,13 +73,13 @@ public class TextFilter extends FilterWithGUI {
     }
 
     @Override
-    public FilterGUI createGUI(Filterable layer, boolean reset) {
+    public FilterGUI createGUI(Filterable layer, boolean resetSettings) {
         return new TextSettingsPanel(this, layer);
     }
 
     @Override
     public void randomize() {
-        settings.randomize();
+        setSettings(TextSettings.createRandomized(settings.getGuiUpdateCallback()));
     }
 
     public TextSettings getSettings() {
@@ -101,7 +102,12 @@ public class TextFilter extends FilterWithGUI {
 
     @Override
     public void loadUserPreset(UserPreset preset) {
-        settings.loadUserPreset(preset);
+        Consumer<TextSettings> cb = settings.getGuiUpdateCallback();
+        TextSettings newSettings = new TextSettings(preset, cb);
+        setSettings(newSettings);
+        if (cb != null) {
+            cb.accept(newSettings);
+        }
     }
 
     @Override

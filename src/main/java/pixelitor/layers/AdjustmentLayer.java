@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -18,9 +18,9 @@
 package pixelitor.layers;
 
 import pixelitor.Composition;
-import pixelitor.CopyType;
-import pixelitor.FilterContext;
+import pixelitor.CopyOptions;
 import pixelitor.filters.Filter;
+import pixelitor.filters.FilterContext;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.gui.FilterWithGUI;
 import pixelitor.history.FilterChangedEdit;
@@ -54,7 +54,8 @@ public class AdjustmentLayer extends Layer implements Filterable {
     // toggles between the current filter and the backup for previewing
     private transient boolean showOriginal = false;
 
-    // a smart filter is tentative when it's not yet part of the composition
+    // true if this layer was just added and its configuration dialog
+    // is still open (if canceled, the layer will be removed)
     private transient boolean tentative = false;
 
     public AdjustmentLayer(Composition comp, String name, Filter filter) {
@@ -73,8 +74,8 @@ public class AdjustmentLayer extends Layer implements Filterable {
     }
 
     @Override
-    protected AdjustmentLayer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
-        String copyName = copyType.createLayerCopyName(name);
+    protected AdjustmentLayer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
+        String copyName = options.createLayerCopyName(name);
         // the filter is copied to ensure the new layer has its own filter instance
         return new AdjustmentLayer(newComp, copyName, filter.copy());
     }
@@ -123,7 +124,7 @@ public class AdjustmentLayer extends Layer implements Filterable {
     }
 
     @Override
-    public boolean edit() {
+    public boolean showEditUI() {
         if (filter instanceof FilterWithGUI) {
             return startFilter(filter, false);
         }
@@ -185,8 +186,8 @@ public class AdjustmentLayer extends Layer implements Filterable {
     @Override
     public void onFilterDialogAccepted(String filterName) {
         if (showOriginal) {
-            // We do not assume that clicking "Show Original" means
-            // that the user wants to revert to the backup.
+            // We do not assume that accepting the dialog while "Show Original"
+            // is checked means the user wants to discard the changes.
             // We switch the references, because filterBackup holds
             // the modified state, and this is what we want to keep.
             filter = filterBackup;

@@ -18,7 +18,7 @@
 package pixelitor.layers;
 
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.compactions.FlipDirection;
 import pixelitor.compactions.Outsets;
 import pixelitor.compactions.QuadrantAngle;
@@ -34,6 +34,8 @@ import pixelitor.utils.ImageUtils;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.util.concurrent.CompletableFuture;
 
@@ -46,18 +48,24 @@ public class GradientFillLayer extends ContentLayer {
 
     private Gradient gradient;
 
-    // a snapshot of the gradient before a Move Tool operation
-    private transient Gradient backupGradient;
-
     private transient BufferedImage cachedImage;
+    private transient boolean cacheValid = false;
 
     private static int count;
 
-    // helper for Move Tool support
-    private transient Drag origDrag;
+    // state snapshot at the beginning of a Move Tool drag
+    private transient Gradient preMoveGradient;
 
     public GradientFillLayer(Composition comp, String name) {
         super(comp, name);
+    }
+
+    @Serial
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+
+        // defaults for transient fields
+        cacheValid = false;
     }
 
     public static void createNew(Composition comp) {
@@ -72,18 +80,16 @@ public class GradientFillLayer extends ContentLayer {
     }
 
     @Override
-    public boolean edit() {
+    public boolean showEditUI() {
         Tools.GRADIENT.activate();
         return true;
     }
 
     @Override
-    protected GradientFillLayer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
-        String copyName = copyType.createLayerCopyName(name);
+    protected GradientFillLayer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
+        String copyName = options.createLayerCopyName(name);
         var copy = new GradientFillLayer(newComp, copyName);
         if (gradient != null) {
-            // could be shared, because it is overwritten
-            // when editing, but make a copy for safety
             copy.gradient = gradient.copy();
         }
         return copy;
@@ -103,12 +109,28 @@ public class GradientFillLayer extends ContentLayer {
             || gradient.hasCustomTransparency();
 
         if (needsCache) {
-            if (cachedImage == null) {
+            // only allocate new memory if the image doesn't exist or canvas size changed
+            if (cachedImage == null || cachedImage.getWidth() != width || cachedImage.getHeight() != height) {
+                if (cachedImage != null) {
+                    cachedImage.flush();
+                }
                 cachedImage = ImageUtils.createSysCompatibleImage(width, height);
+                cacheValid = false;
+            }
+
+            // if the gradient state changed, clear and redraw onto the existing buffer
+            if (!cacheValid) {
                 Graphics2D imgG = cachedImage.createGraphics();
+                // clear the image buffer completely in case of transparency
+                imgG.setComposite(AlphaComposite.Clear);
+                imgG.fillRect(0, 0, width, height);
+
+                imgG.setComposite(AlphaComposite.SrcOver);
                 gradient.paintOnGraphics(imgG, width, height);
                 imgG.dispose();
+                cacheValid = true;
             }
+            // draw at (0,0) - translation relies strictly on gradient math
             g.drawImage(cachedImage, 0, 0, null);
         } else {
             gradient.paintOnGraphics(g, width, height);
@@ -129,7 +151,7 @@ public class GradientFillLayer extends ContentLayer {
         Graphics2D g2 = img.createGraphics();
 
         if (gradient == null || gradient.hasTransparency()) {
-            thumbCheckerBoardPainter.paint(g2, null, thumbDim.width, thumbDim.height);
+            thumbCheckerboardPainter.paint(g2, null, thumbDim.width, thumbDim.height);
         }
         if (gradient != null) {
             gradient.paintThumbnail(g2, comp.getCanvas(), thumbDim);
@@ -174,6 +196,16 @@ public class GradientFillLayer extends ContentLayer {
     }
 
     @Override
+    public void rotate(double angleRadians, boolean layerTransform) {
+        if (gradient != null) {
+            var center = comp.getCanvas().getImCenter();
+            gradient.imTransform(AffineTransform.getRotateInstance(
+                angleRadians, center.getX(), center.getY()));
+            invalidateGradientCache();
+        }
+    }
+
+    @Override
     public void enlargeCanvas(Outsets out) {
         if (gradient != null) {
             gradient.enlargeCanvas(out);
@@ -182,16 +214,16 @@ public class GradientFillLayer extends ContentLayer {
     }
 
     private void invalidateGradientCache() {
-        cachedImage = null;
+        cacheValid = false;
     }
 
     public Gradient getGradient() {
         return gradient;
     }
 
-    public void setGradient(Gradient newGradient, boolean addHistory) {
+    public void setGradient(Gradient newGradient, boolean addToHistory) {
         // the new gradient can be null if this is called while undoing the first gradient
-        assert newGradient != null || !addHistory;
+        assert newGradient != null || !addToHistory;
 
         Gradient prevGradient = this.gradient;
 
@@ -200,7 +232,7 @@ public class GradientFillLayer extends ContentLayer {
         update();
         updateIconImage();
 
-        if (addHistory) {
+        if (addToHistory) {
             History.add(new GradientFillLayerChangeEdit(
                 "Gradient Fill Layer Change", this, prevGradient, newGradient));
         } else { // called from the undo/redo
@@ -228,17 +260,20 @@ public class GradientFillLayer extends ContentLayer {
     public void prepareMovement() {
         super.prepareMovement();
         if (gradient != null) {
-            origDrag = gradient.getDrag().copy();
-            backupGradient = gradient.copy();
+            preMoveGradient = gradient.copy();
         }
     }
 
     @Override
     public void moveWhileDragging(double imDx, double imDy) {
+        // gradient fill layers ignore dragOffsetX/Y in paint()
+        // because the gradient must always cover the full canvas
         super.moveWhileDragging(imDx, imDy);
+
         if (gradient != null) {
-            Drag newDrag = origDrag.imTranslatedCopy(imDx, imDy);
+            Drag newDrag = preMoveGradient.getDrag().imTranslatedCopy(imDx, imDy);
             gradient.setDrag(newDrag);
+            invalidateGradientCache();
         }
     }
 
@@ -252,6 +287,8 @@ public class GradientFillLayer extends ContentLayer {
         // the movement is captured in the gradient state
         setTranslation(0, 0);
 
+        invalidateGradientCache();
+
         return edit;
     }
 
@@ -264,7 +301,7 @@ public class GradientFillLayer extends ContentLayer {
         // prevTx and prevTy are not used here
         // as gradient movement is handled via gradient state
         return new GradientFillLayerChangeEdit("Move Layer",
-            this, backupGradient, gradient);
+            this, preMoveGradient, gradient);
     }
 
     @Override

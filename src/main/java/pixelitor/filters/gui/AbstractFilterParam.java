@@ -21,8 +21,6 @@ import pixelitor.utils.debug.DebugNode;
 
 import java.util.Objects;
 
-import static pixelitor.filters.gui.RandomizeMode.ALLOW_RANDOMIZE;
-
 /**
  * A base class for implementations of {@link FilterParam}.
  */
@@ -37,8 +35,8 @@ public abstract class AbstractFilterParam implements FilterParam {
     private String toolTip;
     private String presetKey;
 
-    // If this is not null, it's the model of an additional action button
-    // to the right of the normal GUI. Typically it's used for randomization,
+    // If this is not null, it's the model for an additional action button
+    // to the right of the normal GUI. Typically, it's used for randomization,
     // and it's enabled only for specific values of this filter parameter.
     protected FilterButtonModel sideButtonModel;
 
@@ -49,7 +47,7 @@ public abstract class AbstractFilterParam implements FilterParam {
 
     /**
      * Finalizes the GUI's setup by synchronizing its state with this model.
-     * Must be called by the subclasses, after creating the GUI.
+     * Must be called by subclasses after creating the GUI.
      */
     protected void syncWithGui() {
         updateGUIEnabledState();
@@ -137,7 +135,7 @@ public abstract class AbstractFilterParam implements FilterParam {
 
     @Override
     public boolean shouldRandomize() {
-        return randomizeMode == ALLOW_RANDOMIZE && enabledByFilterLogic;
+        return randomizeMode == RandomizeMode.ALLOW && enabledByFilterLogic;
     }
 
     @Override
@@ -148,7 +146,7 @@ public abstract class AbstractFilterParam implements FilterParam {
     }
 
     /**
-     * Randomizes the parameter without checking for permission,
+     * Randomizes the parameter without checking if randomization is allowed,
      * and without triggering the filter.
      */
     protected abstract void doRandomize();
@@ -173,11 +171,6 @@ public abstract class AbstractFilterParam implements FilterParam {
         return "<html>Reset the value of <b>" + name + "</b>";
     }
 
-    @Override
-    public boolean isComplex() {
-        return false;
-    }
-
     public FilterButtonModel getSideButtonModel() {
         return sideButtonModel;
     }
@@ -191,15 +184,12 @@ public abstract class AbstractFilterParam implements FilterParam {
             return false;
         }
         AbstractFilterParam that = (AbstractFilterParam) o;
-
-        // two parameters are considered equal if their values are equal
-        // (this is used to compare filter states)
-        return getValueAsString().equals(that.getValueAsString());
+        return name.equals(that.name) && getValueAsString().equals(that.getValueAsString());
     }
 
     @Override
     public int hashCode() {
-        return getValueAsString().hashCode();
+        return Objects.hash(name, getValueAsString());
     }
 
     @Override

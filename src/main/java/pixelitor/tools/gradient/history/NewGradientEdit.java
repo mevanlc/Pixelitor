@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -39,7 +39,7 @@ public class NewGradientEdit extends PixelitorEdit {
         this.dr = dr;
         this.gradient = gradient;
 
-        // capture the pixels before the gradient is applied
+        // captures the pixel data before applying the gradient
         imageEdit = ImageEdit.createEmbedded(dr);
     }
 
@@ -47,7 +47,7 @@ public class NewGradientEdit extends PixelitorEdit {
     public void undo() throws CannotUndoException {
         super.undo();
 
-        Tools.GRADIENT.setGradient(null, false, dr);
+        Tools.GRADIENT.restoreGradient(null, false, dr);
         imageEdit.undo();
         dr.update();
         dr.updateIconImage();
@@ -63,7 +63,7 @@ public class NewGradientEdit extends PixelitorEdit {
 
         // restore the gradient handles and settings in the gradient tool's UI
         // (there's no need to regenerate the gradient)
-        Tools.GRADIENT.setGradient(gradient, false, dr);
+        Tools.GRADIENT.restoreGradient(gradient, false, dr);
 
         dr.update();
         dr.updateIconImage();

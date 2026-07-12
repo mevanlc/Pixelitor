@@ -60,7 +60,7 @@ public class Selection implements Transformable {
     // the view displaying this selection
     private View view;
 
-    // if true, the "marching ants" are not marching
+    // if true, the marching ants animation is paused
     private boolean frozen = false;
 
     // if true, the "marching ants" are not painted at all
@@ -70,8 +70,6 @@ public class Selection implements Transformable {
     private boolean disposed = false;
 
     public Selection(Shape shape, View view) {
-        // the shape can be null, because this Selection
-        // object can be created after a mouse press
         assert view != null;
 
         this.shape = shape;
@@ -82,12 +80,14 @@ public class Selection implements Transformable {
             frozen = true;
         }
 
-        if (shape != null) {
-            startMarching();
-        }
+        startMarching();
+
+        assert checkInvariants();
     }
 
     public Selection(Selection orig) {
+        assert orig.checkInvariants();
+
         // the shape can be shared because all changes create new instances
         this.shape = orig.shape;
         this.shapeBeforeTransform = orig.shapeBeforeTransform;
@@ -95,7 +95,6 @@ public class Selection implements Transformable {
         this.frozen = orig.frozen;
         this.hidden = orig.hidden;
         this.disposed = orig.disposed;
-        assert !orig.disposed;
 
         // the view is not copied directly; it will be set later
         this.view = null;
@@ -103,22 +102,23 @@ public class Selection implements Transformable {
         // the animation timer is not copied; it will be started by setView if needed
         this.dashPhase = 0;
         this.marchingAntsTimer = null;
+
+        assert checkInvariants();
     }
 
     /**
      * Starts the marching ants animation.
      */
     public void startMarching() {
-        assert !disposed : "disposed selection";
+        assert checkInvariants();
         assert view != null : "no view in selection";
         assert !isMarching();
-        assert shape != null;
 
         if (frozen || hidden) {
             return;
         }
 
-        marchingAntsTimer = new Timer(100, e -> {
+        marchingAntsTimer = new Timer(100, _ -> {
             dashPhase += 1.0f / (float) view.getZoomScale();
             view.repaint();
         });
@@ -142,21 +142,21 @@ public class Selection implements Transformable {
      */
     public void paintMarchingAnts(Graphics2D g2) {
         assert Threads.calledOnEDT() : Threads.callInfo();
-        assert !disposed : "disposed selection";
+        assert checkInvariants();
 
-        if (shape == null || hidden) {
+        if (hidden) {
             return;
         }
 
         Stroke origStroke = g2.getStroke();
 
-        // ensure that the border width doesn't depend on the zooming,
+        // ensure that the border width doesn't depend on the zoom level,
         // considering that the graphics coordinates are in image space
         double viewScale = view.getZoomScale();
         float lineWidth = (float) (DASH_WIDTH / viewScale);
 
         float[] dash;
-        if (viewScale == 1.0) { // optimize for common case
+        if (viewScale == 1.0) { // optimize for the common case
             dash = MARCHING_ANTS_DASH;
         } else {
             float scaledDashLength = (float) (DASH_LENGTH / viewScale);
@@ -186,10 +186,8 @@ public class Selection implements Transformable {
      */
     public void dispose() {
         assert AppMode.isUnitTesting() || Threads.calledOnEDT() : Threads.callInfo();
-        assert !disposed;
-        if (disposed) {
-            return;
-        }
+        assert checkInvariants();
+
         stopMarching();
         if (view != null) {
             view.repaint();
@@ -199,24 +197,17 @@ public class Selection implements Transformable {
     }
 
     public void setShape(Shape newShape) {
-        assert newShape != null;
-        assert !disposed;
-
-        boolean hadNoShape = (shape == null);
         shape = newShape;
-
-        if (hadNoShape) {
-            startMarching();
-        }
+        assert checkInvariants();
     }
 
     public Shape getShape() {
-        assert !disposed;
+        assert checkInvariants();
         return shape;
     }
 
     public boolean isRectangular() {
-        assert !disposed;
+        assert checkInvariants();
         return shape instanceof Rectangle2D;
     }
 
@@ -224,12 +215,12 @@ public class Selection implements Transformable {
      * Returns the bounds of the selection shape in image-space coordinates.
      */
     public Rectangle getShapeBounds() {
-        assert !disposed;
+        assert checkInvariants();
         return shape.getBounds();
     }
 
     public Rectangle2D getShapeBounds2D() {
-        assert !disposed;
+        assert checkInvariants();
         return shape.getBounds2D();
     }
 
@@ -238,7 +229,7 @@ public class Selection implements Transformable {
     }
 
     private void transformAndAddHistory(String editName, AffineTransform at) {
-        assert !disposed;
+        assert checkInvariants();
 
         Composition comp = view.getComp();
         Shape backupShape = shape;
@@ -257,13 +248,11 @@ public class Selection implements Transformable {
     }
 
     /**
-     * Transforms the selection shape and returns the original shape.
+     * Transforms the selection shape without history or canvas clipping.
      */
-    public Shape transform(AffineTransform at) {
-        assert !disposed;
-        Shape backupShape = shape;
+    public void transform(AffineTransform at) {
+        assert checkInvariants();
         shape = at.createTransformedShape(shape);
-        return backupShape;
     }
 
     public boolean isHidden() {
@@ -274,9 +263,8 @@ public class Selection implements Transformable {
      * Hides or shows the selection border.
      */
     public void setHidden(boolean hide) {
-        assert !disposed : "disposed selection";
+        assert checkInvariants();
         assert view != null;
-        assert shape != null;
 
         if (hidden == hide) {
             return; // no change
@@ -300,7 +288,7 @@ public class Selection implements Transformable {
      * Freezes or unfreezes the marching ants animation.
      */
     public void setFrozen(boolean frozen) {
-        assert !disposed;
+        assert checkInvariants();
         if (this.frozen == frozen) {
             return; // no change
         }
@@ -314,6 +302,8 @@ public class Selection implements Transformable {
     }
 
     public void setView(View view) {
+        assert checkInvariants();
+
         assert view != null;
         assert !isMarching();
 
@@ -326,9 +316,9 @@ public class Selection implements Transformable {
     }
 
     /**
-     * Returns true if this selection is still active and usable.
+     * Returns true if this selection is still valid and usable.
      */
-    public boolean isUsable() {
+    public boolean isValid() {
         return !disposed;
     }
 
@@ -337,8 +327,7 @@ public class Selection implements Transformable {
      */
     @Override
     public void prepareForTransform() {
-        assert shape != null;
-        assert !disposed;
+        assert checkInvariants();
 
         shapeBeforeTransform = shape;
     }
@@ -347,7 +336,7 @@ public class Selection implements Transformable {
      * Applies a transformation relative to the shape before the drag.
      */
     private void transformWhileDragging(AffineTransform at) {
-        assert !disposed;
+        assert checkInvariants();
         assert shapeBeforeTransform != null;
 
         shape = at.createTransformedShape(shapeBeforeTransform);
@@ -357,11 +346,11 @@ public class Selection implements Transformable {
      * Moves the selection shape during a drag operation.
      */
     public void moveWhileDragging(double relImX, double relImY) {
-        assert !disposed;
+        assert checkInvariants();
         assert shapeBeforeTransform != null;
 
         if (shapeBeforeTransform instanceof Rectangle2D startRect) {
-            // preserve the type information
+            // translate manually to preserve the type information
             shape = new Rectangle2D.Double(
                 startRect.getX() + relImX, startRect.getY() + relImY,
                 startRect.getWidth(), startRect.getHeight());
@@ -376,7 +365,7 @@ public class Selection implements Transformable {
      */
     @Override
     public PixelitorEdit finalizeTransform() {
-        assert !disposed;
+        assert checkInvariants();
         assert shapeBeforeTransform != null;
 
         Composition comp = view.getComp();
@@ -416,6 +405,19 @@ public class Selection implements Transformable {
         view.repaint();
     }
 
+    /**
+     * Checks the invariants of an alive (non-disposed) selection.
+     */
+    public boolean checkInvariants() {
+        if (disposed) {
+            throw new AssertionError("disposed");
+        }
+        if (shape == null) {
+            throw new AssertionError("no shape");
+        }
+        return true;
+    }
+
     @Override
     public DebugNode createDebugNode(String name) {
         var node = new DebugNode(name, this);
@@ -437,8 +439,8 @@ public class Selection implements Transformable {
     public String toString() {
         return "Selection{" +
             "composition=" + view.getComp().getName() +
-            ", shape-class=" + (shape == null ? "null" : shape.getClass().getName()) +
-            ", shapeBounds=" + (shape == null ? "null" : shape.getBounds()) +
+            ", shape-class=" + shape.getClass().getName() +
+            ", shapeBounds=" + shape.getBounds() +
             '}';
     }
 }

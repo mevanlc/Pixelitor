@@ -22,14 +22,13 @@ import com.jhlabs.image.LaplaceFilter;
 import com.jhlabs.image.MedianFilter;
 import com.jhlabs.image.ReduceNoiseFilter;
 import pixelitor.*;
-import pixelitor.automate.AutoPaint;
 import pixelitor.automate.BatchFilterWizard;
 import pixelitor.automate.BatchResize;
+import pixelitor.autopaint.AutoPaint;
 import pixelitor.colors.palette.ColorSwatchClickHandler;
 import pixelitor.colors.palette.FullPalette;
 import pixelitor.colors.palette.PalettePanel;
 import pixelitor.compactions.*;
-import pixelitor.filters.Mirror;
 import pixelitor.filters.*;
 import pixelitor.filters.animation.TweenWizard;
 import pixelitor.filters.convolve.Convolve;
@@ -82,34 +81,15 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ResourceBundle;
 
-import static pixelitor.Views.CLOSE_ACTIVE_ACTION;
-import static pixelitor.Views.CLOSE_ALL_ACTION;
-import static pixelitor.Views.addActivationListener;
-import static pixelitor.Views.addNew;
-import static pixelitor.Views.repaintActive;
-import static pixelitor.colors.FillType.BACKGROUND;
-import static pixelitor.colors.FillType.FOREGROUND;
-import static pixelitor.colors.FillType.TRANSPARENT;
+import static pixelitor.Views.*;
+import static pixelitor.colors.FillType.*;
 import static pixelitor.compactions.FlipDirection.HORIZONTAL;
 import static pixelitor.compactions.FlipDirection.VERTICAL;
-import static pixelitor.compactions.QuadrantAngle.ANGLE_180;
-import static pixelitor.compactions.QuadrantAngle.ANGLE_270;
-import static pixelitor.compactions.QuadrantAngle.ANGLE_90;
+import static pixelitor.compactions.QuadrantAngle.*;
 import static pixelitor.gui.ImageArea.Mode.FRAMES;
-import static pixelitor.gui.utils.RestrictedLayerAction.LayerRestriction.HAS_LAYER_MASK;
-import static pixelitor.gui.utils.RestrictedLayerAction.LayerRestriction.LayerClassRestriction;
-import static pixelitor.gui.utils.RestrictedLayerAction.LayerRestriction.NO_LAYER_MASK;
-import static pixelitor.layers.LayerMoveAction.LAYER_TO_BOTTOM;
-import static pixelitor.layers.LayerMoveAction.LAYER_TO_TOP;
-import static pixelitor.layers.LayerMoveAction.LOWER_LAYER_SELECTION;
-import static pixelitor.layers.LayerMoveAction.MOVE_LAYER_DOWN;
-import static pixelitor.layers.LayerMoveAction.MOVE_LAYER_UP;
-import static pixelitor.layers.LayerMoveAction.RAISE_LAYER_SELECTION;
-import static pixelitor.layers.MaskInitMethod.FROM_LAYER;
-import static pixelitor.layers.MaskInitMethod.FROM_TRANSPARENCY;
-import static pixelitor.layers.MaskInitMethod.HIDE_ALL;
-import static pixelitor.layers.MaskInitMethod.REVEAL_ALL;
-import static pixelitor.layers.MaskInitMethod.REVEAL_SELECTION;
+import static pixelitor.gui.utils.RestrictedLayerAction.LayerRestriction.*;
+import static pixelitor.layers.LayerMoveAction.*;
+import static pixelitor.layers.MaskInitMethod.*;
 import static pixelitor.utils.Keys.*;
 
 /**
@@ -465,7 +445,7 @@ public class MenuBar extends JMenuBar {
 
         // edit the active text layer
         sub.add(new RestrictedLayerAction(i18n.getString("tl_edit") + "...", isTextLayer,
-            Layer::edit), CTRL_T);
+            Layer::showEditUI), CTRL_T);
 
         // rasterize the active text layer
         sub.add(new RestrictedLayerAction(i18n.getString("tl_rasterize"), isTextLayer,
@@ -488,7 +468,7 @@ public class MenuBar extends JMenuBar {
             comp -> comp.getHolderForGrouping().convertVisibleLayersToGroup(), CTRL_SHIFT_G);
 
         sub.addViewEnabled("Ungroup",
-            comp -> comp.getActiveLayer().unGroup(), CTRL_U);
+            comp -> comp.getActiveLayer().ungroup(), CTRL_U);
 
         return sub;
     }
@@ -520,10 +500,10 @@ public class MenuBar extends JMenuBar {
             Layer::replaceWithRasterized));
 
         sub.add(new RestrictedLayerAction("Edit Contents", isSmartObject,
-            Layer::edit));
+            Layer::showEditUI));
 
         sub.addViewEnabled("Edit All Nested Contents",
-            comp -> comp.forEachNestedSmartObject(SmartObject::edit), CTRL_ALT_O);
+            comp -> comp.forEachNestedSmartObject(SmartObject::showEditUI), CTRL_ALT_O);
 
         sub.add(new RestrictedLayerAction("Edit Smart Filter", isSmartObject,
             layer -> ((SmartObject) layer).editSelectedSmartFilter()), CTRL_SHIFT_E);
@@ -544,7 +524,7 @@ public class MenuBar extends JMenuBar {
         var isColorFillLayer = new LayerClassRestriction(ColorFillLayer.class, "color fill layer");
 
         sub.add(new RestrictedLayerAction("Edit Color Fill Layer...", isColorFillLayer,
-            Layer::edit));
+            Layer::showEditUI));
 
         sub.add(new RestrictedLayerAction("Rasterize Color Fill Layer", isColorFillLayer,
             Layer::replaceWithRasterized));
@@ -614,7 +594,7 @@ public class MenuBar extends JMenuBar {
             comp -> ResizePanel.showInDialog(comp, resizeText), CTRL_ALT_I);
 
         imageMenu.addViewEnabled(i18n, "duplicate",
-            comp -> addNew(comp.copy(CopyType.DUPLICATE_COMP, true)));
+            comp -> addNew(comp.copy(CopyOptions.duplicateComposition())));
 
         if (Features.enableImageMode) {
             imageMenu.add(createModeSubmenu());
@@ -628,11 +608,13 @@ public class MenuBar extends JMenuBar {
             i18n.getString("fit_canvas_to_layers_tt"),
             Composition::fitCanvasToLayers);
 
-        imageMenu.addViewEnabled(i18n.getString("layer_to_canvas_size"), Composition::activeLayerToCanvasSize);
+        imageMenu.addViewEnabled(i18n.getString("layer_to_canvas_size"), Composition::cropActiveLayerToCanvasSize);
 
         imageMenu.addSeparator();
 
         // rotate
+        imageMenu.addViewEnabled(Straighten.NAME + "...",
+            StraightenPanel::showInDialog);
         imageMenu.add(new Rotate(ANGLE_90), "comp_rot_90");
         imageMenu.add(new Rotate(ANGLE_180), "comp_rot_180");
         imageMenu.add(new Rotate(ANGLE_270), "comp_rot_270");
@@ -760,7 +742,7 @@ public class MenuBar extends JMenuBar {
         filterMenu.add(createDistortSubmenu());
         filterMenu.add(createFindEdgesSubmenu());
 
-        File gmicExe = FileUtils.findExecutableInDir(AppPreferences.gmicDirName, "gmic");
+        File gmicExe = FileUtils.findExecutableInDir(AppPreferences.gmicDirPath, "gmic");
         if (gmicExe != null) {
             GMICFilter.GMIC_PATH = gmicExe;
             filterMenu.add(createGMICSubmenu());
@@ -1097,12 +1079,12 @@ public class MenuBar extends JMenuBar {
         // color palette
         String colorPaletteText = i18n.getString("color_palette");
         viewMenu.add(new TaskAction(colorPaletteText + "...", () ->
-            PalettePanel.showDialog(pw, new FullPalette(colorPaletteText),
+            PalettePanel.showDialog(new FullPalette(colorPaletteText),
                 ColorSwatchClickHandler.STANDARD)));
 
         // static palette (TODO unfinished feature)
         viewMenu.add(new TaskAction("Static Palette...", () ->
-            PalettePanel.showStaticPaletteDialog(pw, "Static Palette")));
+            PalettePanel.showStaticPaletteDialog("Static Palette")));
 
         viewMenu.addSeparator();
 
@@ -1118,7 +1100,7 @@ public class MenuBar extends JMenuBar {
 
         // show pixel grid
         var showPixelGridMI = new OpenViewEnabledCheckBoxMenuItem(i18n.getString("show_pixel_grid"));
-        showPixelGridMI.addActionListener(e ->
+        showPixelGridMI.addActionListener(_ ->
             View.setPixelGridVisible(showPixelGridMI.getState()));
         viewMenu.add(showPixelGridMI);
 
@@ -1137,7 +1119,7 @@ public class MenuBar extends JMenuBar {
         // add grid guides
         String addGridGuidesText = i18n.getString("add_grid_guides");
         viewMenu.addViewEnabled(addGridGuidesText + "...",
-            comp -> AddGridGuidesPanel.showAddGridDialog(comp.getView(), addGridGuidesText));
+            comp -> AddGridGuidesPanel.showDialog(comp.getView(), addGridGuidesText));
 
         // clear guides
         viewMenu.addViewEnabled(i18n, "clear_guides", Composition::clearGuides);
@@ -1152,24 +1134,24 @@ public class MenuBar extends JMenuBar {
     private JMenu createColorVariationsSubmenu() {
         PMenu variations = new PMenu("Color Variations");
         variations.add(new TaskAction("Foreground...", () ->
-            PalettePanel.showVariationsDialog(pw, true)));
+            PalettePanel.showVariationsDialog(true)));
         variations.add(new TaskAction(
             "HSB Mix Foreground with Background...", () ->
-            PalettePanel.showHSBMixDialog(pw, true)));
+            PalettePanel.showHSBMixDialog(true)));
         variations.add(new TaskAction(
             "RGB Mix Foreground with Background...", () ->
-            PalettePanel.showRGBMixDialog(pw, true)));
+            PalettePanel.showRGBMixDialog(true)));
 
         variations.addSeparator();
 
         variations.add(new TaskAction("Background...", () ->
-            PalettePanel.showVariationsDialog(pw, false)));
+            PalettePanel.showVariationsDialog(false)));
         variations.add(new TaskAction(
             "HSB Mix Background with Foreground...", () ->
-            PalettePanel.showHSBMixDialog(pw, false)));
+            PalettePanel.showHSBMixDialog(false)));
         variations.add(new TaskAction(
             "RGB Mix Background with Foreground...", () ->
-            PalettePanel.showRGBMixDialog(pw, false)));
+            PalettePanel.showRGBMixDialog(false)));
         return variations;
     }
 
@@ -1205,13 +1187,13 @@ public class MenuBar extends JMenuBar {
         var isSmartObject = new LayerClassRestriction(SmartObject.class, "smart object");
 
         developMenu.add(new RestrictedLayerAction("Edit 0", isSmartObject,
-            layer -> ((SmartObject) layer).getSmartFilter(0).edit()));
+            layer -> ((SmartObject) layer).getSmartFilter(0).showEditUI()));
 
         developMenu.add(new RestrictedLayerAction("Edit 1", isSmartObject,
-            layer -> ((SmartObject) layer).getSmartFilter(1).edit()));
+            layer -> ((SmartObject) layer).getSmartFilter(1).showEditUI()));
 
         developMenu.add(new RestrictedLayerAction("Edit 2", isSmartObject,
-            layer -> ((SmartObject) layer).getSmartFilter(2).edit()));
+            layer -> ((SmartObject) layer).getSmartFilter(2).showEditUI()));
         
         return developMenu;
     }
@@ -1359,7 +1341,7 @@ public class MenuBar extends JMenuBar {
     private static JMenu createTestSubmenu() {
         PMenu sub = new PMenu("Test");
 
-        sub.add(new TaskAction("Create All Filters", Filters::createAllFilters));
+        sub.add(new TaskAction("Instantiate All Filters", Filters::instantiateAllFilters));
 
         sub.addFilter(ParamTestFilter.NAME, ParamTestFilter::new);
 

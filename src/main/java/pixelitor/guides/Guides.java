@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -40,31 +40,31 @@ import java.util.function.Consumer;
 
 /**
  * Represents a set of guide lines.
- * Objects of this class should be mutated only while building,
- * for any changes a new instance should be built.
+ * Objects of this class should be mutated only while being built;
+ * for any subsequent changes, a new instance should be created.
  */
 public class Guides implements Serializable, Debuggable {
     @Serial
     private static final long serialVersionUID = -1168950961227421664L;
 
     // guide positions are stored as ratios (0.0 to 1.0) relative to the
-    // canvas so that resizing does not affect their image-space position
+    // canvas so that resizing preserves their position relative to the content
     private final List<Double> horizontals = new ArrayList<>();
     private final List<Double> verticals = new ArrayList<>();
 
     // cached rendered lines in component space
-    private transient List<Line2D> lines;
+    private transient List<Line2D> coLines;
 
-    // used only for debugging
-    private String name;
-
-    public Guides copyIdentical(View view) {
-        Guides copy = createEmptyCopy();
+    // duplicates this object without transforming it
+    public Guides copy(View view) {
+        Guides copy = new Guides();
 
         copy.horizontals.addAll(horizontals);
         copy.verticals.addAll(verticals);
 
-        copy.regenerateLines(view);
+        if (view != null) {
+            copy.regenerateLines(view);
+        }
         return copy;
     }
 
@@ -79,7 +79,7 @@ public class Guides implements Serializable, Debuggable {
     }
 
     private Guides copyFlippedHorizontally() {
-        Guides copy = createEmptyCopy();
+        Guides copy = new Guides();
         copy.horizontals.addAll(horizontals);
         for (Double vertical : verticals) {
             copy.verticals.add(1 - vertical);
@@ -88,7 +88,7 @@ public class Guides implements Serializable, Debuggable {
     }
 
     private Guides copyFlippedVertically() {
-        Guides copy = createEmptyCopy();
+        Guides copy = new Guides();
         copy.verticals.addAll(verticals);
         for (Double horizontal : horizontals) {
             copy.horizontals.add(1 - horizontal);
@@ -108,7 +108,7 @@ public class Guides implements Serializable, Debuggable {
     }
 
     private Guides copyRotated90() {
-        Guides copy = createEmptyCopy();
+        Guides copy = new Guides();
         for (Double horizontal : horizontals) {
             copy.verticals.add(1 - horizontal);
         }
@@ -117,7 +117,7 @@ public class Guides implements Serializable, Debuggable {
     }
 
     private Guides copyRotated180() {
-        Guides copy = createEmptyCopy();
+        Guides copy = new Guides();
         for (Double horizontal : horizontals) {
             copy.horizontals.add(1 - horizontal);
         }
@@ -128,7 +128,7 @@ public class Guides implements Serializable, Debuggable {
     }
 
     private Guides copyRotated270() {
-        Guides copy = createEmptyCopy();
+        Guides copy = new Guides();
         copy.verticals.addAll(horizontals);
         for (Double vertical : verticals) {
             copy.horizontals.add(1 - vertical);
@@ -136,18 +136,11 @@ public class Guides implements Serializable, Debuggable {
         return copy;
     }
 
-    private Guides createEmptyCopy() {
-        Guides copy = new Guides();
-        copy.setName(name + " copy");
-        return copy;
-    }
-
     public Guides copyEnlarged(Outsets enlargement, View view, Canvas canvas) {
         Guides copy = new Guides();
-        copy.setName("copy with enlargement: " + enlargement.toString());
 
-        copyVerticalsEnlarging(copy, enlargement.right, enlargement.left, canvas);
-        copyHorizontalsEnlarging(copy, enlargement.top, enlargement.bottom, canvas);
+        copyVerticalsEnlarging(copy, enlargement.right(), enlargement.left(), canvas);
+        copyHorizontalsEnlarging(copy, enlargement.top(), enlargement.bottom(), canvas);
 
         copy.regenerateLines(view);
         return copy;
@@ -157,8 +150,8 @@ public class Guides implements Serializable, Debuggable {
         int origWidth = canvas.getWidth();
         if (left != 0 || right != 0) {
             int newWidth = origWidth + right + left;
-            for (Double h : verticals) {
-                double origAbs = h * origWidth;
+            for (Double v : verticals) {
+                double origAbs = v * origWidth;
                 double adjustedRatio = (origAbs + left) / newWidth;
                 copy.verticals.add(adjustedRatio);
             }
@@ -171,32 +164,30 @@ public class Guides implements Serializable, Debuggable {
         int origHeight = canvas.getHeight();
         if (top != 0 || bottom != 0) {
             int newHeight = origHeight + top + bottom;
-            for (Double v : horizontals) {
-                double origAbs = v * origHeight;
-                double adjustedRel = (origAbs + top) / newHeight;
-                copy.horizontals.add(adjustedRel);
+            for (Double h : horizontals) {
+                double origAbs = h * origHeight;
+                double adjustedRatio = (origAbs + top) / newHeight;
+                copy.horizontals.add(adjustedRatio);
             }
         } else {
             copy.horizontals.addAll(horizontals);
         }
     }
 
-    public Guides copyCropped(Rectangle cropRect, View view) {
-        Canvas canvas = view.getCanvas();
+    public Guides copyCropped(Rectangle cropRect, View view, Canvas srcCanvas) {
         int topMargin = cropRect.y;
         int leftMargin = cropRect.x;
-        int bottomMargin = canvas.getHeight() - cropRect.height - cropRect.y;
-        int rightMargin = canvas.getWidth() - cropRect.width - cropRect.x;
-        Outsets margin = new Outsets(topMargin, leftMargin, bottomMargin, rightMargin);
+        int bottomMargin = srcCanvas.getHeight() - cropRect.height - cropRect.y;
+        int rightMargin = srcCanvas.getWidth() - cropRect.width - cropRect.x;
 
         // a crop is a negative enlargement
-        margin.negate();
-        return copyEnlarged(margin, view, canvas);
+        Outsets margin = new Outsets(-topMargin, -rightMargin, -bottomMargin, -leftMargin);
+        return copyEnlarged(margin, view, srcCanvas);
     }
 
     public Guides copyInverseCropped(Rectangle removedBand, boolean horizontal, View view) {
         Canvas canvas = view.getCanvas();
-        Guides copy = createEmptyCopy();
+        Guides copy = new Guides();
 
         if (horizontal) {
             int canvasH = canvas.getHeight();
@@ -233,23 +224,15 @@ public class Guides implements Serializable, Debuggable {
         return copy;
     }
 
-    public void addHorRelative(double rel) {
-        horizontals.add(rel);
+    public void addHorizontal(double value) {
+        horizontals.add(value);
     }
 
-    public void addHorAbsolute(int pixels, Canvas canvas) {
-        horizontals.add(pixels / (double) canvas.getWidth());
+    public void addVertical(double value) {
+        verticals.add(value);
     }
 
-    public void addVerRelative(double rel) {
-        verticals.add(rel);
-    }
-
-    public void addVerAbsolute(int pixels, Canvas canvas) {
-        verticals.add(pixels / (double) canvas.getHeight());
-    }
-
-    public void addRelativeGrid(int numHorDivisions, int numVerDivisions) {
+    public void addGrid(int numHorDivisions, int numVerDivisions) {
         // horizontal lines
         double divisionHeight = 1.0 / numHorDivisions;
         for (int i = 1; i < numHorDivisions; i++) {
@@ -280,7 +263,7 @@ public class Guides implements Serializable, Debuggable {
         int marginX = view.getCanvasStartX();
         int marginY = view.getCanvasStartY();
 
-        lines = new ArrayList<>();
+        coLines = new ArrayList<>();
 
         // horizontal guides
         for (Double h : horizontals) {
@@ -291,7 +274,7 @@ public class Guides implements Serializable, Debuggable {
             double coStartX = view.imageXToComponentSpace(0) - marginX;
             double coEndX = view.imageXToComponentSpace(canvasWidth) + marginX;
 
-            lines.add(new Line2D.Double(coStartX, coY, coEndX, coY));
+            coLines.add(new Line2D.Double(coStartX, coY, coEndX, coY));
         }
 
         // vertical guides
@@ -302,12 +285,12 @@ public class Guides implements Serializable, Debuggable {
             double coStartY = view.imageYToComponentSpace(0) - marginY;
             double coEndY = view.imageYToComponentSpace(canvasHeight) + marginY;
 
-            lines.add(new Line2D.Double(coX, coStartY, coX, coEndY));
+            coLines.add(new Line2D.Double(coX, coStartY, coX, coEndY));
         }
     }
 
     public void draw(Graphics2D g) {
-        GuidesRenderer.GUIDES_INSTANCE.get().draw(g, lines);
+        GuidesRenderer.GUIDES_INSTANCE.get().draw(g, coLines);
     }
 
     public void coCoordsChanged(View view) {
@@ -317,14 +300,6 @@ public class Guides implements Serializable, Debuggable {
     private void copyValuesFrom(Guides other) {
         horizontals.addAll(other.horizontals);
         verticals.addAll(other.verticals);
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
     @Override

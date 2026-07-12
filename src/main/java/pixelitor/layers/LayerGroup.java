@@ -19,7 +19,7 @@ package pixelitor.layers;
 
 
 import pixelitor.Composition;
-import pixelitor.CopyType;
+import pixelitor.CopyOptions;
 import pixelitor.compactions.FlipDirection;
 import pixelitor.compactions.Outsets;
 import pixelitor.compactions.QuadrantAngle;
@@ -92,11 +92,11 @@ public class LayerGroup extends CompositeLayer {
     }
 
     @Override
-    protected Layer createTypeSpecificCopy(CopyType copyType, Composition newComp) {
-        String copyName = copyType.createLayerCopyName(name);
+    protected Layer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
+        String copyName = options.createLayerCopyName(name);
         List<Layer> layersCopy = new ArrayList<>();
         for (Layer layer : layers) {
-            layersCopy.add(layer.copy(copyType, true, newComp));
+            layersCopy.add(layer.copy(options, newComp));
         }
         return new LayerGroup(newComp, copyName, layersCopy);
     }
@@ -366,11 +366,6 @@ public class LayerGroup extends CompositeLayer {
     }
 
     @Override
-    public void reorderLayerUI(int oldIndex, int newIndex) {
-        updateChildrenUI();
-    }
-
-    @Override
     public void removeLayerFromList(Layer layer) {
         layers.remove(layer);
     }
@@ -378,7 +373,7 @@ public class LayerGroup extends CompositeLayer {
     @Override
     public void deleteLayer(Layer layer, boolean addToHistory) {
         assert layer.getComp() == comp;
-        assert layer.getHolder() == this;
+        assert layer.isDirectChildOf(this);
 
         int layerIndex = layers.indexOf(layer);
 
@@ -388,14 +383,11 @@ public class LayerGroup extends CompositeLayer {
 
         layers.remove(layer);
 
-        if (layer.isActive()) {
-            if (layers.isEmpty()) {
-                comp.setActiveLayer(this);
-            } else if (layerIndex > 0) {
-                comp.setActiveLayer(layers.get(layerIndex - 1));
-            } else {  // deleted the fist layer, set the new first layer as active
-                comp.setActiveLayer(layers.getFirst());
-            }
+        if (layer.contains(comp.getActiveLayer())) {
+            Layer newActive = layers.isEmpty()
+                ? this
+                : layers.get(Math.max(layerIndex - 1, 0));
+            comp.setActiveLayer(newActive);
         }
 
         updateChildrenUI();
@@ -405,6 +397,9 @@ public class LayerGroup extends CompositeLayer {
     @Override
     public void deleteInternal(Layer layer) {
         layers.remove(layer);
+
+        // Unlike Composition.deleteInternal, this doesn't remove the layer's
+        // UI here, because a composite layer's child GUIs are handled differently.
     }
 
     @Override
@@ -465,7 +460,7 @@ public class LayerGroup extends CompositeLayer {
         if (isPassThrough()) {
             thumb = Thumbnails.createCircleThumb(new Color(0, 138, 0));
         } else if (cachedImage != null) {
-            thumb = createThumbnail(cachedImage, thumbCheckerBoardPainter);
+            thumb = createThumbnail(cachedImage, thumbCheckerboardPainter);
         } else {
             // isolated groups should always have a cached image
             throw new IllegalStateException();
@@ -476,7 +471,7 @@ public class LayerGroup extends CompositeLayer {
     }
 
     @Override
-    public void unGroup() {
+    public void ungroup() {
         if (layers.isEmpty() && isTopLevel() && comp.getNumLayers() == 1) {
             String msg = "<html>The empty layer group <b>" + name + "</b> can't be ungrouped"
                 + "<br>because a composition must always have at least one layer.";
@@ -513,7 +508,7 @@ public class LayerGroup extends CompositeLayer {
             activeBefore.activate();
         }
 
-        assert comp.getActiveTopLevelLayer() != this;
+        assert comp.getActiveLayer().getTopLevelLayer() != this;
 
         if (addToHistory) { // wasn't called from undo
             History.add(new GroupingEdit(holder, this, insertIndices, activeBefore, false));
@@ -616,9 +611,6 @@ public class LayerGroup extends CompositeLayer {
     @Override
     public JPopupMenu createLayerIconPopupMenu() {
         JPopupMenu popup = super.createLayerIconPopupMenu();
-        if (popup == null) {
-            popup = new JPopupMenu();
-        }
 
         popup.add(new TaskAction("Ungroup", () ->
             replaceWithUnGrouped(null, true)));
@@ -636,7 +628,7 @@ public class LayerGroup extends CompositeLayer {
                 throw new AssertionError("bad comp in layer '%s' (that comp='%s', this='%s')".formatted(
                     layer.getName(), layer.getComp().getDebugName(), comp.getDebugName()));
             }
-            if (layer.getHolder() != this) {
+            if (!layer.isDirectChildOf(this)) {
                 throw new AssertionError("bad holder in layer '%s' (that holder='%s', this='%s')".formatted(
                     layer.getName(), layer.getHolder().getName(), getName()));
             }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -24,11 +24,10 @@ import pixelitor.layers.Drawable;
 import pixelitor.tools.AbstractBrushTool;
 import pixelitor.utils.Messages;
 
-import java.awt.Shape;
 import java.awt.event.ActionEvent;
 
 /**
- * Strokes a shape with an {@link AbstractBrushTool}
+ * Strokes a shape with an {@link AbstractBrushTool}.
  */
 public class TraceAction extends NamedAction {
     private final AbstractBrushTool brushTool;
@@ -40,10 +39,7 @@ public class TraceAction extends NamedAction {
 
     @Override
     protected void onClick(ActionEvent e) {
-        Views.onActiveComp(this::trace);
-    }
-
-    private void trace(Composition comp) {
+        Composition comp = Views.getActiveComp();
         if (!comp.canDrawOnActiveTarget()) {
             Messages.showNotDrawableError(comp.getActiveLayer());
             return;
@@ -56,8 +52,7 @@ public class TraceAction extends NamedAction {
             return;
         }
 
-        Shape shape = path.toImageSpaceShape();
         Drawable dr = comp.getActiveDrawableOrThrow();
-        brushTool.trace(dr, shape);
+        brushTool.trace(dr, path.toImageSpaceShape());
     }
 }

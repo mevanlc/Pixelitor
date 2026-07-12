@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -44,7 +44,6 @@ import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
 import static pixelitor.compactions.QuadrantAngle.ANGLE_180;
 import static pixelitor.compactions.QuadrantAngle.ANGLE_270;
 import static pixelitor.compactions.QuadrantAngle.ANGLE_90;
-import static pixelitor.filters.gui.RandomizeMode.IGNORE_RANDOMIZE;
 import static pixelitor.filters.gui.TransparencyMode.MANUAL_ALPHA_ONLY;
 
 /**
@@ -147,7 +146,7 @@ public class Truchet extends ParametrizedFilter {
     private final RangeParam widthParam = new RangeParam("Line Width", 1, 3, 20);
     private final ColorParam bgColor = new ColorParam("Background Color", WHITE, MANUAL_ALPHA_ONLY);
     private final ColorParam fgColor = new ColorParam("Foreground Color", BLACK, MANUAL_ALPHA_ONLY);
-    private final BooleanParam showBoundary = new BooleanParam("Show Tile Boundary", false, IGNORE_RANDOMIZE);
+    private final BooleanParam showBoundary = new BooleanParam("Show Tile Boundary", false, RandomizeMode.IGNORE);
 
     // the arrays are from https://openprocessing.org/sketch/162169
     private final int[][] ARRAY_3 = {
@@ -351,10 +350,10 @@ public class Truchet extends ParametrizedFilter {
 
         help = Help.fromWikiURL("https://en.wikipedia.org/wiki/Truchet_tiles");
 
-        typeParam.setupEnableOtherIf(widthParam, type -> type != TileType.TRIANGLES);
+        typeParam.enableOtherWhen(widthParam, type -> type != TileType.TRIANGLES);
         FilterButtonModel reseedAction = paramSet.createReseedAction();
         List<Integer> randomPatterns = List.of(PATTERN_RANDOM, PATTERN_RANDOM_EXTENDED);
-        patternParam.setupDisableOtherIf(reseedAction, item -> !randomPatterns.contains(item.value()));
+        patternParam.disableOtherWhen(reseedAction, item -> !randomPatterns.contains(item.value()));
 
         initParams(
             typeParam,
@@ -369,7 +368,7 @@ public class Truchet extends ParametrizedFilter {
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        Random rand = paramSet.getLastSeedRandom();
+        Random rand = paramSet.getRandomWithLastSeed();
         int size = sizeParam.getValue();
 
         // generates 4 images, although with the current tiles only 2 will be different

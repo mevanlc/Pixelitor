@@ -40,7 +40,7 @@ public class GlintFilter extends AbstractBufferedImageOp {
     private final int transparentEdgeColor;
 
     /**
-     * Creates a new {@code GlintFilter} with fully defined, immutable parameters.
+     * Creates a new {@code GlintFilter}.
      *
      * @param filterName the name of the filter (used for progress tracking/logging)
      * @param threshold  the threshold value in the range [0, 1]; pixels brighter than this
@@ -51,8 +51,7 @@ public class GlintFilter extends AbstractBufferedImageOp {
      * @param length     the length of the starburst rays
      * @param blur       the blur radius applied before thresholding
      * @param colormap   the colormap used to color the glints
-     * @param glintOnly  if true, only the glints are rendered; otherwise the original
-     *                   image is combined with the glints
+     * @param glintOnly  if true, only the glints are rendered
      */
     public GlintFilter(String filterName,
                        float threshold,
@@ -125,7 +124,7 @@ public class GlintFilter extends AbstractBufferedImageOp {
         if (blur != 0) {
             AbstractBufferedImageOp blurFilter;
             if (blur > 3) {
-                blurFilter = new BoxBlurFilter(blur, blur, 3, filterName);
+                blurFilter = new BoxBlurFilter(filterName, blur, blur, 3);
             } else {
                 blurFilter = new GaussianFilter(filterName, blur);
             }

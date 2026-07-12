@@ -39,6 +39,7 @@ public class ImageMath {
      * The value of two pi as a float.
      */
     public static final float TWO_PI = (float) Math.PI * 2.0f;
+
     public static final double SQRT_3 = 1.7320508075688772;
     public static final double HALF_SQRT_3 = SQRT_3 / 2.0;
     public static final double SQRT_2 = 1.4142135623730951;
@@ -143,14 +144,16 @@ public class ImageMath {
         return smoothStep01(x);
     }
 
-    // cubic smooth step for floats assuming that
-    // the input is already in the 0..1 range
+    /**
+     * Cubic smooth step for floats assuming the input is in the 0..1 range.
+     */
     public static float smoothStep01(float x) {
         return x * x * (3.0f - 2.0f * x);
     }
 
-    // quintic smooth step for floats assuming that
-    // the input is already in the 0..1 range
+    /**
+     * Quintic smooth step for floats assuming the input is in the 0..1 range.
+     */
     public static float smootherStep01(float x) {
         return x * x * x * (x * (x * 6 - 15) + 10);
     }
@@ -167,14 +170,16 @@ public class ImageMath {
         return smoothStep01(x);
     }
 
-    // cubic smooth step for doubles assuming that
-    // the input is already in the 0..1 range
+    /**
+     * Cubic smooth step for doubles assuming the input is in the 0..1 range.
+     */
     public static double smoothStep01(double x) {
         return x * x * (3.0 - 2.0 * x);
     }
 
-    // quintic smooth step for doubles assuming that
-    // the input is already in the 0..1 range
+    /**
+     * Quintic smooth step for doubles assuming the input is in the 0..1 range.
+     */
     public static double smootherStep01(double x) {
         return x * x * x * (x * (x * 6 - 15) + 10);
     }
@@ -203,8 +208,8 @@ public class ImageMath {
     /**
      * Clamp a value to an interval.
      *
-     * @param min     the lower clamp threshold
-     * @param max     the upper clamp threshold
+     * @param min   the lower clamp threshold
+     * @param max   the upper clamp threshold
      * @param input the input parameter
      * @return the clamped value
      */
@@ -227,8 +232,8 @@ public class ImageMath {
     /**
      * Clamp a value to an interval.
      *
-     * @param min     the lower clamp threshold
-     * @param max     the upper clamp threshold
+     * @param min   the lower clamp threshold
+     * @param max   the upper clamp threshold
      * @param input the input parameter
      * @return the clamped input
      */
@@ -244,13 +249,8 @@ public class ImageMath {
      * @return a mod b
      */
     public static double mod(double a, double b) {
-        int n = (int) (a / b);
-
-        a -= n * b;
-        if (a < 0) {
-            return a + b;
-        }
-        return a;
+        double r = a % b;
+        return r < 0 ? r + b : r;
     }
 
     /**
@@ -261,13 +261,8 @@ public class ImageMath {
      * @return a mod b
      */
     public static float mod(float a, float b) {
-        int n = (int) (a / b);
-
-        a -= n * b;
-        if (a < 0) {
-            return a + b;
-        }
-        return a;
+        float r = a % b;
+        return r < 0 ? r + b : r;
     }
 
     /**
@@ -361,6 +356,23 @@ public class ImageMath {
     }
 
     /**
+     * Bilinear interpolation.
+     *
+     * @param fx the interpolation parameter along the x-axis
+     * @param fy the interpolation parameter along the y-axis
+     * @param nw the value at the north-west corner
+     * @param ne the value at the north-east corner
+     * @param sw the value at the south-west corner
+     * @param se the value at the south-east corner
+     * @return the interpolated value
+     */
+    public static float bilerp(float fx, float fy, float nw, float ne, float sw, float se) {
+        float top = lerp(fx, nw, ne);
+        float bottom = lerp(fx, sw, se);
+        return lerp(fy, top, bottom);
+    }
+
+    /**
      * Linear interpolation of ARGB values.
      *
      * @param t    the interpolation parameter
@@ -424,49 +436,12 @@ public class ImageMath {
 
     /**
      * Bilinear interpolation of ARGB values.
-     *
-     * @param x   the X interpolation parameter 0..1
-     * @param y   the y interpolation parameter 0..1
-     * @param rgb array of four ARGB values in the order NW, NE, SW, SE
-     * @return the interpolated value
      */
     public static int bilinearInterpolate(float x, float y, int nw, int ne, int sw, int se) {
-        float m0, m1;
-        int a0 = nw >>> 24;
-        int r0 = (nw >> 16) & 0xFF;
-        int g0 = (nw >> 8) & 0xFF;
-        int b0 = nw & 0xFF;
-        int a1 = ne >>> 24;
-        int r1 = (ne >> 16) & 0xFF;
-        int g1 = (ne >> 8) & 0xFF;
-        int b1 = ne & 0xFF;
-        int a2 = sw >>> 24;
-        int r2 = (sw >> 16) & 0xFF;
-        int g2 = (sw >> 8) & 0xFF;
-        int b2 = sw & 0xFF;
-        int a3 = se >>> 24;
-        int r3 = (se >> 16) & 0xFF;
-        int g3 = (se >> 8) & 0xFF;
-        int b3 = se & 0xFF;
-
-        float cx = 1.0f - x;
-        float cy = 1.0f - y;
-
-        m0 = cx * a0 + x * a1;
-        m1 = cx * a2 + x * a3;
-        int a = (int) (cy * m0 + y * m1);
-
-        m0 = cx * r0 + x * r1;
-        m1 = cx * r2 + x * r3;
-        int r = (int) (cy * m0 + y * m1);
-
-        m0 = cx * g0 + x * g1;
-        m1 = cx * g2 + x * g3;
-        int g = (int) (cy * m0 + y * m1);
-
-        m0 = cx * b0 + x * b1;
-        m1 = cx * b2 + x * b3;
-        int b = (int) (cy * m0 + y * m1);
+        int a = (int) bilerp(x, y, nw >>> 24, ne >>> 24, sw >>> 24, se >>> 24);
+        int r = (int) bilerp(x, y, (nw >> 16) & 0xFF, (ne >> 16) & 0xFF, (sw >> 16) & 0xFF, (se >> 16) & 0xFF);
+        int g = (int) bilerp(x, y, (nw >> 8) & 0xFF, (ne >> 8) & 0xFF, (sw >> 8) & 0xFF, (se >> 8) & 0xFF);
+        int b = (int) bilerp(x, y, nw & 0xFF, ne & 0xFF, sw & 0xFF, se & 0xFF);
 
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
@@ -580,47 +555,11 @@ public class ImageMath {
      * @param x        the input parameter
      * @param numKnots the number of knots in the spline
      * @param knots    the array of knots
-     * @return the spline value
-     */
-    public static float spline(float x, int numKnots, float[] knots) {
-        int span;
-        int numSpans = numKnots - 3;
-        float k0, k1, k2, k3;
-        float c0, c1, c2, c3;
-
-        if (numSpans < 1) {
-            throw new IllegalArgumentException("Too few knots in spline");
-        }
-
-        x = clamp01(x) * numSpans;
-        span = (int) x;
-        if (span > numKnots - 4) {
-            span = numKnots - 4;
-        }
-        x -= span;
-
-        k0 = knots[span];
-        k1 = knots[span + 1];
-        k2 = knots[span + 2];
-        k3 = knots[span + 3];
-
-        c3 = m00 * k0 + m01 * k1 + m02 * k2 + m03 * k3;
-        c2 = m10 * k0 + m11 * k1 + m12 * k2 + m13 * k3;
-        c1 = m20 * k0 + m21 * k1 + m22 * k2 + m23 * k3;
-        c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
-
-        return ((c3 * x + c2) * x + c1) * x + c0;
-    }
-
-    /**
-     * Compute a Catmull-Rom spline.
+     * @param clamp    whether result should be clamped to the bounds of the current segment
      *
-     * @param x        the input parameter
-     * @param numKnots the number of knots in the spline
-     * @param knots    the array of knots
      * @return the spline value
      */
-    public static float splineClamped(float x, int numKnots, float[] knots) {
+    public static float spline(float x, int numKnots, float[] knots, boolean clamp) {
         int span;
         int numSpans = numKnots - 3;
         float k0, k1, k2, k3;
@@ -648,260 +587,12 @@ public class ImageMath {
         c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
 
         float result = ((c3 * x + c2) * x + c1) * x + c0;
-        return result < k1 ? k1 : (result > k2 ? k2 : result);
-    }
 
-    /**
-     * Compute a Catmull-Rom spline, but with variable knot spacing.
-     *
-     * @param x        the input parameter
-     * @param numKnots the number of knots in the spline
-     * @param xknots   the array of knot x values
-     * @param yknots   the array of knot y values
-     * @return the spline value
-     */
-    public static float spline(float x, int numKnots, int[] xknots, int[] yknots) {
-        int span;
-        int numSpans = numKnots - 3;
-        float k0, k1, k2, k3;
-        float c0, c1, c2, c3;
-
-        if (numSpans < 1) {
-            throw new IllegalArgumentException("Too few knots in spline");
+        if (clamp) {
+            return clamp(result, Math.min(k1, k2), Math.max(k1, k2));
         }
 
-        for (span = 0; span < numSpans; span++) {
-            if (xknots[span + 1] > x) {
-                break;
-            }
-        }
-        if (span > numKnots - 3) {
-            span = numKnots - 3;
-        }
-        float t = (x - xknots[span]) / (xknots[span + 1] - xknots[span]);
-        span--;
-        if (span < 0) {
-            span = 0;
-            t = 0;
-        }
-
-        k0 = yknots[span];
-        k1 = yknots[span + 1];
-        k2 = yknots[span + 2];
-        k3 = yknots[span + 3];
-
-        c3 = m00 * k0 + m01 * k1 + m02 * k2 + m03 * k3;
-        c2 = m10 * k0 + m11 * k1 + m12 * k2 + m13 * k3;
-        c1 = m20 * k0 + m21 * k1 + m22 * k2 + m23 * k3;
-        c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
-
-        return ((c3 * t + c2) * t + c1) * t + c0;
-    }
-
-    /**
-     * Compute a Catmull-Rom spline for RGB values.
-     *
-     * @param x        the input parameter
-     * @param numKnots the number of knots in the spline
-     * @param knots    the array of knots
-     * @return the spline value
-     */
-    public static int colorSpline(float x, int numKnots, int[] knots) {
-        int span;
-        int numSpans = numKnots - 3;
-        float k0, k1, k2, k3;
-        float c0, c1, c2, c3;
-
-        if (numSpans < 1) {
-            throw new IllegalArgumentException("Too few knots in spline");
-        }
-
-        x = clamp01(x) * numSpans;
-        span = (int) x;
-        if (span > numKnots - 4) {
-            span = numKnots - 4;
-        }
-        x -= span;
-
-        int v = 0;
-        for (int i = 0; i < 4; i++) {
-            int shift = i * 8;
-
-            k0 = (knots[span] >> shift) & 0xFF;
-            k1 = (knots[span + 1] >> shift) & 0xFF;
-            k2 = (knots[span + 2] >> shift) & 0xFF;
-            k3 = (knots[span + 3] >> shift) & 0xFF;
-
-            c3 = m00 * k0 + m01 * k1 + m02 * k2 + m03 * k3;
-            c2 = m10 * k0 + m11 * k1 + m12 * k2 + m13 * k3;
-            c1 = m20 * k0 + m21 * k1 + m22 * k2 + m23 * k3;
-            c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
-            int n = (int) (((c3 * x + c2) * x + c1) * x + c0);
-            if (n < 0) {
-                n = 0;
-            } else if (n > 255) {
-                n = 255;
-            }
-            v |= n << shift;
-        }
-
-        return v;
-    }
-
-    /**
-     * Compute a Catmull-Rom spline for RGB values, but with variable knot spacing.
-     *
-     * @param x        the input parameter
-     * @param numKnots the number of knots in the spline
-     * @param xknots   the array of knot x values
-     * @param yknots   the array of knot y values
-     * @return the spline value
-     */
-    public static int colorSpline(int x, int numKnots, int[] xknots, int[] yknots) {
-        int span;
-        int numSpans = numKnots - 3;
-        float k0, k1, k2, k3;
-        float c0, c1, c2, c3;
-
-        if (numSpans < 1) {
-            throw new IllegalArgumentException("Too few knots in spline");
-        }
-
-        for (span = 0; span < numSpans; span++) {
-            if (xknots[span + 1] > x) {
-                break;
-            }
-        }
-        if (span > numKnots - 3) {
-            span = numKnots - 3;
-        }
-        float t = (float) (x - xknots[span]) / (xknots[span + 1] - xknots[span]);
-        span--;
-        if (span < 0) {
-            span = 0;
-            t = 0;
-        }
-
-        int v = 0;
-        for (int i = 0; i < 4; i++) {
-            int shift = i * 8;
-
-            k0 = (yknots[span] >> shift) & 0xFF;
-            k1 = (yknots[span + 1] >> shift) & 0xFF;
-            k2 = (yknots[span + 2] >> shift) & 0xFF;
-            k3 = (yknots[span + 3] >> shift) & 0xFF;
-
-            c3 = m00 * k0 + m01 * k1 + m02 * k2 + m03 * k3;
-            c2 = m10 * k0 + m11 * k1 + m12 * k2 + m13 * k3;
-            c1 = m20 * k0 + m21 * k1 + m22 * k2 + m23 * k3;
-            c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
-            int n = (int) (((c3 * t + c2) * t + c1) * t + c0);
-            if (n < 0) {
-                n = 0;
-            } else if (n > 255) {
-                n = 255;
-            }
-            v |= n << shift;
-        }
-
-        return v;
-    }
-
-    /**
-     * An implementation of Fant's resampling algorithm.
-     *
-     * @param source the source pixels
-     * @param dest   the destination pixels
-     * @param length the length of the scanline to resample
-     * @param offset the start offset into the arrays
-     * @param stride the offset between pixels in consecutive rows
-     * @param out    an array of output positions for each pixel
-     */
-    public static void resample(int[] source, int[] dest, int length, int offset, int stride, float[] out) {
-        int i, j;
-        float sizfac;
-        float inSegment;
-        float outSegment;
-        int a, r, g, b, nextA, nextR, nextG, nextB;
-        float aSum, rSum, gSum, bSum;
-        float[] in;
-        int srcIndex = offset;
-        int destIndex = offset;
-        int lastIndex = source.length;
-        int rgb;
-
-        in = new float[length + 2];
-        i = 0;
-        for (j = 0; j < length; j++) {
-            while (out[i + 1] < j) {
-                i++;
-            }
-            in[j] = i + (j - out[i]) / (out[i + 1] - out[i]);
-//			in[j] = ImageMath.clamp( in[j], 0, length-1 );
-        }
-        in[length] = length;
-        in[length + 1] = length;
-
-        inSegment = 1.0f;
-        outSegment = in[1];
-        sizfac = outSegment;
-        aSum = rSum = gSum = bSum = 0.0f;
-        rgb = source[srcIndex];
-        a = rgb >>> 24;
-        r = (rgb >> 16) & 0xFF;
-        g = (rgb >> 8) & 0xFF;
-        b = rgb & 0xFF;
-        srcIndex += stride;
-        rgb = source[srcIndex];
-        nextA = rgb >>> 24;
-        nextR = (rgb >> 16) & 0xFF;
-        nextG = (rgb >> 8) & 0xFF;
-        nextB = rgb & 0xFF;
-        srcIndex += stride;
-        i = 1;
-
-        while (i <= length) {
-            float aIntensity = inSegment * a + (1.0f - inSegment) * nextA;
-            float rIntensity = inSegment * r + (1.0f - inSegment) * nextR;
-            float gIntensity = inSegment * g + (1.0f - inSegment) * nextG;
-            float bIntensity = inSegment * b + (1.0f - inSegment) * nextB;
-            if (inSegment < outSegment) {
-                aSum += (aIntensity * inSegment);
-                rSum += (rIntensity * inSegment);
-                gSum += (gIntensity * inSegment);
-                bSum += (bIntensity * inSegment);
-                outSegment -= inSegment;
-                inSegment = 1.0f;
-                a = nextA;
-                r = nextR;
-                g = nextG;
-                b = nextB;
-                if (srcIndex < lastIndex) {
-                    rgb = source[srcIndex];
-                }
-                nextA = rgb >>> 24;
-                nextR = (rgb >> 16) & 0xFF;
-                nextG = (rgb >> 8) & 0xFF;
-                nextB = rgb & 0xFF;
-                srcIndex += stride;
-            } else {
-                aSum += (aIntensity * outSegment);
-                rSum += (rIntensity * outSegment);
-                gSum += (gIntensity * outSegment);
-                bSum += (bIntensity * outSegment);
-                dest[destIndex] =
-                        ((int) Math.min(aSum / sizfac, 255) << 24) |
-                                ((int) Math.min(rSum / sizfac, 255) << 16) |
-                                ((int) Math.min(gSum / sizfac, 255) << 8) |
-                                (int) Math.min(bSum / sizfac, 255);
-                destIndex += stride;
-                aSum = rSum = gSum = bSum = 0.0f;
-                inSegment -= outSegment;
-                outSegment = in[i + 1] - in[i];
-                sizfac = outSegment;
-                i++;
-            }
-        }
+        return result;
     }
 
     public static void premultiply(int[] p) {
@@ -967,5 +658,19 @@ public class ImageMath {
                 p[i] = (a << 24) | (r << 16) | (g << 8) | b;
             }
         }
+    }
+
+    /**
+     * Returns the base-2 logarithm of the given positive number, rounded up.
+     */
+    public static int ceilLog2(int n) {
+        return Integer.SIZE - Integer.numberOfLeadingZeros(n - 1);
+    }
+
+    /**
+     * Returns the base-2 logarithm of the given positive number, rounded down.
+     */
+    public static int floorLog2(int n) {
+        return (Integer.SIZE - 1) - Integer.numberOfLeadingZeros(n);
     }
 }

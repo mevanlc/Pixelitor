@@ -32,6 +32,10 @@ public class Geometry {
     public static final double GOLDEN_RATIO = 1.618033988749895;
     private static final double EPSILON = 0.0001;
 
+    // (4/3) * tan(π/8) ≈ 0.5523, the control-point distance for
+    // approximating a quarter-circle arc with a cubic Bézier curve
+    public static final double KAPPA = 0.552284749831;
+
     private Geometry() {
         // utility class
     }
@@ -59,7 +63,7 @@ public class Geometry {
 
         // calculate perpendicular points
         // leftOut, rightOut = direction rotated 90 degrees either way
-        calculatePerpendicularVectors(direction, leftOut, rightOut);
+        calcPerpendicularVectors(direction, leftOut, rightOut);
 
         // translate points to center position
         add(leftOut, center, leftOut);
@@ -80,7 +84,7 @@ public class Geometry {
 
         // calculate perpendicular points
         // leftOut, rightOut = direction rotated 90 degrees either way
-        calculatePerpendicularVectors(direction, leftOut, rightOut);
+        calcPerpendicularVectors(direction, leftOut, rightOut);
 
         // translate points to center position
         add(leftOut, center, leftOut);
@@ -94,9 +98,9 @@ public class Geometry {
      * @param leftOut Output parameter for counter-clockwise perpendicular vector
      * @param rightOut Output parameter for clockwise perpendicular vector
      */
-    public static void calculatePerpendicularVectors(Point2D input,
-                                                     Point2D leftOut,
-                                                     Point2D rightOut) {
+    public static void calcPerpendicularVectors(Point2D input,
+                                                Point2D leftOut,
+                                                Point2D rightOut) {
         leftOut.setLocation(-input.getY(), input.getX());
         rightOut.setLocation(input.getY(), -input.getX());
     }
@@ -108,7 +112,7 @@ public class Geometry {
      * @param end Second endpoint of the line segment
      * @param m First part of the division ratio
      * @param n Second part of the division ratio
-     * @param result Output parameter for the calculated point
+     * @param resultOut Output parameter for the calculated point
      */
     public static void calcDivisionPoint(Point2D start,
                                          Point2D end,
@@ -116,33 +120,30 @@ public class Geometry {
                                          double n,
                                          Point2D resultOut) {
         // https://en.wikipedia.org/wiki/Section_formula
-        Point2D scaledStart = scale(start, n, new Point2D.Double());
-        Point2D scaledEnd = scale(end, m, new Point2D.Double());
-        add(scaledStart, scaledEnd, resultOut);
-        deScale(resultOut, (m + n));
+        double totalWeight = m + n;
+        resultOut.setLocation(
+            (start.getX() * n + end.getX() * m) / totalWeight,
+            (start.getY() * n + end.getY() * m) / totalWeight);
     }
 
     public static Point2D copyPoint(Point2D source) {
-        Point2D.Double b = new Point2D.Double();
-        b.setLocation(source);
-        return b;
+        return new Point2D.Double(source.getX(), source.getY());
     }
 
     public static void normalize(Point2D a) {
         deScale(a, FastMath.hypot(a.getX(), a.getY()));
     }
 
-    public static Point2D deScale(Point2D a, double factor) {
+    public static void deScale(Point2D a, double factor) {
         deScale(a, factor, a);
-        return a;
     }
 
     public static void deScale(Point2D a, double factor, Point2D r) {
         r.setLocation(a.getX() / factor, a.getY() / factor);
     }
 
-    public static Point2D scale(Point2D a, double factor) {
-        return scale(a, factor, a);
+    public static void scale(Point2D a, double factor) {
+        scale(a, factor, a);
     }
 
     public static Point2D scale(Point2D a, double factor, Point2D r) {
@@ -172,16 +173,8 @@ public class Geometry {
         return FastMath.hypot(a.getX() - b.getX(), a.getY() - b.getY());
     }
 
-    public static double distance(Point2D a) {
-        return FastMath.hypot(a.getX(), a.getY());
-    }
-
-    public static double distanceSq(Point2D a) {
-        return a.getX() * a.getX() + a.getY() * a.getY();
-    }
-
-    public static Point2D add(Point2D a, double add) {
-        a.setLocation(a.getX() + add, a.getY() + add);
+    public static Point2D add(Point2D a, double delta) {
+        a.setLocation(a.getX() + delta, a.getY() + delta);
         return a;
     }
 
@@ -257,7 +250,7 @@ public class Geometry {
     }
 
     public static Point round(Point2D p) {
-        return new Point((int) p.getX(), (int) p.getY());
+        return new Point((int) Math.round(p.getX()), (int) Math.round(p.getY()));
     }
 
     public static double calcSquaredDistance(double x1, double y1, double x2, double y2) {
