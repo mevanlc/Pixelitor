@@ -18,8 +18,11 @@ Pixelitor requires Java 25+ to compile. When you start the program from an IDE, 
 3. Check the Maven installation with `mvn --version`
 4. Execute `mvn clean package` in the main directory (where the pom.xml file is), this will create an executable jar in the `target` subdirectory. If you didn't change anything, or if you only changed translations/icons, then you can skip the tests by running `mvn clean package -Dmaven.test.skip=true` instead.  
 
+## Installing Pixelitor as a macOS app
+
+`./deployToApplications` - Installs Pixelitor as a self-contained macOS `.app` bundle in `/Applications` (overwrites an existing installation). Maven and JDK 25+ are required.
+
 ## Translating the Pixelitor user interface
 
 See [Translating](Translating.md).
-
 
