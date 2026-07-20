@@ -310,6 +310,11 @@ public class MenuBar extends JMenuBar {
             "Cut the selected pixels into a new layer",
             Composition::layerViaCut, CTRL_SHIFT_X);
 
+        // layer via fill cut
+        layersMenu.addViewEnabled("Layer via Fill Cut",
+            "Cut the selected pixels into a new layer and fill the source from its surroundings",
+            Composition::layerViaFillCut, ALT_SHIFT_X);
+
         layersMenu.add(createLayerStackSubmenu());
         layersMenu.add(createLayerTransformSubmenu());
         layersMenu.add(createLayerMaskSubmenu());

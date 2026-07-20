@@ -40,6 +40,7 @@ import static java.awt.KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS;
 import static java.awt.event.KeyEvent.KEY_PRESSED;
 import static java.awt.event.KeyEvent.KEY_RELEASED;
 import static java.awt.event.KeyEvent.VK_ALT;
+import static java.awt.event.KeyEvent.VK_CONTROL;
 import static java.awt.event.KeyEvent.VK_DOWN;
 import static java.awt.event.KeyEvent.VK_ESCAPE;
 import static java.awt.event.KeyEvent.VK_KP_DOWN;
@@ -60,6 +61,7 @@ import static pixelitor.utils.Threads.calledOnEDT;
 public class GlobalEvents {
     private static boolean spaceDown = false;
     private static boolean altDown = false;
+    private static boolean controlDown = false;
 
     // keeps track of the nesting level since modal dialogs can open other modal dialogs
     private static int modalDialogNesting = 0;
@@ -107,6 +109,7 @@ public class GlobalEvents {
             if (evt.getNewValue() == null) {
                 // the app has moved to the background
                 altReleased();
+                controlReleased();
 
                 if (spaceDown) {
                     spaceReleased();
@@ -176,6 +179,7 @@ public class GlobalEvents {
             case VK_DOWN, VK_KP_DOWN -> arrowKeyPressed(e, ArrowKey.down(e.isShiftDown()));
             case VK_ESCAPE -> activeTool.escPressed();
             case VK_ALT -> altPressed();
+            case VK_CONTROL -> controlPressed();
             default -> activeTool.otherKeyPressed(e);
         }
     }
@@ -201,6 +205,14 @@ public class GlobalEvents {
         }
     }
 
+    private static void controlPressed() {
+        // tools should only receive a single pressed and a single released call
+        if (!controlDown) {
+            controlDown = true;
+            activeTool.controlPressed();
+        }
+    }
+
     private static void arrowKeyPressed(KeyEvent e, ArrowKey key) {
         if (spaceDown && key.isShiftDown()) {
             View view = Views.getActive();
@@ -217,6 +229,7 @@ public class GlobalEvents {
         switch (e.getKeyCode()) {
             case VK_SPACE -> spaceReleased();
             case VK_ALT -> altReleased();
+            case VK_CONTROL -> controlReleased();
         }
     }
 
@@ -232,12 +245,23 @@ public class GlobalEvents {
         }
     }
 
+    private static void controlReleased() {
+        if (controlDown) {
+            controlDown = false;
+            activeTool.controlReleased();
+        }
+    }
+
     public static boolean isSpaceDown() {
         return spaceDown;
     }
 
     public static boolean isAltDown() {
         return altDown;
+    }
+
+    public static boolean isControlDown() {
+        return controlDown;
     }
 
     // used only by unit tests

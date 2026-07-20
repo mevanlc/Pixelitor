@@ -212,6 +212,14 @@ public abstract class Tool implements PresetOwner, Debuggable {
         }
     }
 
+    public void controlPressed() {
+        // empty by default
+    }
+
+    public void controlReleased() {
+        // empty by default
+    }
+
     public void otherKeyPressed(KeyEvent e) {
         // empty by default
     }

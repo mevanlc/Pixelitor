@@ -52,13 +52,16 @@ import pixelitor.utils.debug.DebugNodes;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -665,19 +668,38 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
      * into a new layer above it.
      */
     public void layerViaCut() {
+        layerViaCut("Layer via Cut", false);
+    }
+
+    /**
+     * Cuts the selected pixels into a new layer and fills the source region
+     * with the most common color in the one-pixel band outside the selection.
+     * If that band has no layer pixels, the inner band is sampled instead;
+     * if neither band has pixels, the source region is cleared.
+     */
+    public void layerViaFillCut() {
+        layerViaCut("Layer via Fill Cut", true);
+    }
+
+    private void layerViaCut(String editName, boolean fillCutRegion) {
         if (!hasSelection()) {
-            Messages.showInfo("Layer via Cut",
+            Messages.showInfo(editName,
                 "There is no selection to cut.");
             return;
         }
         if (!(activeLayer instanceof ImageLayer srcLayer)) {
-            Messages.showInfo("Layer via Cut",
+            Messages.showInfo(editName,
                 "The active layer is not an image layer.");
             return;
         }
 
         Selection sel = getSelection();
         Rectangle selBounds = sel.getShapeBounds();
+        OptionalInt fillColor = OptionalInt.empty();
+        if (fillCutRegion) {
+            fillColor = findFillCutColor(
+                srcLayer.getImage(), sel.getShape(), srcLayer.getTx(), srcLayer.getTy());
+        }
 
         // 1. Back up the source layer's selected region for undo.
         ImageEdit imageEdit = ImageEdit.createEmbedded(srcLayer);
@@ -686,11 +708,16 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
         BufferedImage extracted = ImageUtils.extractSelectedRegion(
             srcLayer.getImage(), sel, srcLayer.getTx(), srcLayer.getTy());
 
-        // 3. Clear the selected region on the source layer.
+        // 3. Clear or fill the selected region on the source layer.
         Graphics2D g = srcLayer.getImage().createGraphics();
         g.translate(-srcLayer.getTx(), -srcLayer.getTy());
         g.setClip(sel.getShape());
-        g.setComposite(AlphaComposite.Clear);
+        if (fillColor.isPresent()) {
+            g.setComposite(AlphaComposite.Src);
+            g.setColor(new Color(fillColor.getAsInt(), true));
+        } else {
+            g.setComposite(AlphaComposite.Clear);
+        }
         g.fillRect(selBounds.x, selBounds.y, selBounds.width, selBounds.height);
         g.dispose();
         srcLayer.update();
@@ -712,7 +739,7 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
             newLayer, prevActiveLayer, prevMaskViewMode);
         newLayerEdit.setEmbedded(true);
 
-        History.add(new MultiEdit("Layer via Cut", this,
+        History.add(new MultiEdit(editName, this,
             imageEdit, newLayerEdit) {
             @Override
             public void undo() {
@@ -726,6 +753,77 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
                 srcLayer.updateIconImage();
             }
         });
+    }
+
+    /**
+     * Finds the most common exact ARGB color in the one-pixel exterior band
+     * around a canvas-space shape, considering only pixels in the image layer.
+     * Ties are resolved in top-to-bottom, left-to-right sampling order.
+     */
+    static OptionalInt findMostCommonOuterColor(BufferedImage image, Shape shape,
+                                                int layerTx, int layerTy) {
+        return findMostCommonStrokeColor(image, shape, layerTx, layerTy, false);
+    }
+
+    static OptionalInt findMostCommonInnerColor(BufferedImage image, Shape shape,
+                                                int layerTx, int layerTy) {
+        return findMostCommonStrokeColor(image, shape, layerTx, layerTy, true);
+    }
+
+    private static OptionalInt findFillCutColor(BufferedImage image, Shape shape,
+                                                int layerTx, int layerTy) {
+        OptionalInt outerColor = findMostCommonOuterColor(
+            image, shape, layerTx, layerTy);
+        return outerColor.isPresent()
+            ? outerColor
+            : findMostCommonInnerColor(image, shape, layerTx, layerTy);
+    }
+
+    private static OptionalInt findMostCommonStrokeColor(BufferedImage image, Shape shape,
+                                                         int layerTx, int layerTy,
+                                                         boolean inner) {
+        Shape strokedShape = new BasicStroke(
+            2.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND)
+            .createStrokedShape(shape);
+        Area strokeBand = new Area(strokedShape);
+        if (inner) {
+            strokeBand.intersect(new Area(shape));
+        } else {
+            strokeBand.subtract(new Area(shape));
+        }
+
+        Rectangle imageBounds = new Rectangle(
+            layerTx, layerTy, image.getWidth(), image.getHeight());
+        Rectangle sampleBounds = strokeBand.getBounds().intersection(imageBounds);
+        if (sampleBounds.isEmpty()) {
+            return OptionalInt.empty();
+        }
+
+        var frequencies = new HashMap<Integer, Integer>();
+        int mostCommonColor = 0;
+        int highestFrequency = 0;
+        for (int canvasY = sampleBounds.y;
+             canvasY < sampleBounds.y + sampleBounds.height;
+             canvasY++) {
+            for (int canvasX = sampleBounds.x;
+                 canvasX < sampleBounds.x + sampleBounds.width;
+                 canvasX++) {
+                if (!strokeBand.contains(canvasX + 0.5, canvasY + 0.5)) {
+                    continue;
+                }
+
+                int color = image.getRGB(canvasX - layerTx, canvasY - layerTy);
+                int frequency = frequencies.merge(color, 1, Integer::sum);
+                if (frequency > highestFrequency) {
+                    mostCommonColor = color;
+                    highestFrequency = frequency;
+                }
+            }
+        }
+
+        return highestFrequency == 0
+            ? OptionalInt.empty()
+            : OptionalInt.of(mostCommonColor);
     }
 
     /**

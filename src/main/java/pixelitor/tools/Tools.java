@@ -141,6 +141,9 @@ public class Tools {
             if (GlobalEvents.isAltDown()) {
                 prevTool.altReleased();
             }
+            if (GlobalEvents.isControlDown()) {
+                prevTool.controlReleased();
+            }
             if (GlobalEvents.isSpaceDown()) {
                 prevTool.spaceReleased();
             }
@@ -159,6 +162,9 @@ public class Tools {
         // apply global modifier states to the new tool immediately
         if (GlobalEvents.isAltDown()) {
             newTool.altPressed();
+        }
+        if (GlobalEvents.isControlDown()) {
+            newTool.controlPressed();
         }
         if (GlobalEvents.isSpaceDown()) {
             newTool.spacePressed();

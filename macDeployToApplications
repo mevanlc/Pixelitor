@@ -5,7 +5,6 @@ set -euo pipefail
 readonly APP_NAME="Pixelitor"
 readonly MIN_JAVA_VERSION=25
 readonly DESTINATION="/Applications/${APP_NAME}.app"
-readonly REPO_DIR
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then

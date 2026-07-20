@@ -20,9 +20,8 @@ Pixelitor requires Java 25+ to compile. When you start the program from an IDE, 
 
 ## Installing Pixelitor as a macOS app
 
-`./deployToApplications` - Installs Pixelitor as a self-contained macOS `.app` bundle in `/Applications` (overwrites an existing installation). Maven and JDK 25+ are required.
+`./macDeployToApplications` - Installs Pixelitor as a self-contained macOS `.app` bundle in `/Applications` (overwrites an existing installation). Maven and JDK 25+ are required.
 
 ## Translating the Pixelitor user interface
 
 See [Translating](Translating.md).
-

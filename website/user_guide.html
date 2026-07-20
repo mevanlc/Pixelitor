@@ -381,6 +381,15 @@ This allows you to quickly and easily move the layer without having to manually 
 When the option is disabled, you must manually select the layer that you want to move.  
 </p>
 
+<h3>Trail Move Tool</h3>
+<p>
+The Trail Move tool stamps pixels along a drag path. When there is an active selection, it uses only the selected pixels and moves the selection outline with them. This is useful for small, fast adjustments to screenshots: include some of the surrounding background in the selection so that the moved copy covers the control's old position. The copied background will overwrite anything under the move path, so keep the path clear of content that you want to preserve.
+</p><p>
+Without a selection, the whole active image layer is used. The arrow keys move by one pixel and <kbd>Shift</kbd>-arrow moves by ten pixels. <b>Live Transform</b> rebuilds the result from the drag-start image, while <b>Brush</b> and <b>Self Brush</b> accumulate pixels along the actual drag path.
+</p><p>
+Hold <kbd>Ctrl</kbd> while no mouse button is down to temporarily use the Rectangle Selection tool. Releasing <kbd>Ctrl</kbd> returns to Trail Move. If <kbd>Ctrl</kbd> is released during a selection drag, the selection is completed first and Trail Move resumes when the mouse button is released.
+</p>
+
 <h3 id="crop_tool">Crop Tool <img src="images/doc/crop_tool.svg" class="icon-svg"></h3>
 <p>
 The crop tool can remove parts of the image that you don't want, such as the edges or empty space, and keep only the part of the image that you want to keep.
