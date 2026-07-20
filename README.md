@@ -14,13 +14,11 @@ Pixelitor requires Java 25+ to compile. When you start the program from an IDE, 
 
 1. OpenJDK 25+ has to be installed, and the environment variable JAVA_HOME must point to the OpenJDK installation
    directory.
-2. Install [Maven](https://maven.apache.org/install.html)
-3. Check the Maven installation with `mvn --version`
-4. Execute `mvn clean package` in the main directory (where the pom.xml file is), this will create an executable jar in the `target` subdirectory. If you didn't change anything, or if you only changed translations/icons, then you can skip the tests by running `mvn clean package -Dmaven.test.skip=true` instead.  
+2. Execute `./mvnw clean package` in the main directory (where the pom.xml file is). The Maven Wrapper downloads the required Maven version automatically and creates an executable jar in the `target` subdirectory. On Windows, use `mvnw.cmd clean package` instead. If you didn't change anything, or if you only changed translations/icons, then you can skip the tests by adding `-Dmaven.test.skip=true`.
 
 ## Installing Pixelitor as a macOS app
 
-`./macDeployToApplications` - Installs Pixelitor as a self-contained macOS `.app` bundle in `/Applications` (overwrites an existing installation). Maven and JDK 25+ are required.
+`./macDeployToApplications` - Installs Pixelitor as a self-contained macOS `.app` bundle in `/Applications` (overwrites an existing installation). JDK 25+ is required.
 
 ## Translating the Pixelitor user interface
 

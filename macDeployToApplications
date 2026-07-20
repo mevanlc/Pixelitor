@@ -12,11 +12,6 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
     exit 1
 fi
 
-if ! which mvn >/dev/null 2>&1; then
-    echo "Maven is required but was not found on PATH." >&2
-    exit 1
-fi
-
 jdk_is_compatible() {
     local jdk_home="$1"
     local javac_version
@@ -48,7 +43,7 @@ export PATH="${JAVA_HOME}/bin:${PATH}"
 cd "$REPO_DIR"
 
 echo "Building Pixelitor with ${JAVA_HOME}..."
-mvn clean package -Dmaven.test.skip=true
+"${REPO_DIR}/mvnw" clean package -Dmaven.test.skip=true
 
 jar_path="$(find "$REPO_DIR/target" -maxdepth 1 -type f -name 'Pixelitor-*.jar' -print -quit)"
 if [[ -z "$jar_path" ]]; then
