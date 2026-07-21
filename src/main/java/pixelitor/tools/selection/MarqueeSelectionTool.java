@@ -21,6 +21,7 @@ import pixelitor.AppMode;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.selection.SelectionType;
 import pixelitor.tools.ToolIcons;
+import pixelitor.tools.Tools;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.Cursors;
 
@@ -37,10 +38,16 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
     public MarqueeSelectionTool(SelectionType selectionType) {
         super(selectionType.toString() + " Selection", 'M',
             "<b>click and drag</b> creates a selection, " +
-                "<b>Space-drag</b> moves it.", Cursors.DEFAULT, false);
+                "<b>Space-drag</b> moves it. " +
+                "Hold <b>Ctrl</b> for the Move Tool.", Cursors.DEFAULT, false);
         repositionOnSpace = true; // allow moving the start point with space down
         pixelSnapping = true;
         this.selectionType = selectionType;
+    }
+
+    @Override
+    public void controlPressed() {
+        Tools.startTemporaryTool(Tools.MOVE);
     }
 
     @Override

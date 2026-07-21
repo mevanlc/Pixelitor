@@ -75,6 +75,10 @@ public class PMouseEvent extends PPoint {
         return e.isControlDown();
     }
 
+    public boolean isMetaDown() {
+        return e.isMetaDown();
+    }
+
     public boolean isPopupTrigger() {
         return e.isPopupTrigger();
     }

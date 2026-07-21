@@ -90,6 +90,10 @@ public class Tools {
 
     public static Tool activeTool;
 
+    private static Tool primaryToolBeforeTemporarySwitch;
+    private static Tool temporaryTool;
+    private static boolean temporaryToolRestorePending;
+
     static {
         Views.addActivationListener(new ViewActivationListener() {
             @Override
@@ -121,6 +125,7 @@ public class Tools {
     }
 
     public static void setActiveTool(Tool newTool) {
+        clearTemporaryToolSwitch();
         activeTool = newTool;
     }
 
@@ -131,6 +136,13 @@ public class Tools {
         Tool prevTool = activeTool;
         if (prevTool == newTool) {
             return;
+        }
+
+        // A tool change other than the controlled restoration below cancels
+        // any temporary switch. This also prevents modifier callbacks during
+        // deactivation from restoring an obsolete primary tool.
+        if (prevTool == temporaryTool) {
+            clearTemporaryToolSwitch();
         }
 
         Messages.showStatusMessage(newTool.getStatusBarMessage());
@@ -155,22 +167,97 @@ public class Tools {
             prevTool.toolDeactivated(view);
         }
 
-        setActiveTool(newTool);
+        activeTool = newTool;
         newTool.toolActivated(view);
         MouseDispatcher.afterToolChange(newTool);
 
         // apply global modifier states to the new tool immediately
         if (GlobalEvents.isAltDown()) {
             newTool.altPressed();
+            if (activeTool != newTool) {
+                return; // the modifier callback activated another tool
+            }
         }
         if (GlobalEvents.isControlDown()) {
             newTool.controlPressed();
+            if (activeTool != newTool) {
+                return; // the modifier callback activated another tool
+            }
         }
         if (GlobalEvents.isSpaceDown()) {
             newTool.spacePressed();
+            if (activeTool != newTool) {
+                return; // the modifier callback activated another tool
+            }
         }
 
-        ToolSettingsPanelContainer.get().showSettingsOf(newTool);
+        ToolSettingsPanelContainer.get().showSettingsOf(activeTool);
+    }
+
+    /**
+     * Activates {@code newTool} while remembering the current tool so that it
+     * can be restored when the modifier key is released.
+     */
+    public static boolean startTemporaryTool(Tool newTool) {
+        if (activeTool == null || activeTool == newTool
+            || temporaryTool != null || MouseDispatcher.isMouseDown()) {
+            return false;
+        }
+
+        primaryToolBeforeTemporarySwitch = activeTool;
+        temporaryTool = newTool;
+        temporaryToolRestorePending = false;
+        newTool.activate(); // selects its toolbar button and settings panel
+        boolean started = activeTool == newTool;
+        if (!started) {
+            clearTemporaryToolSwitch();
+        }
+        return started;
+    }
+
+    /**
+     * Restores the primary tool now, or after the current mouse drag finishes.
+     */
+    public static void restorePrimaryTool(Tool currentTemporaryTool) {
+        if (temporaryTool != currentTemporaryTool || activeTool != currentTemporaryTool) {
+            return;
+        }
+
+        if (MouseDispatcher.isMouseDown()) {
+            temporaryToolRestorePending = true;
+        } else {
+            restorePrimaryToolNow();
+        }
+    }
+
+    /**
+     * Keeps the temporary tool active if its modifier is pressed again while
+     * restoration is waiting for mouse release.
+     */
+    public static void cancelPrimaryToolRestore(Tool currentTemporaryTool) {
+        if (temporaryTool == currentTemporaryTool && activeTool == currentTemporaryTool) {
+            temporaryToolRestorePending = false;
+        }
+    }
+
+    private static void restorePrimaryToolAfterMouseRelease() {
+        if (temporaryToolRestorePending) {
+            restorePrimaryToolNow();
+        }
+    }
+
+    private static void restorePrimaryToolNow() {
+        Tool primaryTool = primaryToolBeforeTemporarySwitch;
+        clearTemporaryToolSwitch();
+        if (primaryTool != null) {
+            primaryTool.activate();
+        }
+    }
+
+    private static void clearTemporaryToolSwitch() {
+        primaryToolBeforeTemporarySwitch = null;
+        temporaryTool = null;
+        temporaryToolRestorePending = false;
     }
 
     public static Tool[] getAll() {
@@ -314,6 +401,7 @@ public class Tools {
             lastEvent = new PMouseEvent(e, view);
             activeTool.eventHandlerChain.handleMouseReleased(lastEvent);
             mouseDown = false;
+            restorePrimaryToolAfterMouseRelease();
         }
 
         public static void mouseDragged(MouseEvent e, View view) {
@@ -333,6 +421,7 @@ public class Tools {
             // doesn't need to go through the handler chain
             activeTool.mouseClicked(lastEvent);
             mouseDown = false;
+            restorePrimaryToolAfterMouseRelease();
         }
 
         public static void mouseMoved(MouseEvent e, View view) {

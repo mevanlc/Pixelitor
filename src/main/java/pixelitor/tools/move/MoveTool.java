@@ -28,6 +28,7 @@ import pixelitor.layers.Layer;
 import pixelitor.selection.Selection;
 import pixelitor.tools.DragTool;
 import pixelitor.tools.ToolIcons;
+import pixelitor.tools.Tools;
 import pixelitor.tools.selection.SelectionChangeListener;
 import pixelitor.tools.transform.CompositeTransformable;
 import pixelitor.tools.transform.TransformBox;
@@ -64,6 +65,10 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     private final JCheckBox autoSelectCheckBox = new JCheckBox();
     private final JCheckBox freeTransformCheckBox = new JCheckBox();
 
+    // Usually the selected mode, but Command + Selection Only temporarily
+    // includes the newly created layer so that the gesture can move it.
+    private MoveMode dragMode = activeMode;
+
     private TransformBox transformBox;
     private Transformable transformTarget;
     private TransformBox.Memento initialTransformMemento;
@@ -72,6 +77,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         super("Move", 'V',
             "<b>drag</b> to move the active layer. " +
                 "<b>Alt-drag</b> or <b>right-mouse-drag</b> to duplicate and move the active layer. " +
+                "<b>Cmd-click/drag</b> with a selection creates a layer via fill cut. " +
                 "<b>Shift-drag</b> to constrain movement.",
             Cursors.DEFAULT, true);
     }
@@ -103,6 +109,15 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
 
     @Override
     protected void dragStarted(PMouseEvent e) {
+        Composition comp = e.getComp();
+        boolean fillCutRequested = e.isMetaDown() && comp.hasSelection();
+
+        // A fill cut changes the transform target, so cancel any current free
+        // transform session before resolving the source and creating the layer.
+        if (fillCutRequested && isFreeTransforming()) {
+            cancelTransform(true);
+        }
+
         if (isFreeTransforming()) {
             // if a transform is active, the drag event goes to the transform box
             if (!transformBox.processMousePressed(e)) {
@@ -110,18 +125,31 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
                 drag.cancel();
             }
         } else { // regular move mode
-            if (activeMode.movesLayer() && isAutoSelecting()) {
-                Layer targetLayer = e.getComp().findLayerAtPoint(e.toImPoint());
+            dragMode = activeMode;
+
+            // Resolve the source before the fill cut creates and activates a new layer.
+            if (isAutoSelecting() && (activeMode.movesLayer() || fillCutRequested)) {
+                Layer targetLayer = comp.findLayerAtPoint(e.toImPoint());
 
                 if (targetLayer == null) {
                     drag.cancel();
                     return;
                 }
-                e.getComp().setActiveLayer(targetLayer);
+                comp.setActiveLayer(targetLayer);
             }
 
-            e.getComp().prepareMovement(
-                activeMode, e.isAltDown() || e.isRight());
+            if (fillCutRequested) {
+                Layer sourceLayer = comp.getActiveLayer();
+                comp.layerViaFillCut();
+
+                // In Selection Only mode, include the extracted layer for this
+                // gesture while retaining the user's configured mode afterward.
+                if (comp.getActiveLayer() != sourceLayer && !dragMode.movesLayer()) {
+                    dragMode = MoveMode.MOVE_BOTH;
+                }
+            }
+
+            comp.prepareMovement(dragMode, e.isAltDown() || e.isRight());
         }
     }
 
@@ -130,7 +158,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         if (isFreeTransforming()) {
             transformBox.processMouseDragged(e);
         } else {
-            e.getComp().moveActiveContent(activeMode, drag.getDX(), drag.getDY());
+            e.getComp().moveActiveContent(dragMode, drag.getDX(), drag.getDY());
         }
     }
 
@@ -141,7 +169,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             // a drag is a discrete, undoable action
             History.add(new TransformStepEdit("Free Transform Step", e.getComp(), transformBox.getBeforeMovementMemento()));
         } else {
-            e.getComp().finalizeMovement(activeMode);
+            e.getComp().finalizeMovement(dragMode);
         }
     }
 
@@ -192,7 +220,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             return;
         }
 
-        comp.drawMovementContours(g2, activeMode);
+        comp.drawMovementContours(g2, dragMode);
         OverlayType.REL_MOUSE_POS.draw(g2, drag);
     }
 
@@ -231,6 +259,16 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         }
 
         return true;
+    }
+
+    @Override
+    public void controlPressed() {
+        Tools.cancelPrimaryToolRestore(this);
+    }
+
+    @Override
+    public void controlReleased() {
+        Tools.restorePrimaryTool(this);
     }
 
     private void setFreeTransformMode(boolean enabled) {
