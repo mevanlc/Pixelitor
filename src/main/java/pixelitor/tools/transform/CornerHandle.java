@@ -104,6 +104,11 @@ public class CornerHandle extends PositionHandle {
 
     @Override
     public void mouseDragged(double x, double y) {
+        if (box.isModernFreeTransform()) {
+            box.dragCorner(this, x, y);
+            return;
+        }
+
         // The angle can change by 180 degrees
         // when the box is turned "inside out"
         box.recalcAngle();

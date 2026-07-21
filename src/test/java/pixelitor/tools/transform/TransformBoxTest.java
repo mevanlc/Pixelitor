@@ -17,6 +17,7 @@
 
 package pixelitor.tools.transform;
 
+import com.bric.util.JVM;
 import org.junit.jupiter.api.*;
 import pixelitor.TestHelper;
 import pixelitor.compactions.FlipDirection;
@@ -24,14 +25,19 @@ import pixelitor.compactions.QuadrantAngle;
 import pixelitor.gui.View;
 import pixelitor.history.PixelitorEdit;
 import pixelitor.layers.ColorFillLayer;
+import pixelitor.tools.Tools;
 import pixelitor.tools.util.ArrowKey;
+import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.debug.DebugNode;
 import pixelitor.utils.input.Modifiers;
 
 import java.awt.Rectangle;
+import java.awt.event.InputEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
+import java.util.EnumSet;
 
 import static java.awt.event.MouseEvent.MOUSE_DRAGGED;
 import static java.awt.event.MouseEvent.MOUSE_PRESSED;
@@ -48,6 +54,16 @@ class TransformBoxTest {
         @Override
         public void imTransform(AffineTransform transform) {
             // do nothing
+        }
+
+        @Override
+        public void imTransform(TransformMapping mapping) {
+            // do nothing
+        }
+
+        @Override
+        public EnumSet<TransformCapability> getTransformCapabilities() {
+            return EnumSet.allOf(TransformCapability.class);
         }
 
         @Override
@@ -86,6 +102,7 @@ class TransformBoxTest {
     void beforeEachTest() {
         var comp = TestHelper.createRealComp("TransformBoxTest", ColorFillLayer.class);
         view = comp.getView();
+        Tools.setActiveTool(Tools.BRUSH);
     }
 
     @Test
@@ -473,6 +490,113 @@ class TransformBoxTest {
     }
 
     @Test
+    void modernCornerScalingIsProportionalByDefaultAndShiftTogglesIt() {
+        var box = modernBox();
+
+        modernEvent(box, MOUSE_PRESSED, 400, 200, 0);
+        modernEvent(box, MOUSE_DRAGGED, 600, 300, 0);
+        assertThat(box).rotSizeIs(400, 200);
+
+        modernEvent(box, MOUSE_DRAGGED, 600, 400, InputEvent.SHIFT_DOWN_MASK);
+        assertThat(box).rotSizeIs(400, 300);
+
+        // Releasing Shift during the same drag recalculates from the original
+        // geometry instead of accumulating the independent scale.
+        modernEvent(box, MOUSE_DRAGGED, 600, 400, 0);
+        assertThat(box).rotSizeIs(440, 220);
+        modernEvent(box, MOUSE_RELEASED, 600, 400, 0);
+    }
+
+    @Test
+    void modernAltCornerScaleKeepsReferencePointFixed() {
+        var box = modernBox();
+        Point2D pivot = box.getReferencePointInImageSpace();
+
+        modernEvent(box, MOUSE_PRESSED, 400, 200, InputEvent.ALT_DOWN_MASK);
+        modernEvent(box, MOUSE_RELEASED, 500, 250, InputEvent.ALT_DOWN_MASK);
+
+        assertThat(box.getReferencePointInImageSpace()).isEqualTo(pivot);
+        assertThat(box.getNW()).isAtIm(100, 50);
+        assertThat(box.getSE()).isAtIm(500, 250);
+    }
+
+    @Test
+    void modernRotationSnapsToFifteenDegreesWithoutAccumulation() {
+        var box = modernBox();
+        int rotationY = 100 - TransformBox.ROT_HANDLE_DISTANCE;
+
+        modernEvent(box, MOUSE_PRESSED, 300, rotationY, 0);
+        modernEvent(box, MOUSE_DRAGGED, 327, 77, InputEvent.SHIFT_DOWN_MASK);
+        assertThat(box.getRotationDegrees()).isCloseTo(15.0,
+            org.assertj.core.data.Offset.offset(0.01));
+
+        modernEvent(box, MOUSE_DRAGGED, 327, 77, 0);
+        assertThat(box.getRotationDegrees()).isCloseTo(20.0,
+            org.assertj.core.data.Offset.offset(0.5));
+        modernEvent(box, MOUSE_RELEASED, 327, 77, 0);
+    }
+
+    @Test
+    void modernMenuCornerDragCreatesProjectiveDistortion() {
+        var box = modernBox();
+        int menuMask = JVM.isMac ? InputEvent.META_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+
+        modernEvent(box, MOUSE_PRESSED, 200, 100, menuMask);
+        modernEvent(box, MOUSE_RELEASED, 230, 120, menuMask);
+
+        assertThat(box.getNW()).isAtIm(230, 120);
+        assertThat(box.getNE()).isAtIm(400, 100);
+        assertThat(box.getSE()).isAtIm(400, 200);
+        assertThat(box.getSW()).isAtIm(200, 200);
+        assertThat(box.calcMapping()).isInstanceOf(ProjectiveMapping.class);
+    }
+
+    @Test
+    void modernMenuShiftEdgeDragSkewsAlongTheEdgeAxis() {
+        var box = modernBox();
+        int menuShift = (JVM.isMac ? InputEvent.META_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)
+            | InputEvent.SHIFT_DOWN_MASK;
+
+        modernEvent(box, MOUSE_PRESSED, 300, 100, menuShift);
+        modernEvent(box, MOUSE_RELEASED, 340, 100, menuShift);
+
+        assertThat(box.getNW()).isAtIm(240, 100);
+        assertThat(box.getNE()).isAtIm(440, 100);
+        assertThat(box.getSW()).isAtIm(200, 200);
+        assertThat(box.getSE()).isAtIm(400, 200);
+        assertThat(box.calcMapping()).isInstanceOf(AffineMapping.class);
+    }
+
+    @Test
+    void modernPerspectiveDragMovesThePairedCornerAndKeepsAValidQuad() {
+        var box = modernBox();
+        int perspective = (JVM.isMac ? InputEvent.META_DOWN_MASK : InputEvent.CTRL_DOWN_MASK)
+            | InputEvent.ALT_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK;
+
+        modernEvent(box, MOUSE_PRESSED, 200, 100, perspective);
+        modernEvent(box, MOUSE_RELEASED, 230, 110, perspective);
+
+        assertThat(box.getNW()).isAtIm(230, 110);
+        assertThat(box.getNE()).isAtIm(370, 110);
+        assertThat(box.calcMapping()).isInstanceOf(ProjectiveMapping.class);
+    }
+
+    @Test
+    void warpModeCreatesEditableFourByFourMesh() {
+        var box = modernBox();
+
+        box.setTransformMode(TransformMode.WARP);
+        assertThat(box.calcMapping()).isInstanceOf(WarpMapping.class);
+        WarpMapping initial = (WarpMapping) box.calcMapping();
+        assertThat(initial.controlPoints()).hasSize(16);
+
+        box.setWarpStyle(WarpStyle.WAVE);
+        WarpMapping wave = (WarpMapping) box.calcMapping();
+        assertThat(wave.style()).isEqualTo(WarpStyle.WAVE);
+        assertThat(wave).isNotEqualTo(initial);
+    }
+
+    @Test
     void contextMenuFlipHorizontal() {
         var box = new TransformBox(originalRect, view, DUMMY_TRANSFORMABLE);
         checkOriginalHandleState(box);
@@ -632,5 +756,23 @@ class TransformBoxTest {
      */
     private void release(TransformBox box, int x, int y) {
         box.processMouseReleased(Modifiers.NONE.createPEvent(x, y, MOUSE_RELEASED, view));
+    }
+
+    private TransformBox modernBox() {
+        TransformBox box = new TransformBox(originalRect, view, DUMMY_TRANSFORMABLE);
+        box.setUseLegacyHistory(false);
+        return box;
+    }
+
+    private void modernEvent(TransformBox box, int id, int x, int y, int modifiers) {
+        MouseEvent mouseEvent = new MouseEvent(view, id, 0, modifiers,
+            x, y, 1, false, MouseEvent.BUTTON1);
+        PMouseEvent event = new PMouseEvent(mouseEvent, view);
+        switch (id) {
+            case MOUSE_PRESSED -> box.processMousePressed(event);
+            case MOUSE_DRAGGED -> box.processMouseDragged(event);
+            case MOUSE_RELEASED -> box.processMouseReleased(event);
+            default -> throw new IllegalArgumentException("Unexpected mouse event id: " + id);
+        }
     }
 }

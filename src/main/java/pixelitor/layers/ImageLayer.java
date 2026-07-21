@@ -30,6 +30,10 @@ import pixelitor.history.*;
 import pixelitor.io.ORAImageInfo;
 import pixelitor.io.PXCFormat;
 import pixelitor.tools.Tools;
+import pixelitor.tools.transform.AffineMapping;
+import pixelitor.tools.transform.TransformCapability;
+import pixelitor.tools.transform.TransformMapping;
+import pixelitor.tools.transform.TransformRenderer;
 import pixelitor.tools.transform.Transformable;
 import pixelitor.tools.util.PPoint;
 import pixelitor.tools.util.PRectangle;
@@ -40,6 +44,7 @@ import pixelitor.utils.debug.DebugNode;
 import pixelitor.utils.debug.DebugNodes;
 import pixelitor.utils.test.Assertions;
 
+import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
@@ -50,6 +55,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serial;
 import java.util.concurrent.CompletableFuture;
+import java.util.EnumSet;
 
 import static java.awt.RenderingHints.*;
 import static java.lang.String.format;
@@ -113,6 +119,16 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     // the current transform to be applied for live preview during a free transform session
     private transient AffineTransform liveTransform;
     private transient AffineTransform originalTransform;
+    private transient TransformMapping liveMapping;
+    private transient BufferedImage liveTransformImage;
+    private transient int liveTransformTx;
+    private transient int liveTransformTy;
+    private transient BufferedImage transformSourceImage;
+    private transient int transformSourceTx;
+    private transient int transformSourceTy;
+    private transient long transformPreviewGeneration;
+    private transient TransformMapping requestedPreviewMapping;
+    private transient boolean transformPreviewRunning;
 
     private ImageLayer(Composition comp, String name) {
         super(comp, name);
@@ -1194,7 +1210,9 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
     @Override
     public void paint(Graphics2D g, boolean firstVisibleLayer) {
-        if (liveTransform != null) { // we are in a free-transform session
+        if (liveTransformImage != null) {
+            g.drawImage(liveTransformImage, liveTransformTx, liveTransformTy, null);
+        } else if (liveTransform != null) { // we are in an affine free-transform session
             Graphics2D g2 = (Graphics2D) g.create();
             try {
                 g2.transform(liveTransform);
@@ -1372,6 +1390,15 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     @Override
     public void prepareForTransform() {
         this.liveTransform = null;
+        this.liveMapping = null;
+        this.liveTransformImage = null;
+        this.transformSourceImage = image;
+        this.transformSourceTx = getTx();
+        this.transformSourceTy = getTy();
+        synchronized (this) {
+            transformPreviewGeneration++;
+            requestedPreviewMapping = null;
+        }
 
         int tx = getTx();
         int ty = getTy();
@@ -1384,6 +1411,8 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
     @Override
     public void imTransform(AffineTransform at) {
+        liveMapping = null;
+        liveTransformImage = null;
         if (originalTransform == null) {
             this.liveTransform = at;
         } else {
@@ -1398,12 +1427,124 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     }
 
     @Override
+    public void imTransform(TransformMapping mapping) {
+        liveMapping = mapping;
+        if (mapping instanceof AffineMapping affine) {
+            liveTransformImage = null;
+            imTransform(affine.affineTransform());
+            liveMapping = mapping;
+            return;
+        }
+
+        liveTransform = null;
+        requestNonAffinePreview(mapping);
+        comp.invalidateImageCache();
+        invalidateMaskedImageCache();
+    }
+
+    @Override
+    public EnumSet<TransformCapability> getTransformCapabilities() {
+        return EnumSet.allOf(TransformCapability.class);
+    }
+
+    private void requestNonAffinePreview(TransformMapping mapping) {
+        synchronized (this) {
+            requestedPreviewMapping = mapping;
+            transformPreviewGeneration++;
+            if (transformPreviewRunning) {
+                return;
+            }
+            transformPreviewRunning = true;
+        }
+        CompletableFuture.runAsync(this::renderPreviewLoop);
+    }
+
+    private void renderPreviewLoop() {
+        while (true) {
+            TransformMapping mapping;
+            long generation;
+            synchronized (this) {
+                mapping = requestedPreviewMapping;
+                requestedPreviewMapping = null;
+                generation = transformPreviewGeneration;
+                if (mapping == null) {
+                    transformPreviewRunning = false;
+                    return;
+                }
+            }
+
+            TransformRenderer.Result result;
+            try {
+                result = renderMapping(mapping);
+            } catch (RuntimeException ignored) {
+                result = null;
+            }
+
+            TransformRenderer.Result completed = result;
+            SwingUtilities.invokeLater(() -> installTransformPreview(mapping, generation, completed));
+        }
+    }
+
+    private TransformRenderer.Result renderMapping(TransformMapping mapping) {
+        return TransformRenderer.render(
+            transformSourceImage,
+            transformSourceTx,
+            transformSourceTy,
+            mapping.sourceBounds(),
+            comp.getCanvasBounds(),
+            mapping);
+    }
+
+    private void installTransformPreview(TransformMapping mapping, long generation,
+                                         TransformRenderer.Result result) {
+        synchronized (this) {
+            if (generation != transformPreviewGeneration || !mapping.equals(liveMapping)) {
+                return;
+            }
+        }
+        if (result != null) {
+            liveTransformImage = result.image();
+            liveTransformTx = result.tx();
+            liveTransformTy = result.ty();
+            comp.invalidateImageCache();
+            invalidateMaskedImageCache();
+            update();
+        }
+    }
+
+    @Override
     public PixelitorEdit finalizeTransform() {
         BufferedImage transformRefImage = image;
         int origTx = getTx();
         int origTy = getTy();
 
-        // use the last known transform for the final render
+        TransformMapping finalMapping = liveMapping;
+
+        if (finalMapping != null && !(finalMapping instanceof AffineMapping)) {
+            if (finalMapping.isIdentity()) {
+                cancelTransform();
+                return null;
+            }
+
+            TransformRenderer.Result rendered;
+            try {
+                rendered = renderMapping(finalMapping);
+            } catch (IllegalArgumentException e) {
+                cancelTransform();
+                Messages.showInfo("Cannot Apply Free Transform", e.getMessage());
+                return null;
+            }
+
+            stopTransformPreview();
+            setImage(rendered.image());
+            setTranslation(rendered.tx(), rendered.ty());
+            comp.invalidateImageCache();
+            updateIconImage();
+            return createTranslatedImageEdit(
+                "Free Transform Layer", transformRefImage, origTx, origTy);
+        }
+
+        // use the last known affine transform for the final render
         AffineTransform finalTransform = this.liveTransform;
 
         // if no transform was applied (e.g., user just clicked without dragging), do nothing
@@ -1421,7 +1562,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         // commit changes, clean up, and create history edit
         setImage(result.image);
         setTranslation(result.tx, result.ty);
-        this.liveTransform = null;
+        stopTransformPreview();
 
         comp.invalidateImageCache();
         updateIconImage();
@@ -1478,9 +1619,20 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
     @Override
     public void cancelTransform() {
-        this.liveTransform = null;
+        stopTransformPreview();
         update();
         updateIconImage();
+    }
+
+    private void stopTransformPreview() {
+        synchronized (this) {
+            transformPreviewGeneration++;
+            requestedPreviewMapping = null;
+        }
+        liveTransform = null;
+        liveMapping = null;
+        liveTransformImage = null;
+        transformSourceImage = null;
     }
 
     @Override

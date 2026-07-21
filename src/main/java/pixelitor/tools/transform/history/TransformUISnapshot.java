@@ -17,8 +17,14 @@
 
 package pixelitor.tools.transform.history;
 
+import pixelitor.layers.Layer;
 import pixelitor.tools.move.MoveMode;
+import pixelitor.tools.transform.TransformBoundsPolicy;
 import pixelitor.tools.transform.TransformBox;
+import pixelitor.tools.transform.TransformStartSource;
+import pixelitor.tools.transform.Transformable;
+
+import java.awt.geom.Rectangle2D;
 
 /**
  * A snapshot of the UI state of a free-transform session.
@@ -31,6 +37,11 @@ import pixelitor.tools.transform.TransformBox;
  */
 public record TransformUISnapshot(
     TransformBox.Memento memento,
-    MoveMode moveMode
+    MoveMode moveMode,
+    Transformable target,
+    TransformStartSource source,
+    TransformBoundsPolicy boundsPolicy,
+    Rectangle2D originalBounds,
+    Layer activeLayerAtStart
 ) {
 }

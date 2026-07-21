@@ -25,6 +25,7 @@ import pixelitor.utils.debug.DebugNode;
 
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -47,6 +48,22 @@ public class CompositeTransformable implements Transformable {
         for (Transformable t : targets) {
             t.imTransform(transform);
         }
+    }
+
+    @Override
+    public void imTransform(TransformMapping mapping) {
+        for (Transformable t : targets) {
+            t.imTransform(mapping);
+        }
+    }
+
+    @Override
+    public EnumSet<TransformCapability> getTransformCapabilities() {
+        EnumSet<TransformCapability> result = EnumSet.allOf(TransformCapability.class);
+        for (Transformable target : targets) {
+            result.retainAll(target.getTransformCapabilities());
+        }
+        return result;
     }
 
     @Override
@@ -88,4 +105,3 @@ public class CompositeTransformable implements Transformable {
         return node;
     }
 }
-

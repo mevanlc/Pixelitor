@@ -25,14 +25,11 @@ import pixelitor.history.History;
 import pixelitor.history.PixelitorEdit;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
-import pixelitor.selection.Selection;
 import pixelitor.tools.DragTool;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.Tools;
 import pixelitor.tools.selection.SelectionChangeListener;
-import pixelitor.tools.transform.CompositeTransformable;
-import pixelitor.tools.transform.TransformBox;
-import pixelitor.tools.transform.Transformable;
+import pixelitor.tools.transform.*;
 import pixelitor.tools.transform.history.ApplyTransformEdit;
 import pixelitor.tools.transform.history.CancelTransformEdit;
 import pixelitor.tools.transform.history.TransformStepEdit;
@@ -47,11 +44,9 @@ import pixelitor.utils.Messages;
 import javax.swing.*;
 import java.awt.Graphics2D;
 import java.awt.Point;
-import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Rectangle2D;
 import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
@@ -69,9 +64,8 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     // includes the newly created layer so that the gesture can move it.
     private MoveMode dragMode = activeMode;
 
-    private TransformBox transformBox;
-    private Transformable transformTarget;
-    private TransformBox.Memento initialTransformMemento;
+    private FreeTransformSession transformSession;
+    private TransformOptionsPanel transformOptionsPanel;
 
     public MoveTool() {
         super("Move", 'V',
@@ -96,11 +90,38 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             freeTransformCheckBox, "freeTransformCheckBox");
         freeTransformCheckBox.addActionListener(_ ->
             setFreeTransformMode(freeTransformCheckBox.isSelected()));
+
+        transformOptionsPanel = new TransformOptionsPanel(
+            this::getTransformBox,
+            this::addTransformStep,
+            () -> applyTransform(true),
+            () -> cancelTransform(true));
     }
 
     private void modeChanged() {
         cancelTransform(true);
         activeMode = getActiveMode();
+    }
+
+    private void showTransformSettings(boolean transforming) {
+        if (transformOptionsPanel == null) {
+            return;
+        }
+        settingsPanel.removeAll();
+        if (transforming) {
+            settingsPanel.add(transformOptionsPanel);
+            transformOptionsPanel.refreshFromModel();
+        } else {
+            String moveText = pixelitor.utils.Texts.getResources().getString("mt_move");
+            settingsPanel.addComboBox(moveText, modeSelector, "modeSelector");
+            settingsPanel.addSeparator();
+            settingsPanel.addWithLabel("Auto Select Layer:",
+                autoSelectCheckBox, "autoSelectCheckBox");
+            settingsPanel.addWithLabel("Free Transform:",
+                freeTransformCheckBox, "freeTransformCheckBox");
+        }
+        settingsPanel.revalidate();
+        settingsPanel.repaint();
     }
 
     private MoveMode getActiveMode() {
@@ -120,7 +141,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
 
         if (isFreeTransforming()) {
             // if a transform is active, the drag event goes to the transform box
-            if (!transformBox.processMousePressed(e)) {
+            if (!getTransformBox().processMousePressed(e)) {
                 // if the press is outside the box, the drag is canceled
                 drag.cancel();
             }
@@ -156,7 +177,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     protected void ongoingDrag(PMouseEvent e) {
         if (isFreeTransforming()) {
-            transformBox.processMouseDragged(e);
+            getTransformBox().processMouseDragged(e);
         } else {
             e.getComp().moveActiveContent(dragMode, drag.getDX(), drag.getDY());
         }
@@ -165,9 +186,10 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     public void dragFinished(PMouseEvent e) {
         if (isFreeTransforming()) {
-            transformBox.processMouseReleased(e);
+            TransformBox box = getTransformBox();
+            box.processMouseReleased(e);
             // a drag is a discrete, undoable action
-            History.add(new TransformStepEdit("Free Transform Step", e.getComp(), transformBox.getBeforeMovementMemento()));
+            addTransformStep("Free Transform Step", box.getBeforeMovementMemento());
         } else {
             e.getComp().finalizeMovement(dragMode);
         }
@@ -178,7 +200,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         super.mouseMoved(e, view);
 
         if (isFreeTransforming()) {
-            transformBox.mouseMoved(e);
+            getTransformBox().mouseMoved(e);
         } else if (activeMode.movesLayer()) {
             updateMoveCursor(view, e);
         }
@@ -197,7 +219,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     }
 
     public boolean isFreeTransforming() {
-        return transformBox != null;
+        return transformSession != null;
     }
 
     /**
@@ -212,7 +234,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     public void paintOverCanvas(Graphics2D g2, Composition comp) {
         if (isFreeTransforming()) {
-            transformBox.paint(g2);
+            getTransformBox().paint(g2);
             return;
         }
 
@@ -232,14 +254,14 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     public void coCoordsChanged(View view) {
         if (isFreeTransforming()) {
-            transformBox.coCoordsChanged(view);
+            getTransformBox().coCoordsChanged(view);
         }
     }
 
     @Override
     public void imCoordsChanged(AffineTransform at, View view) {
         if (isFreeTransforming()) {
-            transformBox.imCoordsChanged(at, view);
+            getTransformBox().imCoordsChanged(at, view);
         }
     }
 
@@ -251,9 +273,10 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         }
 
         if (isFreeTransforming()) {
-            transformBox.arrowKeyPressed(key, view);
+            TransformBox box = getTransformBox();
+            box.arrowKeyPressed(key, view);
             // a nudge is a discrete, undoable action
-            History.add(new TransformStepEdit("Nudge", view.getComp(), transformBox.getBeforeMovementMemento()));
+            addTransformStep("Nudge", box.getBeforeMovementMemento());
         } else {
             move(view.getComp(), activeMode, key.getDeltaX(), key.getDeltaY());
         }
@@ -273,7 +296,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
 
     private void setFreeTransformMode(boolean enabled) {
         if (enabled) {
-            createTransformBox();
+            startFreeTransform(TransformStartSource.MOVE_CONTROLS);
             if (isFreeTransforming()) {
                 Messages.showStatusMessage("Free Transform: drag handles; <b>Enter</b> or <b>Double-click</b> to apply; <b>Esc</b> to cancel.");
             } else {
@@ -291,7 +314,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         super.toolActivated(view);
 
         if (freeTransformCheckBox.isSelected()) {
-            createTransformBox();
+            startFreeTransform(TransformStartSource.MOVE_CONTROLS);
             if (!isFreeTransforming()) {
                 handleTransformStartFailure(false);
             }
@@ -340,98 +363,107 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
 
     @Override
     public void editingTargetChanged(Layer activeLayer, boolean toolActivation) {
-        if (!toolActivation && activeMode.movesLayer()) {
-            // switching to another layer implicitly cancels the transform
-            cancelTransform(true);
+        if (!toolActivation && isFreeTransforming()
+            && activeLayer != transformSession.activeLayerAtStart()) {
+            // The target is captured by the session, so this safely commits the
+            // old layer after the Layers panel has selected the new one.
+            applyTransform(true);
         }
     }
 
     @Override
     public void compReplaced(Composition newComp, boolean reloaded) {
-        cancelTransform(true);
+        cancelTransform(false);
     }
 
     @Override
     public void selectionChanged() {
-        if (activeMode.movesSelection()) {
+        if (isFreeTransforming() && transformSession.moveMode().movesSelection()) {
             cancelTransform(true);
         }
     }
 
     @Override
     public void selectionDeleted() {
-        if (activeMode.movesSelection()) {
+        if (isFreeTransforming() && transformSession.moveMode().movesSelection()) {
             cancelTransform(true);
         }
     }
 
     @Override
     public void mouseClicked(PMouseEvent e) {
-        if (e.getClickCount() == 2 && !e.isConsumed() && isFreeTransforming()) {
+        if (e.getClickCount() == 2 && !e.isConsumed() && isFreeTransforming()
+            && getTransformBox().contains(e.getCoX(), e.getCoY())) {
             // a double-click applies the transform
             applyTransform(true);
             e.consume();
         }
     }
 
-    private void createTransformBox() {
-        View view = Views.getActive();
-        if (view == null || isFreeTransforming()) {
-            return;
+    public void startFreeTransform(TransformStartSource source) {
+        Composition comp = Views.getActiveComp();
+        if (comp != null) {
+            startFreeTransform(comp, source);
         }
-
-        Composition comp = view.getComp();
-        Transformable target = createTransformTarget(activeMode, comp);
-
-        if (target == null) {
-            return;
-        }
-
-        Rectangle2D boxBounds;
-
-        if (activeMode == MoveMode.MOVE_SELECTION_ONLY) {
-            Selection sel = comp.getSelection();
-            Rectangle rect = view.imageToComponentSpace(sel.getShapeBounds2D());
-            rect.grow(10, 10); // otherwise the box hides a rectangular selection
-            // after growing in component-space, transform back to image space
-            boxBounds = view.componentToImageSpace(rect);
-        } else {
-            boxBounds = comp.getCanvas().getBounds();
-        }
-
-        transformTarget = target;
-        transformTarget.prepareForTransform();
-        transformBox = new TransformBox(boxBounds, view, transformTarget);
-        transformBox.setUseLegacyHistory(false);
-        initialTransformMemento = transformBox.createMemento();
-
-        view.repaint();
     }
 
-    /**
-     * Determines what to transform based on the current move mode.
-     */
-    private static Transformable createTransformTarget(MoveMode mode, Composition comp) {
-        Selection sel = comp.getSelection();
-        Layer activeLayer = comp.getActiveLayer();
-
-        boolean wantsLayer = mode.movesLayer() && activeLayer instanceof ImageLayer;
-        boolean wantsSelection = mode.movesSelection() && sel != null;
-
-        if (wantsLayer && wantsSelection) {
-            CompositeTransformable composite = new CompositeTransformable(comp);
-            composite.add((ImageLayer) activeLayer);
-            composite.add(sel);
-            return composite;
-        }
-        if (wantsLayer) {
-            return (ImageLayer) activeLayer;
-        }
-        if (wantsSelection) {
-            return sel;
+    public void startFreeTransform(Composition requestedComp, TransformStartSource source) {
+        View view = Views.getActive();
+        if (view == null || view.getComp() != requestedComp) {
+            return;
         }
 
-        return null;
+        if (isFreeTransforming()) {
+            return;
+        }
+
+        TransformBoundsResolver.Resolution resolution = source == TransformStartSource.EDIT_COMMAND
+            ? TransformBoundsResolver.resolveEditCommand(requestedComp)
+            : TransformBoundsResolver.resolveMoveControls(requestedComp, view, activeMode);
+        if (resolution == null) {
+            if (source == TransformStartSource.EDIT_COMMAND) {
+                showEditCommandStartFailure(requestedComp);
+            }
+            return;
+        }
+
+        if (source == TransformStartSource.EDIT_COMMAND && !isActive()) {
+            // Validation deliberately happens before activation, so an invalid
+            // command does not change tools or history.
+            freeTransformCheckBox.setSelected(false);
+            activate();
+            view = Views.getActive();
+            if (view == null || view.getComp() != requestedComp) {
+                return;
+            }
+        }
+
+        transformSession = new FreeTransformSession(requestedComp, view, resolution, source);
+        configureActiveSession();
+    }
+
+    private void configureActiveSession() {
+        TransformBox box = getTransformBox();
+        box.setChangeListener(() -> {
+            if (transformOptionsPanel != null) {
+                transformOptionsPanel.refreshFromModel();
+            }
+        });
+        freeTransformCheckBox.setSelected(true);
+        showTransformSettings(true);
+        Views.getActive().repaint();
+        Messages.showStatusMessage("Free Transform: drag handles; <b>Enter</b> or "
+            + "<b>Double-click</b> to apply; <b>Esc</b> to cancel.");
+    }
+
+    private static void showEditCommandStartFailure(Composition comp) {
+        if (!(comp.getActiveLayer() instanceof ImageLayer)) {
+            Messages.showInfo("Cannot Start Free Transform",
+                "The active layer must be an image layer to use Free Transform.");
+        } else {
+            Messages.showInfo("Cannot Start Free Transform",
+                "The active image layer is fully transparent.");
+        }
     }
 
     private void applyTransform(boolean addToHistory) {
@@ -440,20 +472,18 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         }
 
         // create a snapshot of the UI state before finalizing, for undo support
-        TransformUISnapshot snapshot = new TransformUISnapshot(
-            transformBox.createMemento(),
-            activeMode
-        );
+        FreeTransformSession session = transformSession;
+        TransformUISnapshot snapshot = createSnapshot(session);
 
         // create the data edit by finalizing the transform on the target
-        PixelitorEdit contentEdit = transformTarget.finalizeTransform();
+        PixelitorEdit contentEdit = session.target().finalizeTransform();
 
         // if there was a significant change, create a history entry that bundles the
         // data edit with the UI snapshot, allowing the session to be restored on undo
         if (addToHistory && contentEdit != null) {
             History.add(new ApplyTransformEdit(
                 "Apply Free Transform",
-                Views.getActiveComp(),
+                session.comp(),
                 contentEdit,
                 snapshot
             ));
@@ -471,19 +501,17 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         }
 
         // create a snapshot of the UI state before canceling, for undo support
-        TransformUISnapshot snapshot = new TransformUISnapshot(
-            transformBox.createMemento(),
-            activeMode
-        );
+        FreeTransformSession session = transformSession;
+        TransformUISnapshot snapshot = createSnapshot(session);
 
         // revert the target object to its original state
-        transformTarget.cancelTransform();
+        session.target().cancelTransform();
 
         // create a history entry for the cancellation action, but only if the box state has changed
-        if (addToHistory && !snapshot.memento().equals(initialTransformMemento)) {
+        if (addToHistory && !snapshot.memento().equals(session.initialMemento())) {
             History.add(new CancelTransformEdit(
                 "Cancel Free Transform",
-                Views.getActiveComp(),
+                session.comp(),
                 snapshot
             ));
         }
@@ -495,12 +523,19 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     }
 
     public void endTransformSession() {
-        transformBox = null;
-        transformTarget = null;
-        initialTransformMemento = null;
+        FreeTransformSession oldSession = transformSession;
+        transformSession = null;
+        if (oldSession != null) {
+            // Normally finalize/cancel has already cleared transient preview
+            // state. This also handles redo after an apply edit restored the UI.
+            oldSession.target().cancelTransform();
+        }
         freeTransformCheckBox.setSelected(false);
+        showTransformSettings(false);
 
-        Views.getActive().repaint();
+        if (oldSession != null && oldSession.comp().getView() != null) {
+            oldSession.comp().getView().repaint();
+        }
     }
 
     /**
@@ -519,39 +554,41 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         modeSelector.setSelectedItem(snapshot.moveMode());
         activeMode = snapshot.moveMode();
 
-        // re-create the transform target based on the mode from the snapshot
         Composition comp = view.getComp();
-        Transformable target = createTransformTarget(activeMode, comp);
-
+        Transformable target = snapshot.target();
         if (target == null) {
-            // the original target might no longer exist
             freeTransformCheckBox.setSelected(false);
             return;
         }
 
-        // prepare the target and create the TransformBox with its restored state
-        transformTarget = target;
-        transformTarget.prepareForTransform();
-
-        // create the box using the original image-space rectangle from the memento in the snapshot
-        transformBox = new TransformBox(snapshot.memento().getOrigImRect(), view, transformTarget);
-        transformBox.setUseLegacyHistory(false);
-        initialTransformMemento = transformBox.createMemento();
-
-        // restore the handle positions and angle from the memento
-        transformBox.restoreFrom(snapshot.memento());
-
-        // update the UI to show the restored transform box
-        freeTransformCheckBox.setSelected(true);
-        view.repaint();
+        transformSession = new FreeTransformSession(
+            comp, view, target, snapshot.originalBounds(), snapshot.source(),
+            snapshot.boundsPolicy(), snapshot.moveMode(), snapshot.activeLayerAtStart(),
+            snapshot.memento());
+        configureActiveSession();
     }
 
     public TransformBox getTransformBox() {
-        return transformBox;
+        return transformSession == null ? null : transformSession.box();
     }
 
     public Transformable getTransformTarget() {
-        return transformTarget;
+        return transformSession == null ? null : transformSession.target();
+    }
+
+    private static TransformUISnapshot createSnapshot(FreeTransformSession session) {
+        return new TransformUISnapshot(
+            session.box().createMemento(), session.moveMode(), session.target(),
+            session.source(), session.boundsPolicy(), session.originalBounds(),
+            session.activeLayerAtStart());
+    }
+
+    private void addTransformStep(String name, TransformBox.Memento before) {
+        if (!isFreeTransforming() || before == null
+            || before.equals(getTransformBox().createMemento())) {
+            return;
+        }
+        History.add(new TransformStepEdit(name, transformSession.comp(), before));
     }
 
     private boolean isAutoSelecting() {

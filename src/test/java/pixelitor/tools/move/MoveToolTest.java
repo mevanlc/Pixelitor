@@ -27,12 +27,15 @@ import pixelitor.filters.gui.UserPreset;
 import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
 import pixelitor.tools.Tools;
+import pixelitor.tools.transform.TransformStartSource;
+import pixelitor.tools.util.ArrowKey;
 import pixelitor.tools.util.PMouseEvent;
 
 import java.awt.Color;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 
@@ -182,6 +185,137 @@ class MoveToolTest {
         assertRegionColor(sourceLayer.getImage(), SELECTION, WIDGET);
         assertRegionColor(topLayer.getImage(), SELECTION, TOP_WIDGET);
         History.assertNumEditsIs(0);
+    }
+
+    @Test
+    void editCommandUsesTranslatedNonTransparentPixelBounds() {
+        BufferedImage padded = new BufferedImage(20, 20, BufferedImage.TYPE_INT_ARGB);
+        padded.setRGB(2, 3, 0x01010203); // partially transparent pixels count
+        padded.setRGB(5, 6, 0xFF405060);
+        ImageLayer layer = addLayer(padded, "padded");
+        layer.setTranslation(-5, -4);
+
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+
+        assertThat(tool.isFreeTransforming()).isTrue();
+        assertThat(tool.getTransformBox().getOrigImRect())
+            .isEqualTo(new Rectangle(-3, -1, 4, 4));
+    }
+
+    @Test
+    void moveControlsUseTranslatedLayerBufferBounds() {
+        BufferedImage padded = new BufferedImage(20, 20, BufferedImage.TYPE_INT_ARGB);
+        padded.setRGB(2, 3, 0xFF010203);
+        ImageLayer layer = addLayer(padded, "padded");
+        layer.setTranslation(-5, -4);
+        configureMove(MoveMode.MOVE_LAYER_ONLY, false, true);
+
+        tool.toolActivated(comp.getView());
+
+        assertThat(tool.isFreeTransforming()).isTrue();
+        assertThat(tool.getTransformBox().getOrigImRect())
+            .isEqualTo(new Rectangle(-5, -4, 20, 20));
+    }
+
+    @Test
+    void fullyTransparentLayerCannotStartEditCommandButMoveControlsCanTransformIt() {
+        ImageLayer transparent = addLayer(
+            new BufferedImage(10, 10, BufferedImage.TYPE_INT_ARGB), "transparent");
+        Tools.setActiveTool(Tools.BRUSH);
+
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+
+        assertThat(tool.isFreeTransforming()).isFalse();
+        assertThat(Tools.getActive()).isSameAs(Tools.BRUSH);
+
+        Tools.setActiveTool(tool);
+        configureMove(MoveMode.MOVE_LAYER_ONLY, false, true);
+        tool.toolActivated(comp.getView());
+        assertThat(tool.isFreeTransforming()).isTrue();
+        assertThat(tool.getTransformBox().getOrigImRect())
+            .isEqualTo(transparent.getContentBounds(true));
+    }
+
+    @Test
+    void repeatingEditCommandKeepsTheExistingSession() {
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+        var originalBox = tool.getTransformBox();
+
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+
+        assertThat(tool.getTransformBox()).isSameAs(originalBox);
+        History.assertNumEditsIs(0);
+    }
+
+    @Test
+    void enterCommitsOneApplyEditAndUndoRestoresTheInteractiveSession() {
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+        tool.arrowKeyPressed(ArrowKey.RIGHT);
+        ImageLayer otherLayer = addLayer(createScreenshot(TOP_BACKGROUND, TOP_WIDGET), "other");
+        comp.setActiveLayer(sourceLayer);
+
+        tool.otherKeyPressed(new KeyEvent(comp.getView(), KeyEvent.KEY_PRESSED,
+            0, 0, KeyEvent.VK_ENTER, '\n'));
+
+        assertThat(tool.isFreeTransforming()).isFalse();
+        assertHistoryEditsAre("Nudge", "Apply Free Transform");
+
+        comp.setActiveLayer(otherLayer);
+        History.undo();
+
+        assertThat(tool.isFreeTransforming()).isTrue();
+        assertThat(tool.getTransformTarget()).isSameAs(sourceLayer);
+        assertThat(comp.getActiveLayer()).isSameAs(otherLayer);
+        assertThat(tool.getTransformBox().getNW().getImX()).isEqualTo(1.0);
+
+        History.redo();
+        assertThat(tool.isFreeTransforming()).isFalse();
+        assertThat(comp.getActiveLayer()).isSameAs(otherLayer);
+    }
+
+    @Test
+    void escapeRestoresPristineLayerAndUndoRestoresCanceledGeometry() {
+        BufferedImage originalImage = sourceLayer.getImage();
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+        tool.arrowKeyPressed(ArrowKey.SHIFT_RIGHT);
+
+        tool.escPressed();
+
+        assertThat(tool.isFreeTransforming()).isFalse();
+        assertThat(sourceLayer.getImage()).isSameAs(originalImage);
+        assertHistoryEditsAre("Nudge", "Cancel Free Transform");
+
+        History.undo();
+        assertThat(tool.isFreeTransforming()).isTrue();
+        assertThat(tool.getTransformBox().getNW().getImX()).isEqualTo(10.0);
+    }
+
+    @Test
+    void explicitToolChangeCommitsTheCapturedTransformTarget() {
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+        tool.arrowKeyPressed(ArrowKey.DOWN);
+
+        Tools.BRUSH.activate();
+
+        assertThat(Tools.getActive()).isSameAs(Tools.BRUSH);
+        assertThat(tool.isFreeTransforming()).isFalse();
+        assertHistoryEditsAre("Nudge", "Apply Free Transform");
+    }
+
+    @Test
+    void layerChangeCommitsOldTargetBeforeContinuingWithNewLayer() {
+        ImageLayer otherLayer = addLayer(createScreenshot(TOP_BACKGROUND, TOP_WIDGET), "other");
+        comp.setActiveLayer(sourceLayer);
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+        tool.arrowKeyPressed(ArrowKey.DOWN);
+
+        comp.setActiveLayer(otherLayer);
+        // Unit-test mode suppresses the global callback, so invoke the tool hook.
+        tool.editingTargetChanged(otherLayer, false);
+
+        assertThat(tool.isFreeTransforming()).isFalse();
+        assertThat(comp.getActiveLayer()).isSameAs(otherLayer);
+        assertHistoryEditsAre("Nudge", "Apply Free Transform");
     }
 
     private void configureMove(MoveMode mode, boolean autoSelect) {

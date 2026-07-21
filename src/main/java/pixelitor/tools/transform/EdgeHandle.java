@@ -70,6 +70,11 @@ public class EdgeHandle extends PositionHandle {
 
     @Override
     public void mouseDragged(double x, double y) {
+        if (box.isModernFreeTransform()) {
+            box.dragEdge(this, x, y);
+            return;
+        }
+
         super.mouseDragged(x, y);
 
         // The angle can change by 180 degrees
@@ -94,6 +99,10 @@ public class EdgeHandle extends PositionHandle {
         }
 
         box.cornerHandlesMoved();
+    }
+
+    public boolean isHorizontal() {
+        return horizontal;
     }
 
     @Override

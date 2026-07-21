@@ -22,6 +22,7 @@ import pixelitor.history.PixelitorEdit;
 import pixelitor.utils.debug.Debuggable;
 
 import java.awt.geom.AffineTransform;
+import java.util.EnumSet;
 
 /**
  * Represents an object that can be transformed interactively, using an
@@ -74,6 +75,23 @@ public interface Transformable extends Debuggable {
      *                  current preview state.
      */
     void imTransform(AffineTransform transform);
+
+    /**
+     * Applies an immutable Free Transform mapping. Existing affine-only targets
+     * use the adapter below; raster image layers override this for all modes.
+     */
+    default void imTransform(TransformMapping mapping) {
+        if (mapping instanceof AffineMapping affine) {
+            imTransform(affine.affineTransform());
+        } else {
+            throw new UnsupportedOperationException(
+                getClass().getSimpleName() + " does not support " + mapping.getClass().getSimpleName());
+        }
+    }
+
+    default EnumSet<TransformCapability> getTransformCapabilities() {
+        return EnumSet.of(TransformCapability.AFFINE);
+    }
 
     /**
      * Finalizes the transformation session, committing the changes and returning an

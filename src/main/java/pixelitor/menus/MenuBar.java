@@ -71,6 +71,7 @@ import pixelitor.menus.help.UpdatesCheck;
 import pixelitor.menus.view.ZoomMenu;
 import pixelitor.selection.SelectionActions;
 import pixelitor.tools.brushes.CopyBrush;
+import pixelitor.tools.transform.FreeTransformAction;
 import pixelitor.utils.*;
 import pixelitor.utils.debug.Debug;
 import pixelitor.utils.test.RandomGUITest;
@@ -257,6 +258,8 @@ public class MenuBar extends JMenuBar {
 
         // fade
         editMenu.add(FadeAction.INSTANCE, CTRL_SHIFT_F);
+
+        editMenu.add(FreeTransformAction.INSTANCE, CTRL_SHIFT_T);
 
         editMenu.addSeparator();
 

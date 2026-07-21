@@ -32,6 +32,7 @@ import pixelitor.tools.util.DraggablePoint;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.tools.util.PPoint;
 import pixelitor.utils.AngleUnit;
+import pixelitor.utils.Cursors;
 import pixelitor.utils.Geometry;
 import pixelitor.utils.Lazy;
 import pixelitor.utils.Shapes;
@@ -40,7 +41,7 @@ import pixelitor.utils.debug.DebugNodes;
 import pixelitor.utils.debug.Debuggable;
 
 import javax.swing.*;
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.*;
@@ -113,6 +114,20 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     private transient double wholeBoxDragStartCoY;
 
     private transient Memento beforeMovement;
+
+    private TransformReferencePoint referencePoint = TransformReferencePoint.CENTER;
+    private TransformMode transformMode = TransformMode.FREE_TRANSFORM;
+    private WarpStyle warpStyle = WarpStyle.CUSTOM;
+    private WarpMapping warpMapping;
+    private double horizontalSkewDegrees;
+    private double verticalSkewDegrees;
+
+    private transient TransformModifiers dragModifiers = TransformModifiers.NONE;
+    private transient double transformDragStartX;
+    private transient double transformDragStartY;
+    private transient boolean outsideRotationDrag;
+    private transient int activeWarpPoint = -1;
+    private transient Runnable changeListener;
 
     // this is always false for the Move Tool, but other tools still use it
     private transient boolean useLegacyHistory = true;
@@ -208,6 +223,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         this.wholeBoxDrag = other.wholeBoxDrag;
         this.wholeBoxDragStartCoX = other.wholeBoxDragStartCoX;
         this.wholeBoxDragStartCoY = other.wholeBoxDragStartCoY;
+        this.referencePoint = other.referencePoint;
+        this.transformMode = other.transformMode;
+        this.warpStyle = other.warpStyle;
+        this.warpMapping = other.warpMapping;
+        this.horizontalSkewDegrees = other.horizontalSkewDegrees;
+        this.verticalSkewDegrees = other.verticalSkewDegrees;
 
         if (other.beforeMovement == null) {
             this.beforeMovement = null;
@@ -238,6 +259,10 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         target = null;
         view = null;
         beforeMovement = null;
+        dragModifiers = TransformModifiers.NONE;
+        outsideRotationDrag = false;
+        activeWarpPoint = -1;
+        changeListener = null;
     }
 
     public void setTarget(Transformable target) {
@@ -282,31 +307,26 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
      * the box from its original position into the current position.
      */
     public AffineTransform calcImTransform() {
-        // The position of the pivot point is irrelevant here, because
-        // we don't care how the box reached its current state.
-        // The pivot point is used only for the rotation logic.
+        double width = origImRect.getWidth();
+        double height = origImRect.getHeight();
+        double m00 = (ne.imX - nw.imX) / width;
+        double m10 = (ne.imY - nw.imY) / width;
+        double m01 = (sw.imX - nw.imX) / height;
+        double m11 = (sw.imY - nw.imY) / height;
+        double m02 = nw.imX - m00 * origImRect.getX() - m01 * origImRect.getY();
+        double m12 = nw.imY - m10 * origImRect.getX() - m11 * origImRect.getY();
+        return new AffineTransform(m00, m10, m01, m11, m02, m12);
+    }
 
-        AffineTransform at = new AffineTransform();
-
-        // the transformation is built in reverse order, using the
-        // current top-left (NW) corner as a fixed reference point
-        if (angle != 0) {
-            // 4. rotate around the current NW corner
-            at.rotate(angle, nw.imX, nw.imY);
+    public TransformMapping calcMapping() {
+        if (transformMode == TransformMode.WARP && warpMapping != null) {
+            return warpMapping;
         }
-
-        // 3. translate to the current top-left (NW) corner's position
-        at.translate(nw.imX, nw.imY);
-
-        // 2. scale from the origin
-        double scaleX = calcScaleX();
-        double scaleY = calcScaleY();
-        at.scale(scaleX, scaleY);
-
-        // 1. translate so the original top-left corner is at the origin
-        at.translate(-origImRect.getX(), -origImRect.getY());
-
-        return at;
+        Point2D[] points = getImCorners();
+        if (isParallelogram(points)) {
+            return new AffineMapping(calcImTransform(), origImRect);
+        }
+        return new ProjectiveMapping(origImRect, points);
     }
 
     private double calcScaleY() {
@@ -344,6 +364,15 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     public void cornerHandlesMoved() {
         updateEdgePositions();
 
+        if (isModernFreeTransform()) {
+            updateModernDerivedGeometry();
+            updateRotHandleLocation();
+            updateBoxShape();
+            applyTransform();
+            updateDirections(false);
+            return;
+        }
+
         boolean wasInsideOut = rotatedImSize.isInsideOut();
         updateUnrotatedDimensions();
         updateRotHandleLocation();
@@ -364,7 +393,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     public void applyTransform() {
-        target.imTransform(calcImTransform());
+        if (isModernFreeTransform()) {
+            target.imTransform(calcMapping());
+            notifyChanged();
+        } else {
+            target.imTransform(calcImTransform());
+        }
     }
 
     /**
@@ -388,6 +422,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
 
     @Override
     public void paint(Graphics2D g) {
+        if (transformMode == TransformMode.WARP && warpMapping != null) {
+            paintWarpGrid(g);
+            paintReferencePoint(g);
+            return;
+        }
+
         // paint the lines
         Shapes.drawVisibly(g, coBoxShape);
         Shapes.drawVisibly(g, new Line2D.Double(Geometry.midPoint(nw, ne), rot));
@@ -395,6 +435,9 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         // paint the handles
         for (DraggablePoint handle : handles) {
             handle.paintHandle(g);
+        }
+        if (isModernFreeTransform()) {
+            paintReferencePoint(g);
         }
     }
 
@@ -422,8 +465,19 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
      * Returns true if the transform box handles the given mouse pressed event
      */
     public boolean processMousePressed(PMouseEvent e) {
+        dragModifiers = TransformModifiers.from(e);
         double x = e.getOrigCoX();
         double y = e.getOrigCoY();
+
+        if (transformMode == TransformMode.WARP && warpMapping != null) {
+            int warpPoint = findWarpPointAt(x, y);
+            if (warpPoint >= 0) {
+                saveState();
+                activeWarpPoint = warpPoint;
+                return true;
+            }
+        }
+
         DraggablePoint hit = findHandleAt(x, y);
         if (hit != null) {
             // a new handle drag action is starting
@@ -439,6 +493,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
                     prepareWholeBoxDrag(e.getCoX(), e.getCoY());
                 }
                 return true;
+            } else if (isModernFreeTransform() && isInRotationHalo(x, y)) {
+                saveState();
+                transformDragStartX = x;
+                transformDragStartY = y;
+                outsideRotationDrag = true;
+                return true;
             }
         }
 
@@ -453,6 +513,8 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
 
         handle.setActive(true);
         saveState();
+        transformDragStartX = x;
+        transformDragStartY = y;
         handle.mousePressed(x, y);
         view.repaint();
     }
@@ -469,8 +531,28 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
      * Returns true if the transform box handles the given mouse dragged event
      */
     public boolean processMouseDragged(PMouseEvent e) {
+        dragModifiers = TransformModifiers.from(e);
+        if (activeWarpPoint >= 0) {
+            Point2D im = view.componentToImageSpace(
+                new Point2D.Double(e.getCoX(), e.getCoY()));
+            try {
+                warpMapping = ((WarpMapping) beforeMovement.warpMapping)
+                    .withControlPoint(activeWarpPoint, im);
+                warpStyle = WarpStyle.CUSTOM;
+                target.imTransform(warpMapping);
+                notifyChanged();
+                target.updateUI(view);
+            } catch (IllegalArgumentException ignored) {
+                // Keep the last valid mesh.
+            }
+            return true;
+        }
         if (activePoint != null) {
             activePoint.mouseDragged(e.getCoX(), e.getCoY());
+            target.updateUI(view);
+            return true;
+        } else if (outsideRotationDrag) {
+            dragRotation(e.getCoX(), e.getCoY());
             target.updateUI(view);
             return true;
         } else if (wholeBoxDrag) {
@@ -484,6 +566,13 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
      * Returns true if the transform box handles the given mouse released event
      */
     public boolean processMouseReleased(PMouseEvent e) {
+        dragModifiers = TransformModifiers.from(e);
+        if (activeWarpPoint >= 0) {
+            activeWarpPoint = -1;
+            target.updateUI(view);
+            addLegacyEditToHistory(e.getComp(), "Warp Transform");
+            return true;
+        }
         if (activePoint != null) {
             double x = e.getCoX();
             double y = e.getCoY();
@@ -495,6 +584,11 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
             target.updateUI(view);
             updateDirections(); // necessary if dragged through the opposite corner
             addLegacyEditToHistory(e.getComp(), "Change Transform Box");
+            return true;
+        } else if (outsideRotationDrag) {
+            dragRotation(e.getCoX(), e.getCoY());
+            outsideRotationDrag = false;
+            updateDirections();
             return true;
         } else if (e.isPopupTrigger()) {
             showPopup(e);
@@ -602,7 +696,9 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
                 view.repaint();
             }
 
-            view.setCursor(contains(x, y) ? MOVE : DEFAULT);
+            view.setCursor(contains(x, y) ? MOVE
+                : isModernFreeTransform() && isInRotationHalo(x, y)
+                ? Cursors.CROSSHAIR : DEFAULT);
         }
     }
 
@@ -663,8 +759,543 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
      * Returns the pivot point for rotations.
      */
     public Point2D getPivot() {
-        // currently the pivot point is always at the center of the box
-        return Geometry.midPoint(nw, se);
+        return bilinearPoint(getCoCorners(), referencePoint.u(), referencePoint.v());
+    }
+
+    public boolean isModernFreeTransform() {
+        return !useLegacyHistory;
+    }
+
+    public void setChangeListener(Runnable changeListener) {
+        this.changeListener = changeListener;
+    }
+
+    private void notifyChanged() {
+        if (changeListener != null) {
+            changeListener.run();
+        }
+    }
+
+    /** Handles modifier-sensitive corner drags for the Move tool. */
+    void dragCorner(CornerHandle dragged, double x, double y) {
+        Point2D[] start = getCoCorners(beforeMovement);
+        int index = cornerIndex(dragged);
+        Point2D[] candidate;
+
+        if (dragModifiers.menu() && dragModifiers.alt() && dragModifiers.shift()) {
+            candidate = perspectiveCandidate(start, index, x, y);
+        } else if (dragModifiers.menu()) {
+            candidate = copyPoints(start);
+            candidate[index] = new Point2D.Double(x, y);
+        } else {
+            Point2D anchor = dragModifiers.alt()
+                ? bilinearPoint(start, referencePoint.u(), referencePoint.v())
+                : start[(index + 2) % 4];
+            candidate = scaleFromCorner(start, index, anchor, x, y,
+                !dragModifiers.shift());
+        }
+        installCandidate(candidate);
+    }
+
+    /** Handles one-axis scale and modifier-sensitive skew drags. */
+    void dragEdge(EdgeHandle dragged, double x, double y) {
+        Point2D[] start = getCoCorners(beforeMovement);
+        Point2D pointerDelta = new Point2D.Double(
+            x - transformDragStartX, y - transformDragStartY);
+
+        if (dragModifiers.menu() && dragModifiers.shift()) {
+            installCandidate(skewEdgeCandidate(start, dragged, pointerDelta));
+            return;
+        }
+
+        Point2D u = unit(vector(start[0], start[1]));
+        Point2D v = unit(vector(start[0], start[3]));
+        boolean horizontalEdge = dragged.isHorizontal();
+        Point2D axis = horizontalEdge ? v : u;
+        Point2D draggedStart = midpointOfDraggedEdge(start, dragged);
+        Point2D anchor = dragModifiers.alt()
+            ? bilinearPoint(start, referencePoint.u(), referencePoint.v())
+            : midpointOfOppositeEdge(start, dragged);
+        double denominator = dot(vector(anchor, draggedStart), axis);
+        double numerator = dot(new Point2D.Double(x - anchor.getX(), y - anchor.getY()), axis);
+        if (Math.abs(denominator) < 1.0e-9) {
+            return;
+        }
+        double scale = numerator / denominator;
+        installCandidate(scalePoints(start, anchor,
+            horizontalEdge ? 1.0 : scale,
+            horizontalEdge ? scale : 1.0, u, v));
+    }
+
+    /** Rotates from either the external handle or the outside-border halo. */
+    void dragRotation(double x, double y) {
+        Point2D[] start = getCoCorners(beforeMovement);
+        Point2D pivot = bilinearPoint(start, referencePoint.u(), referencePoint.v());
+        double startAngle = Math.atan2(
+            transformDragStartY - pivot.getY(), transformDragStartX - pivot.getX());
+        double currentAngle = Math.atan2(y - pivot.getY(), x - pivot.getX());
+        double delta = currentAngle - startAngle;
+        if (dragModifiers.shift()) {
+            double increment = Math.toRadians(15.0);
+            delta = Math.rint(delta / increment) * increment;
+        }
+
+        AffineTransform rotation = AffineTransform.getRotateInstance(
+            delta, pivot.getX(), pivot.getY());
+        Point2D[] candidate = new Point2D[4];
+        for (int i = 0; i < 4; i++) {
+            candidate[i] = rotation.transform(start[i], null);
+        }
+        installCandidate(candidate);
+    }
+
+    private Point2D[] perspectiveCandidate(Point2D[] start, int index,
+                                           double x, double y) {
+        Point2D[] result = copyPoints(start);
+        Point2D u = unit(vector(start[0], start[1]));
+        Point2D v = unit(vector(start[0], start[3]));
+        Point2D delta = new Point2D.Double(x - start[index].getX(), y - start[index].getY());
+        double du = dot(delta, u);
+        double dv = dot(delta, v);
+        result[index] = new Point2D.Double(x, y);
+        int paired = index ^ 1;
+        result[paired] = new Point2D.Double(
+            start[paired].getX() - du * u.getX() + dv * v.getX(),
+            start[paired].getY() - du * u.getY() + dv * v.getY());
+        return result;
+    }
+
+    private static Point2D[] scaleFromCorner(Point2D[] start, int index,
+                                             Point2D anchor, double x, double y,
+                                             boolean proportional) {
+        Point2D u = unit(vector(start[0], start[1]));
+        Point2D v = unit(vector(start[0], start[3]));
+        Point2D original = vector(anchor, start[index]);
+        Point2D current = new Point2D.Double(x - anchor.getX(), y - anchor.getY());
+        double scaleX;
+        double scaleY;
+        if (proportional) {
+            double denominator = dot(original, original);
+            if (denominator < 1.0e-9) {
+                return start;
+            }
+            double scale = dot(current, original) / denominator;
+            scaleX = scale;
+            scaleY = scale;
+        } else {
+            double originalX = dot(original, u);
+            double originalY = dot(original, v);
+            if (Math.abs(originalX) < 1.0e-9 || Math.abs(originalY) < 1.0e-9) {
+                return start;
+            }
+            scaleX = dot(current, u) / originalX;
+            scaleY = dot(current, v) / originalY;
+        }
+        return scalePoints(start, anchor, scaleX, scaleY, u, v);
+    }
+
+    private static Point2D[] scalePoints(Point2D[] points, Point2D anchor,
+                                         double scaleX, double scaleY,
+                                         Point2D u, Point2D v) {
+        Point2D[] result = new Point2D[points.length];
+        for (int i = 0; i < points.length; i++) {
+            Point2D rel = vector(anchor, points[i]);
+            double localX = dot(rel, u) * scaleX;
+            double localY = dot(rel, v) * scaleY;
+            result[i] = new Point2D.Double(
+                anchor.getX() + localX * u.getX() + localY * v.getX(),
+                anchor.getY() + localX * u.getY() + localY * v.getY());
+        }
+        return result;
+    }
+
+    private Point2D[] skewEdgeCandidate(Point2D[] start, EdgeHandle dragged,
+                                        Point2D pointerDelta) {
+        Point2D[] result = copyPoints(start);
+        Point2D u = unit(vector(start[0], start[1]));
+        Point2D v = unit(vector(start[0], start[3]));
+        if (dragged.isHorizontal()) {
+            double amount = dot(pointerDelta, u);
+            int[] indices = dragged == edges[0] ? new int[]{0, 1} : new int[]{3, 2};
+            for (int index : indices) {
+                result[index] = translate(start[index], amount * u.getX(), amount * u.getY());
+            }
+        } else {
+            double amount = dot(pointerDelta, v);
+            int[] indices = dragged == edges[1] ? new int[]{1, 2} : new int[]{0, 3};
+            for (int index : indices) {
+                result[index] = translate(start[index], amount * v.getX(), amount * v.getY());
+            }
+        }
+        return result;
+    }
+
+    private void installCandidate(Point2D[] candidate) {
+        if (candidate == null || candidate.length != 4) {
+            return;
+        }
+        try {
+            TransformMapping candidateMapping = mappingForComponentCorners(candidate);
+            if (candidateMapping instanceof ProjectiveMapping
+                && !target.getTransformCapabilities().contains(TransformCapability.PROJECTIVE)) {
+                return;
+            }
+        } catch (IllegalArgumentException e) {
+            return; // preserve the last valid geometry
+        }
+        nw.setLocationOnlyForThis(candidate[0]);
+        ne.setLocationOnlyForThis(candidate[1]);
+        se.setLocationOnlyForThis(candidate[2]);
+        sw.setLocationOnlyForThis(candidate[3]);
+        cornerHandlesMoved();
+    }
+
+    private TransformMapping mappingForComponentCorners(Point2D[] componentCorners) {
+        Point2D[] imageCorners = new Point2D[4];
+        for (int i = 0; i < 4; i++) {
+            imageCorners[i] = view.componentToImageSpace(componentCorners[i]);
+        }
+        if (isParallelogram(imageCorners)) {
+            return new AffineMapping(affineForCorners(imageCorners), origImRect);
+        }
+        return new ProjectiveMapping(origImRect, imageCorners);
+    }
+
+    private AffineTransform affineForCorners(Point2D[] p) {
+        double width = origImRect.getWidth();
+        double height = origImRect.getHeight();
+        double m00 = (p[1].getX() - p[0].getX()) / width;
+        double m10 = (p[1].getY() - p[0].getY()) / width;
+        double m01 = (p[3].getX() - p[0].getX()) / height;
+        double m11 = (p[3].getY() - p[0].getY()) / height;
+        double determinant = m00 * m11 - m01 * m10;
+        if (!Double.isFinite(determinant) || Math.abs(determinant) < 1.0e-9) {
+            throw new IllegalArgumentException("The transform has zero area");
+        }
+        double m02 = p[0].getX() - m00 * origImRect.getX() - m01 * origImRect.getY();
+        double m12 = p[0].getY() - m10 * origImRect.getX() - m11 * origImRect.getY();
+        return new AffineTransform(m00, m10, m01, m11, m02, m12);
+    }
+
+    private static boolean isParallelogram(Point2D[] p) {
+        double expectedX = p[1].getX() + p[3].getX() - p[0].getX();
+        double expectedY = p[1].getY() + p[3].getY() - p[0].getY();
+        return Math.abs(expectedX - p[2].getX()) < 1.0e-6
+            && Math.abs(expectedY - p[2].getY()) < 1.0e-6;
+    }
+
+    private void updateModernDerivedGeometry() {
+        double topX = ne.imX - nw.imX;
+        double topY = ne.imY - nw.imY;
+        double leftX = sw.imX - nw.imX;
+        double leftY = sw.imY - nw.imY;
+        double width = Math.hypot(topX, topY);
+        double height = width < 1.0e-9
+            ? 0.0
+            : (topX * leftY - topY * leftX) / width;
+        rotatedImSize.setSize(width, height);
+        setAngle(Math.atan2(topY, topX));
+    }
+
+    private boolean isInRotationHalo(double x, double y) {
+        Shape halo = new BasicStroke(20.0f).createStrokedShape(coBoxShape);
+        return halo.contains(x, y) && !coBoxShape.contains(x, y);
+    }
+
+    private void paintReferencePoint(Graphics2D g) {
+        Point2D pivot = getPivot();
+        Color oldColor = g.getColor();
+        Stroke oldStroke = g.getStroke();
+        g.setColor(new Color(255, 150, 20));
+        g.setStroke(new BasicStroke(1.5f));
+        g.draw(new Ellipse2D.Double(pivot.getX() - 4, pivot.getY() - 4, 8, 8));
+        g.draw(new Line2D.Double(pivot.getX() - 7, pivot.getY(), pivot.getX() + 7, pivot.getY()));
+        g.draw(new Line2D.Double(pivot.getX(), pivot.getY() - 7, pivot.getX(), pivot.getY() + 7));
+        g.setColor(oldColor);
+        g.setStroke(oldStroke);
+    }
+
+    private void paintWarpGrid(Graphics2D g) {
+        Point2D[] points = warpMapping.controlPoints();
+        Path2D grid = new Path2D.Double();
+        for (int row = 0; row < WarpMapping.GRID_SIZE; row++) {
+            for (int col = 0; col < WarpMapping.GRID_SIZE; col++) {
+                Point2D co = view.imageToComponentSpace(points[row * WarpMapping.GRID_SIZE + col]);
+                if (col == 0) {
+                    grid.moveTo(co.getX(), co.getY());
+                } else {
+                    grid.lineTo(co.getX(), co.getY());
+                }
+            }
+        }
+        for (int col = 0; col < WarpMapping.GRID_SIZE; col++) {
+            for (int row = 0; row < WarpMapping.GRID_SIZE; row++) {
+                Point2D co = view.imageToComponentSpace(points[row * WarpMapping.GRID_SIZE + col]);
+                if (row == 0) {
+                    grid.moveTo(co.getX(), co.getY());
+                } else {
+                    grid.lineTo(co.getX(), co.getY());
+                }
+            }
+        }
+        Shapes.drawVisibly(g, grid);
+        for (Point2D point : points) {
+            Point2D co = view.imageToComponentSpace(point);
+            g.fill(new Ellipse2D.Double(co.getX() - 3, co.getY() - 3, 6, 6));
+        }
+    }
+
+    private int findWarpPointAt(double x, double y) {
+        Point2D[] points = warpMapping.controlPoints();
+        for (int i = 0; i < points.length; i++) {
+            Point2D co = view.imageToComponentSpace(points[i]);
+            if (co.distanceSq(x, y) <= 64.0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public TransformReferencePoint getReferencePoint() {
+        return referencePoint;
+    }
+
+    public void setReferencePoint(TransformReferencePoint referencePoint) {
+        if (this.referencePoint == referencePoint) {
+            return;
+        }
+        saveState();
+        this.referencePoint = referencePoint;
+        notifyChanged();
+        view.repaint();
+    }
+
+    public Point2D getReferencePointInImageSpace() {
+        return bilinearPoint(getImCorners(), referencePoint.u(), referencePoint.v());
+    }
+
+    public double getWidthPercent() {
+        return 100.0 * distance(nw, ne) / origImRect.getWidth();
+    }
+
+    public double getHeightPercent() {
+        return 100.0 * distance(nw, sw) / origImRect.getHeight();
+    }
+
+    public double getRotationDegrees() {
+        return Math.toDegrees(Math.atan2(ne.imY - nw.imY, ne.imX - nw.imX));
+    }
+
+    public double getHorizontalSkewDegrees() {
+        return horizontalSkewDegrees;
+    }
+
+    public double getVerticalSkewDegrees() {
+        return verticalSkewDegrees;
+    }
+
+    public TransformMode getTransformMode() {
+        return transformMode;
+    }
+
+    public WarpStyle getWarpStyle() {
+        return warpStyle;
+    }
+
+    public void translateReferenceTo(double imageX, double imageY) {
+        Point2D current = getReferencePointInImageSpace();
+        double coDx = (imageX - current.getX()) * view.getZoomScale();
+        double coDy = (imageY - current.getY()) * view.getZoomScale();
+        saveState();
+        Point2D[] points = getCoCorners();
+        for (int i = 0; i < points.length; i++) {
+            points[i] = translate(points[i], coDx, coDy);
+        }
+        installCandidate(points);
+    }
+
+    public void setScalePercent(double widthPercent, double heightPercent) {
+        if (!validPercent(widthPercent) || !validPercent(heightPercent)) {
+            throw new IllegalArgumentException("Scale values must be finite and nonzero");
+        }
+        double currentWidth = getWidthPercent();
+        double currentHeight = getHeightPercent();
+        saveState();
+        Point2D[] points = getCoCorners();
+        Point2D pivot = getPivot();
+        Point2D u = unit(vector(points[0], points[1]));
+        Point2D v = unit(vector(points[0], points[3]));
+        installCandidate(scalePoints(points, pivot,
+            widthPercent / currentWidth, heightPercent / currentHeight, u, v));
+    }
+
+    public void setRotationDegrees(double degrees) {
+        if (!Double.isFinite(degrees) || Math.abs(degrees) > 100_000.0) {
+            throw new IllegalArgumentException("Invalid rotation angle");
+        }
+        saveState();
+        double delta = Math.toRadians(degrees - getRotationDegrees());
+        Point2D pivot = getPivot();
+        AffineTransform rotation = AffineTransform.getRotateInstance(
+            delta, pivot.getX(), pivot.getY());
+        Point2D[] points = getCoCorners();
+        for (int i = 0; i < points.length; i++) {
+            points[i] = rotation.transform(points[i], null);
+        }
+        installCandidate(points);
+    }
+
+    public void setSkewDegrees(double horizontal, double vertical) {
+        if (!Double.isFinite(horizontal) || !Double.isFinite(vertical)
+            || Math.abs(horizontal) >= 89.0 || Math.abs(vertical) >= 89.0) {
+            throw new IllegalArgumentException("Skew angles must be between -89 and 89 degrees");
+        }
+        saveState();
+        Point2D[] points = getCoCorners();
+        Point2D pivot = getPivot();
+        Point2D u = unit(vector(points[0], points[1]));
+        Point2D v = unit(vector(points[0], points[3]));
+        double horizontalDelta = Math.tan(Math.toRadians(horizontal))
+            - Math.tan(Math.toRadians(horizontalSkewDegrees));
+        double verticalDelta = Math.tan(Math.toRadians(vertical))
+            - Math.tan(Math.toRadians(verticalSkewDegrees));
+        Point2D[] result = new Point2D[4];
+        for (int i = 0; i < points.length; i++) {
+            Point2D rel = vector(pivot, points[i]);
+            double localX = dot(rel, u);
+            double localY = dot(rel, v);
+            double newX = localX + horizontalDelta * localY;
+            double newY = localY + verticalDelta * localX;
+            result[i] = new Point2D.Double(
+                pivot.getX() + newX * u.getX() + newY * v.getX(),
+                pivot.getY() + newX * u.getY() + newY * v.getY());
+        }
+        horizontalSkewDegrees = horizontal;
+        verticalSkewDegrees = vertical;
+        installCandidate(result);
+    }
+
+    public void setTransformMode(TransformMode mode) {
+        if (mode == transformMode) {
+            return;
+        }
+        saveState();
+        if (mode == TransformMode.WARP && warpMapping == null) {
+            warpMapping = WarpMapping.create(origImRect, getImCorners(), warpStyle);
+        }
+        transformMode = mode;
+        applyTransform();
+        target.updateUI(view);
+        view.repaint();
+    }
+
+    public void setWarpStyle(WarpStyle style) {
+        saveState();
+        warpStyle = style;
+        warpMapping = WarpMapping.create(origImRect, getImCorners(), style);
+        if (transformMode == TransformMode.WARP) {
+            applyTransform();
+            target.updateUI(view);
+        }
+        view.repaint();
+    }
+
+    private static boolean validPercent(double value) {
+        return Double.isFinite(value) && Math.abs(value) >= 0.01 && Math.abs(value) <= 100_000.0;
+    }
+
+    private int cornerIndex(CornerHandle corner) {
+        for (int i = 0; i < corners.length; i++) {
+            if (corners[i] == corner) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("Unknown corner");
+    }
+
+    private Point2D midpointOfDraggedEdge(Point2D[] p, EdgeHandle edge) {
+        if (edge == edges[0]) {
+            return Geometry.midPoint(p[0], p[1]);
+        } else if (edge == edges[1]) {
+            return Geometry.midPoint(p[1], p[2]);
+        } else if (edge == edges[2]) {
+            return Geometry.midPoint(p[0], p[3]);
+        }
+        return Geometry.midPoint(p[3], p[2]);
+    }
+
+    private Point2D midpointOfOppositeEdge(Point2D[] p, EdgeHandle edge) {
+        if (edge == edges[0]) {
+            return Geometry.midPoint(p[3], p[2]);
+        } else if (edge == edges[1]) {
+            return Geometry.midPoint(p[0], p[3]);
+        } else if (edge == edges[2]) {
+            return Geometry.midPoint(p[1], p[2]);
+        }
+        return Geometry.midPoint(p[0], p[1]);
+    }
+
+    private Point2D[] getCoCorners() {
+        return new Point2D[]{
+            nw.getLocationCopy().toCoPoint2D(), ne.getLocationCopy().toCoPoint2D(),
+            se.getLocationCopy().toCoPoint2D(), sw.getLocationCopy().toCoPoint2D()
+        };
+    }
+
+    private static Point2D[] getCoCorners(Memento memento) {
+        return new Point2D[]{
+            memento.nw.toCoPoint2D(), memento.ne.toCoPoint2D(),
+            memento.se.toCoPoint2D(), memento.sw.toCoPoint2D()
+        };
+    }
+
+    private Point2D[] getImCorners() {
+        return new Point2D[]{
+            nw.getImLocationCopy(), ne.getImLocationCopy(),
+            se.getImLocationCopy(), sw.getImLocationCopy()
+        };
+    }
+
+    private static Point2D bilinearPoint(Point2D[] q, double u, double v) {
+        double a = (1.0 - u) * (1.0 - v);
+        double b = u * (1.0 - v);
+        double c = u * v;
+        double d = (1.0 - u) * v;
+        return new Point2D.Double(
+            a * q[0].getX() + b * q[1].getX() + c * q[2].getX() + d * q[3].getX(),
+            a * q[0].getY() + b * q[1].getY() + c * q[2].getY() + d * q[3].getY());
+    }
+
+    private static Point2D vector(Point2D from, Point2D to) {
+        return new Point2D.Double(to.getX() - from.getX(), to.getY() - from.getY());
+    }
+
+    private static Point2D unit(Point2D vector) {
+        double length = Math.hypot(vector.getX(), vector.getY());
+        if (length < 1.0e-9) {
+            throw new IllegalArgumentException("Degenerate transform axis");
+        }
+        return new Point2D.Double(vector.getX() / length, vector.getY() / length);
+    }
+
+    private static double dot(Point2D a, Point2D b) {
+        return a.getX() * b.getX() + a.getY() * b.getY();
+    }
+
+    private static Point2D translate(Point2D p, double dx, double dy) {
+        return new Point2D.Double(p.getX() + dx, p.getY() + dy);
+    }
+
+    private static Point2D[] copyPoints(Point2D[] points) {
+        Point2D[] copy = new Point2D[points.length];
+        for (int i = 0; i < points.length; i++) {
+            copy[i] = new Point2D.Double(points[i].getX(), points[i].getY());
+        }
+        return copy;
+    }
+
+    private static double distance(Point2D a, Point2D b) {
+        return a.distance(b);
     }
 
     @Override
@@ -854,6 +1485,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         se.setLocationOnlyForThis(m.se);
         sw.setLocationOnlyForThis(m.sw);
         setAngle(m.angle);
+        referencePoint = m.referencePoint;
+        transformMode = m.transformMode;
+        warpStyle = m.warpStyle;
+        warpMapping = m.warpMapping;
+        horizontalSkewDegrees = m.horizontalSkewDegrees;
+        verticalSkewDegrees = m.verticalSkewDegrees;
 
         cornerHandlesMoved();
 
@@ -861,6 +1498,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         updateDirections();
 
         target.updateUI(view);
+        notifyChanged();
     }
 
     private void addLegacyEditToHistory(Composition comp, String editName) {
@@ -933,6 +1571,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
 
         private final Rectangle2D origImRect;
         private final double angle;
+        private final TransformReferencePoint referencePoint;
+        private final TransformMode transformMode;
+        private final WarpStyle warpStyle;
+        private final WarpMapping warpMapping;
+        private final double horizontalSkewDegrees;
+        private final double verticalSkewDegrees;
 
         public Memento(TransformBox box) {
             this.origImRect = new Rectangle2D.Double();
@@ -944,6 +1588,12 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
             this.sw = box.sw.getLocationCopy();
 
             this.angle = box.angle;
+            this.referencePoint = box.referencePoint;
+            this.transformMode = box.transformMode;
+            this.warpStyle = box.warpStyle;
+            this.warpMapping = box.warpMapping;
+            this.horizontalSkewDegrees = box.horizontalSkewDegrees;
+            this.verticalSkewDegrees = box.verticalSkewDegrees;
         }
 
         public Rectangle2D getOrigImRect() {
@@ -960,15 +1610,23 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
             }
             Memento memento = (Memento) o;
             return Double.compare(memento.angle, angle) == 0 &&
+                Double.compare(memento.horizontalSkewDegrees, horizontalSkewDegrees) == 0 &&
+                Double.compare(memento.verticalSkewDegrees, verticalSkewDegrees) == 0 &&
                 Objects.equals(nw, memento.nw) &&
                 Objects.equals(ne, memento.ne) &&
                 Objects.equals(se, memento.se) &&
-                Objects.equals(sw, memento.sw);
+                Objects.equals(sw, memento.sw) &&
+                referencePoint == memento.referencePoint &&
+                transformMode == memento.transformMode &&
+                warpStyle == memento.warpStyle &&
+                Objects.equals(warpMapping, memento.warpMapping);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nw, ne, se, sw, angle);
+            return Objects.hash(nw, ne, se, sw, angle, referencePoint,
+                transformMode, warpStyle, warpMapping,
+                horizontalSkewDegrees, verticalSkewDegrees);
         }
     }
 }

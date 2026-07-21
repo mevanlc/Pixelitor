@@ -93,6 +93,7 @@ public class Keys {
     public static final KeyStroke CTRL_SHIFT_G = getKeyStroke('G', CTRL | SHIFT);
     public static final KeyStroke CTRL_SHIFT_I = getKeyStroke('I', CTRL | SHIFT);
     public static final KeyStroke CTRL_SHIFT_S = getKeyStroke('S', CTRL | SHIFT);
+    public static final KeyStroke CTRL_SHIFT_T = getKeyStroke('T', CTRL | SHIFT);
     public static final KeyStroke CTRL_SHIFT_V = getKeyStroke('V', CTRL | SHIFT);
     public static final KeyStroke CTRL_SHIFT_X = getKeyStroke('X', CTRL | SHIFT);
     public static final KeyStroke CTRL_SHIFT_Z = getKeyStroke('Z', CTRL | SHIFT);

@@ -78,6 +78,11 @@ public class RotationHandle extends DraggablePoint {
 
     @Override
     public void mouseDragged(double x, double y) {
+        if (box.isModernFreeTransform()) {
+            box.dragRotation(x, y);
+            return;
+        }
+
         double dx = x - dragStartX;
         double dy = y - dragStartY;
         double newX = origX + dx;
