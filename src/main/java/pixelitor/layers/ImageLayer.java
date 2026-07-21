@@ -1635,6 +1635,15 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         transformSourceImage = null;
     }
 
+    // Package-private observability for deterministic async-preview tests.
+    synchronized boolean isTransformPreviewRunning() {
+        return transformPreviewRunning;
+    }
+
+    BufferedImage getLiveTransformImage() {
+        return liveTransformImage;
+    }
+
     @Override
     public void updateUI(View view) {
         view.repaint();

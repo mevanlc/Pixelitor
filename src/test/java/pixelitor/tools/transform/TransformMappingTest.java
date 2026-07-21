@@ -42,6 +42,10 @@ class TransformMappingTest {
         assertThatThrownBy(() -> new ProjectiveMapping(SOURCE,
             point(0, 0), point(50, 0), point(100, 0), point(150, 0)))
             .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ProjectiveMapping(SOURCE,
+            point(0, 0), point(100, 0), point(30, 20), point(0, 50)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("convex");
     }
 
     @Test
@@ -73,6 +77,18 @@ class TransformMappingTest {
             assertThat(mapping.style()).isEqualTo(style);
             assertThat(mapping.destinationBounds().isEmpty()).isFalse();
         }
+    }
+
+    @Test
+    void customWarpRejectsAnInvertedMeshPoint() {
+        Point2D[] quad = {
+            point(10, 20), point(110, 20), point(110, 70), point(10, 70)
+        };
+        WarpMapping mapping = WarpMapping.create(SOURCE, quad, WarpStyle.CUSTOM);
+
+        assertThatThrownBy(() -> mapping.withControlPoint(5, point(105, 65)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("inverted");
     }
 
     private static Point2D point(double x, double y) {

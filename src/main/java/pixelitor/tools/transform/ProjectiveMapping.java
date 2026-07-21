@@ -112,6 +112,23 @@ public final class ProjectiveMapping implements TransformMapping {
             throw new IllegalArgumentException("The destination quadrilateral intersects itself");
         }
 
+        double orientation = 0.0;
+        for (int i = 0; i < 4; i++) {
+            Point2D a = p[i];
+            Point2D b = p[(i + 1) % 4];
+            Point2D c = p[(i + 2) % 4];
+            double cross = (b.getX() - a.getX()) * (c.getY() - b.getY())
+                - (b.getY() - a.getY()) * (c.getX() - b.getX());
+            if (Math.abs(cross) < EPSILON) {
+                throw new IllegalArgumentException("The destination quadrilateral has a flat corner");
+            }
+            if (orientation == 0.0) {
+                orientation = Math.signum(cross);
+            } else if (Math.signum(cross) != orientation) {
+                throw new IllegalArgumentException("The destination quadrilateral must be convex");
+            }
+        }
+
         double twiceArea = 0.0;
         for (int i = 0; i < 4; i++) {
             int next = (i + 1) % 4;

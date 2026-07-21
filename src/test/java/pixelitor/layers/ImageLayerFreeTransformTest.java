@@ -16,12 +16,14 @@ import pixelitor.TestHelper;
 import pixelitor.history.PixelitorEdit;
 import pixelitor.tools.transform.ProjectiveMapping;
 import pixelitor.tools.transform.TransformMapping;
+import pixelitor.tools.transform.TransformRenderer;
 import pixelitor.tools.transform.WarpMapping;
 import pixelitor.tools.transform.WarpStyle;
 
 import java.awt.Color;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
+import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -83,6 +85,47 @@ class ImageLayerFreeTransformTest {
         layer.imTransform(wave);
         assertThat(layer.finalizeTransform()).isNotNull();
         assertThat(layer.getImage()).isNotSameAs(original);
+    }
+
+    @Test
+    void staleAsyncPreviewNeverReplacesTheNewestMapping() throws Exception {
+        var sourceBounds = layer.getContentBounds(true);
+        TransformMapping first = new ProjectiveMapping(sourceBounds,
+            point(0, 0), point(8, 0), point(10, 10), point(0, 9));
+        TransformMapping newest = new ProjectiveMapping(sourceBounds,
+            point(2, 0), point(10, 2), point(8, 10), point(0, 8));
+
+        layer.prepareForTransform();
+        layer.imTransform(first);
+        layer.imTransform(newest);
+        waitForPreview();
+
+        TransformRenderer.Result expected = TransformRenderer.render(
+            original, 0, 0, sourceBounds, comp.getCanvasBounds(), newest);
+        assertImagesEqual(layer.getLiveTransformImage(), expected.image());
+        layer.cancelTransform();
+    }
+
+    private void waitForPreview() throws Exception {
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        while (layer.isTransformPreviewRunning() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertThat(layer.isTransformPreviewRunning()).isFalse();
+        SwingUtilities.invokeAndWait(() -> {
+            // Flush preview installation queued on the EDT.
+        });
+    }
+
+    private static void assertImagesEqual(BufferedImage actual, BufferedImage expected) {
+        assertThat(actual).isNotNull();
+        assertThat(actual.getWidth()).isEqualTo(expected.getWidth());
+        assertThat(actual.getHeight()).isEqualTo(expected.getHeight());
+        for (int y = 0; y < expected.getHeight(); y++) {
+            for (int x = 0; x < expected.getWidth(); x++) {
+                assertThat(actual.getRGB(x, y)).isEqualTo(expected.getRGB(x, y));
+            }
+        }
     }
 
     private static BufferedImage fixture(int width, int height) {

@@ -59,9 +59,10 @@ import static pixelitor.utils.Cursors.DEFAULT;
 import static pixelitor.utils.Cursors.MOVE;
 
 /**
- * A widget that manipulates a {@link Transformable} by
- * calculating an {@link AffineTransform}
- * based on the interactive movement of its handles.
+ * A widget that manipulates a {@link Transformable} by calculating an affine,
+ * projective, or mesh mapping from the interactive movement of its handles.
+ * Legacy shape/path users remain affine-only; the Move tool enables the full
+ * Free Transform interaction model.
  */
 public class TransformBox implements ToolWidget, Debuggable, Serializable {
     @Serial
@@ -698,7 +699,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
 
             view.setCursor(contains(x, y) ? MOVE
                 : isModernFreeTransform() && isInRotationHalo(x, y)
-                ? Cursors.CROSSHAIR : DEFAULT);
+                ? Cursors.ROTATE : DEFAULT);
         }
     }
 
@@ -804,7 +805,11 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
             x - transformDragStartX, y - transformDragStartY);
 
         if (dragModifiers.menu() && dragModifiers.shift()) {
-            installCandidate(skewEdgeCandidate(start, dragged, pointerDelta));
+            Point2D[] candidate = skewEdgeCandidate(start, dragged, pointerDelta);
+            if (installCandidate(candidate)) {
+                updatePointerSkewValues(start, dragged, pointerDelta);
+                notifyChanged();
+            }
             return;
         }
 
@@ -930,24 +935,44 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         return result;
     }
 
-    private void installCandidate(Point2D[] candidate) {
+    private boolean installCandidate(Point2D[] candidate) {
         if (candidate == null || candidate.length != 4) {
-            return;
+            return false;
         }
         try {
             TransformMapping candidateMapping = mappingForComponentCorners(candidate);
             if (candidateMapping instanceof ProjectiveMapping
                 && !target.getTransformCapabilities().contains(TransformCapability.PROJECTIVE)) {
-                return;
+                return false;
             }
         } catch (IllegalArgumentException e) {
-            return; // preserve the last valid geometry
+            return false; // preserve the last valid geometry
         }
         nw.setLocationOnlyForThis(candidate[0]);
         ne.setLocationOnlyForThis(candidate[1]);
         se.setLocationOnlyForThis(candidate[2]);
         sw.setLocationOnlyForThis(candidate[3]);
         cornerHandlesMoved();
+        return true;
+    }
+
+    private void updatePointerSkewValues(Point2D[] start, EdgeHandle dragged,
+                                         Point2D pointerDelta) {
+        Point2D u = unit(vector(start[0], start[1]));
+        Point2D v = unit(vector(start[0], start[3]));
+        if (dragged.isHorizontal()) {
+            double amount = dot(pointerDelta, u);
+            double height = Math.max(1.0e-9, start[0].distance(start[3]));
+            double signed = dragged == edges[0] ? -amount : amount;
+            horizontalSkewDegrees = beforeMovement.horizontalSkewDegrees
+                + Math.toDegrees(Math.atan(signed / height));
+        } else {
+            double amount = dot(pointerDelta, v);
+            double width = Math.max(1.0e-9, start[0].distance(start[1]));
+            double signed = dragged == edges[1] ? amount : -amount;
+            verticalSkewDegrees = beforeMovement.verticalSkewDegrees
+                + Math.toDegrees(Math.atan(signed / width));
+        }
     }
 
     private TransformMapping mappingForComponentCorners(Point2D[] componentCorners) {
@@ -1170,9 +1195,11 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
                 pivot.getX() + newX * u.getX() + newY * v.getX(),
                 pivot.getY() + newX * u.getY() + newY * v.getY());
         }
-        horizontalSkewDegrees = horizontal;
-        verticalSkewDegrees = vertical;
-        installCandidate(result);
+        if (installCandidate(result)) {
+            horizontalSkewDegrees = horizontal;
+            verticalSkewDegrees = vertical;
+            notifyChanged();
+        }
     }
 
     public void setTransformMode(TransformMode mode) {

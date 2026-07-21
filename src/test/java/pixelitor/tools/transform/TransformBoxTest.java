@@ -564,6 +564,8 @@ class TransformBoxTest {
         assertThat(box.getNE()).isAtIm(440, 100);
         assertThat(box.getSW()).isAtIm(200, 200);
         assertThat(box.getSE()).isAtIm(400, 200);
+        assertThat(box.getHorizontalSkewDegrees()).isCloseTo(-21.801,
+            org.assertj.core.data.Offset.offset(0.01));
         assertThat(box.calcMapping()).isInstanceOf(AffineMapping.class);
     }
 

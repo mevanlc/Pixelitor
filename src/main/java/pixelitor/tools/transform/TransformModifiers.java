@@ -16,7 +16,11 @@ public record TransformModifiers(boolean shift, boolean alt, boolean menu) {
     public static final TransformModifiers NONE = new TransformModifiers(false, false, false);
 
     public static TransformModifiers from(PMouseEvent event) {
-        boolean menuDown = JVM.isMac ? event.isMetaDown() : event.isControlDown();
+        return from(event, JVM.isMac);
+    }
+
+    static TransformModifiers from(PMouseEvent event, boolean mac) {
+        boolean menuDown = mac ? event.isMetaDown() : event.isControlDown();
         return new TransformModifiers(event.isShiftDown(), event.isAltDown(), menuDown);
     }
 }

@@ -38,6 +38,7 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.awt.geom.Rectangle2D;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static pixelitor.TestHelper.assertHistoryEditsAre;
@@ -248,6 +249,20 @@ class MoveToolTest {
     }
 
     @Test
+    void moveControlsUseTheUnionOfLayerAndSelectionBounds() {
+        configureMove(MoveMode.MOVE_BOTH, false, true);
+        Rectangle componentSelection = comp.getView().imageToComponentSpace(
+            comp.getSelection().getShapeBounds2D());
+        componentSelection.grow(10, 10);
+        Rectangle2D expandedSelection = comp.getView().componentToImageSpace(componentSelection);
+        Rectangle2D expected = sourceLayer.getContentBounds(true).createUnion(expandedSelection);
+
+        tool.toolActivated(comp.getView());
+
+        assertThat(tool.getTransformBox().getOrigImRect()).isEqualTo(expected);
+    }
+
+    @Test
     void enterCommitsOneApplyEditAndUndoRestoresTheInteractiveSession() {
         tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
         tool.arrowKeyPressed(ArrowKey.RIGHT);
@@ -315,6 +330,19 @@ class MoveToolTest {
 
         assertThat(tool.isFreeTransforming()).isFalse();
         assertThat(comp.getActiveLayer()).isSameAs(otherLayer);
+        assertHistoryEditsAre("Nudge", "Apply Free Transform");
+    }
+
+    @Test
+    void doubleClickInsideTransformBoxCommits() {
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+        tool.arrowKeyPressed(ArrowKey.RIGHT);
+        MouseEvent event = new MouseEvent(comp.getView(), MouseEvent.MOUSE_CLICKED,
+            0, 0, 5, 5, 2, false, MouseEvent.BUTTON1);
+
+        tool.mouseClicked(new PMouseEvent(event, comp.getView()));
+
+        assertThat(tool.isFreeTransforming()).isFalse();
         assertHistoryEditsAre("Nudge", "Apply Free Transform");
     }
 

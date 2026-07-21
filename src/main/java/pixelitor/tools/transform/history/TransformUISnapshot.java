@@ -31,9 +31,9 @@ import java.awt.geom.Rectangle2D;
  * This is stored in a history edit to allow the interactive TransformBox
  * to be restored when an action is undone.
  *
- * @param memento    The state of the TransformBox, including its original bounds,
- *                   handle positions, and angle.
- * @param moveMode   The MoveMode that was active during the transformation.
+ * In addition to complete widget geometry, this captures the exact target and
+ * start policy. Undo therefore never has to guess from the layer that happens
+ * to be active later.
  */
 public record TransformUISnapshot(
     TransformBox.Memento memento,

@@ -385,6 +385,19 @@ While using the Rectangle Selection or Ellipse Selection tool, hold <kbd>Ctrl</k
 On macOS, hold <kbd>Command</kbd> when pressing or dragging with the Move tool to perform <b>Layer via Fill Cut</b> on the active selection before moving. If <b>Auto Select Layer</b> is enabled, the source layer under the pointer is selected first; the extracted layer then becomes active and receives the drag. Command has no additional effect when there is no active selection.
 </p>
 
+<h3 id="free_transform">Free Transform</h3>
+<p>
+Choose <b>Edit &gt; Free Transform</b> to transform the active image layer, or enable <b>Free Transform</b> in the Move tool settings. The Edit command uses the smallest rectangle containing every non-transparent pixel in the layer. The Move tool option instead uses the layer image buffer's true edges, including transparent edge pixels. In <b>Selection Only</b> mode it uses the selection bounds, and in <b>Layer and Selection</b> mode it uses their combined bounds.
+</p><p>
+The Edit command shortcut is <kbd>Command</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> on macOS and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> on Windows and Linux. Drag inside the box to move it. Corner handles scale proportionally by default; hold <kbd>Shift</kbd> to scale width and height independently. Side handles scale one axis. Hold <kbd>Option</kbd> on macOS or <kbd>Alt</kbd> on Windows and Linux while scaling to keep the selected reference point fixed.
+</p><p>
+Drag just outside the box to rotate, and hold <kbd>Shift</kbd> to snap the rotation to 15-degree increments. <kbd>Command</kbd>-drag a corner on macOS or <kbd>Ctrl</kbd>-drag it on Windows and Linux to distort that corner freely. Add <kbd>Shift</kbd> while dragging a side handle to skew. Hold <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>Shift</kbd> on macOS or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd> on Windows and Linux while dragging a corner to apply perspective.
+</p><p>
+While a transform is active, the tool settings show a 3-by-3 reference-point locator, X/Y position, relative-position mode, linked width/height percentages, rotation, horizontal and vertical skew, and commit/cancel buttons. Switch from <b>Free Transform</b> to <b>Warp</b> to edit a 4-by-4 control mesh or choose Custom, Arc, Arch, Bulge, Flag, or Wave.
+</p><p>
+Press <kbd>Enter</kbd>, click the commit button, double-click inside the box, choose another tool, or select another layer to apply the complete transform. Press <kbd>Esc</kbd> or click the cancel button to restore the exact pre-transform layer. During an active session, <b>Edit &gt; Undo</b> reverses only the most recent completed handle or numeric adjustment.
+</p>
+
 <h3>Trail Move Tool</h3>
 <p>
 The Trail Move tool stamps pixels along a drag path. When there is an active selection, it uses only the selected pixels and moves the selection outline with them. This is useful for small, fast adjustments to screenshots: include some of the surrounding background in the selection so that the moved copy covers the control's old position. The copied background will overwrite anything under the move path, so keep the path clear of content that you want to preserve.

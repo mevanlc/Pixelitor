@@ -48,8 +48,14 @@ public final class WarpMapping implements TransformMapping {
 
     public static WarpMapping create(Rectangle2D sourceBounds, Point2D[] quad, WarpStyle style) {
         Point2D[] points = new Point2D[GRID_SIZE * GRID_SIZE];
-        double width = sourceBounds.getWidth();
-        double height = sourceBounds.getHeight();
+        Point2D horizontalAxis = unit(new Point2D.Double(
+            (quad[1].getX() - quad[0].getX() + quad[2].getX() - quad[3].getX()) / 2.0,
+            (quad[1].getY() - quad[0].getY() + quad[2].getY() - quad[3].getY()) / 2.0));
+        Point2D verticalAxis = unit(new Point2D.Double(
+            (quad[3].getX() - quad[0].getX() + quad[2].getX() - quad[1].getX()) / 2.0,
+            (quad[3].getY() - quad[0].getY() + quad[2].getY() - quad[1].getY()) / 2.0));
+        double width = (quad[0].distance(quad[1]) + quad[3].distance(quad[2])) / 2.0;
+        double height = (quad[0].distance(quad[3]) + quad[1].distance(quad[2])) / 2.0;
         for (int row = 0; row < GRID_SIZE; row++) {
             double v = row / 3.0;
             for (int col = 0; col < GRID_SIZE; col++) {
@@ -73,7 +79,9 @@ public final class WarpMapping implements TransformMapping {
                         // regular mesh
                     }
                 }
-                points[row * GRID_SIZE + col] = new Point2D.Double(p.getX() + dx, p.getY() + dy);
+                points[row * GRID_SIZE + col] = new Point2D.Double(
+                    p.getX() + dx * horizontalAxis.getX() + dy * verticalAxis.getX(),
+                    p.getY() + dx * horizontalAxis.getY() + dy * verticalAxis.getY());
             }
         }
         return new WarpMapping(sourceBounds, style, points);
@@ -209,18 +217,34 @@ public final class WarpMapping implements TransformMapping {
     }
 
     private void validateTriangles() {
+        double orientation = 0.0;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 3; col++) {
                 Point2D p00 = point(row, col);
                 Point2D p10 = point(row, col + 1);
                 Point2D p11 = point(row + 1, col + 1);
                 Point2D p01 = point(row + 1, col);
-                if (Math.abs(cross(p00, p10, p11)) < EPSILON
-                    || Math.abs(cross(p00, p11, p01)) < EPSILON) {
+                double first = cross(p00, p10, p11);
+                double second = cross(p00, p11, p01);
+                if (Math.abs(first) < EPSILON || Math.abs(second) < EPSILON) {
                     throw new IllegalArgumentException("The warp mesh contains a degenerate triangle");
+                }
+                if (orientation == 0.0) {
+                    orientation = Math.signum(first);
+                }
+                if (Math.signum(first) != orientation || Math.signum(second) != orientation) {
+                    throw new IllegalArgumentException("The warp mesh contains an inverted triangle");
                 }
             }
         }
+    }
+
+    private static Point2D unit(Point2D vector) {
+        double length = Math.hypot(vector.getX(), vector.getY());
+        if (length < EPSILON) {
+            throw new IllegalArgumentException("The warp quad has a degenerate axis");
+        }
+        return new Point2D.Double(vector.getX() / length, vector.getY() / length);
     }
 
     private static Point2D bilinearQuad(Point2D[] q, double u, double v) {
