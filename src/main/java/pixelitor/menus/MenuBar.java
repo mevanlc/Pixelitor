@@ -299,7 +299,7 @@ public class MenuBar extends JMenuBar {
 
         // flatten image
         layersMenu.addViewEnabled(i18n.getString("flatten_image"), i18n.getString("flatten_image_tt"),
-            Composition::flattenImage);
+            Composition::flattenImage, CTRL_ALT_E);
 
         // new layer from visible
         layersMenu.addViewEnabled(i18n.getString("new_from_visible"), i18n.getString("new_from_visible_tt"),
@@ -1312,7 +1312,7 @@ public class MenuBar extends JMenuBar {
             comp -> {
                 BufferedImage img = comp.getCompositeImage();
                 ImageMagick.exportImage(img, new File("out.webp"), ExportSettings.DEFAULTS);
-            }, CTRL_ALT_E);
+            }, CTRL_ALT_P);
 
         sub.addViewEnabled("Reset Active Layer Translation",
             comp -> {

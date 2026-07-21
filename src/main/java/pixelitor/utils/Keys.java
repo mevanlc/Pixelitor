@@ -77,6 +77,7 @@ public class Keys {
     public static final KeyStroke CTRL_ALT_F = getKeyStroke('F', CTRL | ALT);
     public static final KeyStroke CTRL_ALT_G = getKeyStroke('G', CTRL | ALT);
     public static final KeyStroke CTRL_ALT_I = getKeyStroke('I', CTRL | ALT);
+    public static final KeyStroke CTRL_ALT_P = getKeyStroke('P', CTRL | ALT);
 
     // Ctrl+Alt+L is lock screen in Linux!
     //    public static final KeyStroke CTRL_ALT_L = getKeyStroke('L', CTRL | ALT);
