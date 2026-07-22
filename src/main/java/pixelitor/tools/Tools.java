@@ -125,7 +125,7 @@ public class Tools {
     }
 
     public static void setActiveTool(Tool newTool) {
-        clearTemporaryToolSwitch();
+        cancelTemporaryToolSwitch();
         activeTool = newTool;
     }
 
@@ -142,7 +142,7 @@ public class Tools {
         // any temporary switch. This also prevents modifier callbacks during
         // deactivation from restoring an obsolete primary tool.
         if (prevTool == temporaryTool) {
-            clearTemporaryToolSwitch();
+            cancelTemporaryToolSwitch();
         }
 
         Messages.showStatusMessage(newTool.getStatusBarMessage());
@@ -211,6 +211,8 @@ public class Tools {
         boolean started = activeTool == newTool;
         if (!started) {
             clearTemporaryToolSwitch();
+        } else {
+            newTool.temporaryToolStarted(primaryToolBeforeTemporarySwitch);
         }
         return started;
     }
@@ -248,9 +250,22 @@ public class Tools {
 
     private static void restorePrimaryToolNow() {
         Tool primaryTool = primaryToolBeforeTemporarySwitch;
+        Tool restoredTemporaryTool = temporaryTool;
         clearTemporaryToolSwitch();
         if (primaryTool != null) {
             primaryTool.activate();
+        }
+        if (restoredTemporaryTool != null) {
+            restoredTemporaryTool.temporaryToolRestored(primaryTool);
+        }
+    }
+
+    private static void cancelTemporaryToolSwitch() {
+        Tool primaryTool = primaryToolBeforeTemporarySwitch;
+        Tool canceledTemporaryTool = temporaryTool;
+        clearTemporaryToolSwitch();
+        if (canceledTemporaryTool != null) {
+            canceledTemporaryTool.temporaryToolCanceled(primaryTool);
         }
     }
 

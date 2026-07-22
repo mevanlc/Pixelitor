@@ -18,6 +18,7 @@
 package pixelitor.tools.selection;
 
 import pixelitor.AppMode;
+import pixelitor.filters.gui.UserPreset;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.selection.SelectionType;
 import pixelitor.tools.ToolIcons;
@@ -25,14 +26,19 @@ import pixelitor.tools.Tools;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.Cursors;
 
+import javax.swing.JCheckBox;
 import java.awt.Graphics2D;
+import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
 /**
  * A tool that creates rectangular or elliptical selections by dragging.
  */
 public class MarqueeSelectionTool extends AbstractSelectionTool {
+    private static final String PRESET_KEY_AUTO_MERGE = "Auto Merge";
+
     private final SelectionType selectionType;
+    private final JCheckBox autoMergeCheckBox = new JCheckBox("Auto Merge");
 
     // the rectangle and ellipse selection tools share the 'M' hotkey, with cycling
     public MarqueeSelectionTool(SelectionType selectionType) {
@@ -46,8 +52,35 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
     }
 
     @Override
+    public void initSettingsPanel(ResourceBundle resources) {
+        super.initSettingsPanel(resources);
+
+        settingsPanel.addSeparator();
+        autoMergeCheckBox.setName("autoMergeCheckBox");
+        autoMergeCheckBox.setToolTipText(
+            "Merge down a layer created by Command-drag in the temporary Move Tool");
+        settingsPanel.add(autoMergeCheckBox);
+    }
+
+    @Override
     public void controlPressed() {
         Tools.startTemporaryTool(Tools.MOVE);
+    }
+
+    public boolean isAutoMerge() {
+        return autoMergeCheckBox.isSelected();
+    }
+
+    @Override
+    public void saveStateTo(UserPreset preset) {
+        super.saveStateTo(preset);
+        preset.putBoolean(PRESET_KEY_AUTO_MERGE, isAutoMerge());
+    }
+
+    @Override
+    public void loadUserPreset(UserPreset preset) {
+        super.loadUserPreset(preset);
+        autoMergeCheckBox.setSelected(preset.getBoolean(PRESET_KEY_AUTO_MERGE));
     }
 
     @Override

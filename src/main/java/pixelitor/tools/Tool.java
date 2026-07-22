@@ -220,6 +220,27 @@ public abstract class Tool implements PresetOwner, Debuggable {
         // empty by default
     }
 
+    /**
+     * Called after this tool was activated temporarily from {@code primaryTool}.
+     */
+    public void temporaryToolStarted(Tool primaryTool) {
+        // empty by default
+    }
+
+    /**
+     * Called after a temporary activation ended by restoring {@code primaryTool}.
+     */
+    public void temporaryToolRestored(Tool primaryTool) {
+        // empty by default
+    }
+
+    /**
+     * Called when an explicit tool change cancels a temporary activation.
+     */
+    public void temporaryToolCanceled(Tool primaryTool) {
+        // empty by default
+    }
+
     public void otherKeyPressed(KeyEvent e) {
         // empty by default
     }

@@ -27,8 +27,10 @@ import pixelitor.history.PixelitorEdit;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
 import pixelitor.tools.DragTool;
+import pixelitor.tools.Tool;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.Tools;
+import pixelitor.tools.selection.MarqueeSelectionTool;
 import pixelitor.tools.selection.SelectionChangeListener;
 import pixelitor.tools.transform.*;
 import pixelitor.tools.transform.history.ApplyTransformEdit;
@@ -48,6 +50,7 @@ import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
+import java.util.ArrayList;
 import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
@@ -64,6 +67,9 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     // Usually the selected mode, but Command + Selection Only temporarily
     // includes the newly created layer so that the gesture can move it.
     private MoveMode dragMode = activeMode;
+
+    private MarqueeSelectionTool temporaryMarqueeTool;
+    private final ArrayList<Layer> temporaryFillCutLayers = new ArrayList<>();
 
     private FreeTransformSession transformSession;
     private TransformOptionsPanel transformOptionsPanel;
@@ -163,10 +169,15 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             if (fillCutRequested) {
                 Layer sourceLayer = comp.getActiveLayer();
                 comp.layerViaFillCut();
+                Layer extractedLayer = comp.getActiveLayer();
+
+                if (temporaryMarqueeTool != null && extractedLayer != sourceLayer) {
+                    temporaryFillCutLayers.add(extractedLayer);
+                }
 
                 // In Selection Only mode, include the extracted layer for this
                 // gesture while retaining the user's configured mode afterward.
-                if (comp.getActiveLayer() != sourceLayer && !dragMode.movesLayer()) {
+                if (extractedLayer != sourceLayer && !dragMode.movesLayer()) {
                     dragMode = MoveMode.MOVE_BOTH;
                 }
             }
@@ -293,6 +304,45 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     public void controlReleased() {
         Tools.restorePrimaryTool(this);
+    }
+
+    @Override
+    public void temporaryToolStarted(Tool primaryTool) {
+        temporaryFillCutLayers.clear();
+        temporaryMarqueeTool = primaryTool instanceof MarqueeSelectionTool marqueeTool
+            ? marqueeTool
+            : null;
+    }
+
+    @Override
+    public void temporaryToolRestored(Tool primaryTool) {
+        MarqueeSelectionTool marqueeTool = temporaryMarqueeTool;
+        ArrayList<Layer> fillCutLayers = new ArrayList<>(temporaryFillCutLayers);
+        clearTemporaryMarqueeState();
+
+        if (primaryTool != marqueeTool || marqueeTool == null || !marqueeTool.isAutoMerge()) {
+            return;
+        }
+
+        // Merge newest first so multiple fill cuts made during one temporary
+        // Move session collapse all the way back into their source layers.
+        for (int i = fillCutLayers.size() - 1; i >= 0; i--) {
+            Layer fillCutLayer = fillCutLayers.get(i);
+            var holder = fillCutLayer.getHolder();
+            if (holder.canMergeDown(fillCutLayer)) {
+                holder.mergeDown(fillCutLayer);
+            }
+        }
+    }
+
+    @Override
+    public void temporaryToolCanceled(Tool primaryTool) {
+        clearTemporaryMarqueeState();
+    }
+
+    private void clearTemporaryMarqueeState() {
+        temporaryMarqueeTool = null;
+        temporaryFillCutLayers.clear();
     }
 
     private void setFreeTransformMode(boolean enabled) {

@@ -383,6 +383,8 @@ When the option is disabled, you must manually select the layer that you want to
 While using the Rectangle Selection or Ellipse Selection tool, hold <kbd>Ctrl</kbd> while no mouse button is down to temporarily activate the Move tool. The Move tool is selected normally, so its movement mode, <b>Auto Select Layer</b>, and <b>Free Transform</b> options remain available. Releasing <kbd>Ctrl</kbd> returns to the selection tool; if a move drag is in progress, it returns after the mouse button is released.
 </p><p>
 On macOS, hold <kbd>Command</kbd> when pressing or dragging with the Move tool to perform <b>Layer via Fill Cut</b> on the active selection before moving. If <b>Auto Select Layer</b> is enabled, the source layer under the pointer is selected first; the extracted layer then becomes active and receives the drag. Command has no additional effect when there is no active selection.
+</p><p>
+The Rectangle Selection and Ellipse Selection tools have an <b>Auto Merge</b> option. When it is enabled, a layer created by holding <kbd>Ctrl</kbd> to temporarily use the Move tool and then Command-pressing or Command-dragging is merged down when <kbd>Ctrl</kbd> is released. If a drag is still in progress, the merge waits until the mouse button is released. Auto Merge does not affect ordinary Move tool use or layers created in other ways.
 </p>
 
 <h3 id="free_transform">Free Transform</h3>
