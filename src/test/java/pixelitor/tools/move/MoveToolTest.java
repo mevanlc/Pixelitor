@@ -17,6 +17,7 @@
 
 package pixelitor.tools.move;
 
+import com.bric.util.JVM;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,8 @@ import pixelitor.tools.Tools;
 import pixelitor.tools.transform.TransformStartSource;
 import pixelitor.tools.util.ArrowKey;
 import pixelitor.tools.util.PMouseEvent;
+import pixelitor.utils.Messages;
+import pixelitor.utils.TestMessageHandler;
 
 import java.awt.Color;
 import java.awt.Point;
@@ -42,6 +45,7 @@ import java.awt.geom.Rectangle2D;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static pixelitor.TestHelper.assertHistoryEditsAre;
+import static pixelitor.utils.TestMessageHandler.MessageType.STATUS;
 
 class MoveToolTest {
     private static final int BACKGROUND = new Color(40, 50, 60).getRGB();
@@ -260,6 +264,39 @@ class MoveToolTest {
         tool.toolActivated(comp.getView());
 
         assertThat(tool.getTransformBox().getOrigImRect()).isEqualTo(expected);
+    }
+
+    @Test
+    void freeTransformStatusMessageUsesPlatformModifierNames() {
+        String macMessage = MoveTool.freeTransformStatusMessage(true);
+        assertThat(macMessage)
+            .contains("<b>Shift</b> non-proportional scale / 15° rotate",
+                "<b>Option</b> scale around pivot",
+                "<b>Cmd</b>-corner distort",
+                "<b>Cmd+Shift</b>-edge skew",
+                "<b>Cmd+Option+Shift</b>-corner perspective")
+            .doesNotContain("Ctrl", "Alt");
+
+        String otherMessage = MoveTool.freeTransformStatusMessage(false);
+        assertThat(otherMessage)
+            .contains("<b>Alt</b> scale around pivot",
+                "<b>Ctrl</b>-corner distort",
+                "<b>Ctrl+Shift</b>-edge skew",
+                "<b>Ctrl+Alt+Shift</b>-corner perspective")
+            .doesNotContain("Cmd", "Option");
+    }
+
+    @Test
+    void startingFreeTransformShowsModifierHintsInStatusBar() {
+        var messageHandler = new TestMessageHandler();
+        Messages.setHandler(messageHandler);
+
+        tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
+
+        assertThat(messageHandler.getMessagesByType(STATUS))
+            .singleElement()
+            .extracting(TestMessageHandler.CapturedMessage::message)
+            .isEqualTo("<html>" + MoveTool.freeTransformStatusMessage(JVM.isMac));
     }
 
     @Test

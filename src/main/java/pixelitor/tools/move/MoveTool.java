@@ -17,6 +17,7 @@
 
 package pixelitor.tools.move;
 
+import com.bric.util.JVM;
 import pixelitor.Composition;
 import pixelitor.Views;
 import pixelitor.filters.gui.UserPreset;
@@ -298,7 +299,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         if (enabled) {
             startFreeTransform(TransformStartSource.MOVE_CONTROLS);
             if (isFreeTransforming()) {
-                Messages.showStatusMessage("Free Transform: drag handles; <b>Enter</b> or <b>Double-click</b> to apply; <b>Esc</b> to cancel.");
+                showFreeTransformStatusMessage();
             } else {
                 handleTransformStartFailure(true);
             }
@@ -452,8 +453,22 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         freeTransformCheckBox.setSelected(true);
         showTransformSettings(true);
         Views.getActive().repaint();
-        Messages.showStatusMessage("Free Transform: drag handles; <b>Enter</b> or "
-            + "<b>Double-click</b> to apply; <b>Esc</b> to cancel.");
+        showFreeTransformStatusMessage();
+    }
+
+    private static void showFreeTransformStatusMessage() {
+        Messages.showStatusMessage(freeTransformStatusMessage(JVM.isMac));
+    }
+
+    static String freeTransformStatusMessage(boolean mac) {
+        String menuKey = mac ? "Cmd" : "Ctrl";
+        String altKey = mac ? "Option" : "Alt";
+        return "Free Transform: <b>Shift</b> non-proportional scale / 15° rotate; "
+            + "<b>" + altKey + "</b> scale around pivot; "
+            + "<b>" + menuKey + "</b>-corner distort; "
+            + "<b>" + menuKey + "+Shift</b>-edge skew; "
+            + "<b>" + menuKey + "+" + altKey + "+Shift</b>-corner perspective; "
+            + "<b>Enter</b> apply; <b>Esc</b> cancel.";
     }
 
     private static void showEditCommandStartFailure(Composition comp) {
