@@ -46,7 +46,6 @@ public class ToolButton extends JToggleButton {
     private final Tool tool;
 
     private JPopupMenu presetsMenu;
-    private boolean popupMenuPopulated = false;
 
     public ToolButton(Tool tool) {
         this.tool = tool;
@@ -101,14 +100,12 @@ public class ToolButton extends JToggleButton {
     private void initPresetsPopup() {
         presetsMenu = new JPopupMenu();
 
-        // the popup menu is populated only when it is about to become visible
+        // Refresh from disk each time so that externally added, renamed,
+        // or removed presets are reflected in the menu.
         presetsMenu.addPopupMenuListener(new PopupMenuListener() {
             @Override
             public void popupMenuWillBecomeVisible(PopupMenuEvent event) {
-                if (!popupMenuPopulated) {
-                    populatePresetsMenu();
-                    popupMenuPopulated = true;
-                }
+                populatePresetsMenu();
             }
 
             @Override
@@ -127,6 +124,8 @@ public class ToolButton extends JToggleButton {
      * Loads presets from disk and populates the menu items.
      */
     private void populatePresetsMenu() {
+        presetsMenu.removeAll();
+
         if (AppMode.isDevelopment()) {
             presetsMenu.add(new TaskAction("Internal State...", () ->
                 Debug.showTree(tool, tool.getName())));

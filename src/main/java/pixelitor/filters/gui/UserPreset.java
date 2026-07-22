@@ -41,6 +41,8 @@ import java.util.function.Function;
  * for saving to and loading from text files.
  */
 public class UserPreset implements Preset {
+    public static final String DEFAULT_PRESET_NAME = "Default";
+
     private final String name;
     private File file; // can be null for new or built-in presets
     private final String directoryName; // subdirectory for this type of preset
@@ -327,16 +329,62 @@ public class UserPreset implements Preset {
 
     @Override
     public Action createAction(PresetOwner owner) {
-        return new TaskAction(name, () -> {
-            if (!contentLoaded) {
-                try {
-                    loadFromFile();
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
+        return new TaskAction(name, () -> loadInto(owner));
+    }
+
+    private void loadInto(PresetOwner owner) {
+        if (!contentLoaded) {
+            try {
+                loadFromFile();
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
             }
-            owner.loadUserPreset(this);
-        });
+        }
+        owner.loadUserPreset(this);
+    }
+
+    /**
+     * Loads the preset named "Default" for the given owner, if it exists.
+     * The exact filename is preferred, with a case-insensitive fallback.
+     */
+    public static boolean loadDefault(PresetOwner owner) {
+        return loadDefault(owner, new File(PRESETS_DIR));
+    }
+
+    // package-private overload for tests
+    static boolean loadDefault(PresetOwner owner, File presetsRoot) {
+        String presetDirName = owner.getPresetDirName();
+        File presetDir = new File(presetsRoot, presetDirName);
+        File defaultFile = findDefaultFile(presetDir.listFiles(File::isFile));
+
+        if (defaultFile == null) {
+            return false;
+        }
+
+        UserPreset defaultPreset = new UserPreset(defaultFile, presetDirName);
+        defaultPreset.loadInto(owner);
+        return true;
+    }
+
+    static File findDefaultFile(File[] files) {
+        if (files == null) {
+            return null;
+        }
+
+        String defaultFileName = DEFAULT_PRESET_NAME + ".txt";
+        File caseInsensitiveMatch = null;
+        for (File file : files) {
+            String fileName = file.getName();
+            if (fileName.equals(defaultFileName)) {
+                return file;
+            }
+            if (fileName.equalsIgnoreCase(defaultFileName)
+                && (caseInsensitiveMatch == null
+                    || fileName.compareTo(caseInsensitiveMatch.getName()) < 0)) {
+                caseInsensitiveMatch = file;
+            }
+        }
+        return caseInsensitiveMatch;
     }
 
     /**

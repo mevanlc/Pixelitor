@@ -20,6 +20,7 @@ package pixelitor.tools;
 import pixelitor.AppMode;
 import pixelitor.Composition;
 import pixelitor.Views;
+import pixelitor.filters.gui.UserPreset;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.gui.View;
 import pixelitor.layers.Layer;
@@ -111,16 +112,39 @@ public class Tools {
     public static void setDefaultTool() {
         String lastToolName = AppPreferences.loadLastToolName();
 
-        boolean found = false;
+        Tool startupTool = BRUSH;
         for (Tool tool : allTools) {
             if (tool.getShortName().equals(lastToolName)) {
-                found = true;
-                tool.activate();
+                startupTool = tool;
                 break;
             }
         }
-        if (!found) { // ui language changed
-            BRUSH.activate();
+
+        // Presets depend on controls created by the settings panel initialization.
+        ToolSettingsPanelContainer.get();
+
+        // Load the startup tool last so that shared settings, such as colors,
+        // come from its Default preset rather than another tool's preset.
+        for (Tool tool : allTools) {
+            if (tool != startupTool) {
+                loadDefaultPreset(tool);
+            }
+        }
+        loadDefaultPreset(startupTool);
+
+        startupTool.activate();
+    }
+
+    private static void loadDefaultPreset(Tool tool) {
+        if (!tool.supportsUserPresets()) {
+            return;
+        }
+
+        try {
+            UserPreset.loadDefault(tool);
+        } catch (RuntimeException e) {
+            // A malformed preset should not prevent Pixelitor from starting.
+            Messages.showException(e);
         }
     }
 
