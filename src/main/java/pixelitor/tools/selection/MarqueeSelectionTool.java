@@ -42,10 +42,15 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
 
     // the rectangle and ellipse selection tools share the 'M' hotkey, with cycling
     public MarqueeSelectionTool(SelectionType selectionType) {
-        super(selectionType.toString() + " Selection", 'M',
+        this(selectionType, selectionType.toString() + " Selection", 'M',
             "<b>click and drag</b> creates a selection, " +
                 "<b>Space-drag</b> moves it. " +
-                "Hold <b>Ctrl</b> for the Move Tool.", Cursors.DEFAULT, false);
+                "Hold <b>Ctrl</b> for the Move Tool.");
+    }
+
+    protected MarqueeSelectionTool(SelectionType selectionType, String shortName,
+                                   char hotkey, String statusBarMessage) {
+        super(shortName, hotkey, statusBarMessage, Cursors.DEFAULT, false);
         repositionOnSpace = true; // allow moving the start point with space down
         pixelSnapping = true;
         this.selectionType = selectionType;
@@ -57,9 +62,16 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
 
         settingsPanel.addSeparator();
         autoMergeCheckBox.setName("autoMergeCheckBox");
-        autoMergeCheckBox.setToolTipText(
-            "Merge down a layer created by Command-drag in the temporary Move Tool");
+        autoMergeCheckBox.setToolTipText(getAutoMergeToolTip());
         settingsPanel.add(autoMergeCheckBox);
+    }
+
+    /**
+     * The tooltip of the Auto Merge checkbox, which subclasses can extend
+     * if they create fill-cut layers in additional ways.
+     */
+    protected String getAutoMergeToolTip() {
+        return "Merge down a layer created by Command-drag in the temporary Move Tool";
     }
 
     @Override

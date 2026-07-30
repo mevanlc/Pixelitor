@@ -144,6 +144,24 @@ public class ToolIcons {
         g.drawOval(2, 2, 24, 24);
     }
 
+    public static void paintPixelLiftIcon(Graphics2D g) {
+        // a dashed marquee in the upper left, with its
+        // content being lifted out towards the lower right
+        g.setStroke(new BasicStroke(2, CAP_BUTT, JOIN_BEVEL,
+            0, new float[]{4.0f, 4.0f}, 0));
+        g.drawRect(2, 2, 14, 14);
+
+        g.setStroke(new BasicStroke(2.5f, CAP_ROUND, JOIN_ROUND));
+        g.draw(new Line2D.Double(11, 11, 21, 21));
+
+        Path2D arrowHead = new Path2D.Double();
+        arrowHead.moveTo(26, 26);
+        arrowHead.lineTo(17, 24.5);
+        arrowHead.lineTo(24.5, 17);
+        arrowHead.closePath();
+        g.fill(arrowHead);
+    }
+
     public static void paintLassoSelectionIcon(Graphics2D g) {
         // based on lasso_tool.svg
         Path2D path = new Path2D.Double(Path2D.WIND_EVEN_ODD);

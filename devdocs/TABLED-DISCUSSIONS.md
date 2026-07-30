@@ -20,7 +20,9 @@ new LayerMultiEdit(name, comp, edits, affectedLayers, additionalAffectedLayerSup
 
 The `Supplier` handles layers that don't exist yet at edit creation time (e.g. the new layer created by Layer via Cut). Wait for a second use case before extracting.
 
-**Files:** `Composition.layerViaCut()`, `history/MultiEdit.java`
+**Partially addressed** by the History transaction API (`History.startTransaction()` / `endTransaction()`, see `PLAN-PIXEL-LIFT-TOOL.md`), which is the general way to group edits without a bespoke `MultiEdit` subclass per call site. It does not do icon refreshing, so the idea above still stands for that part.
+
+**Files:** `Composition.layerViaCut()`, `history/MultiEdit.java`, `history/History.java`
 
 ---
 
@@ -70,7 +72,9 @@ The original motivation for Layer via Cut. In Photoshop, you can select pixels a
 
 `TmpLayer` is the closest existing primitive but doesn't support repositioning. Would need adaptation or a new transient rendering surface in the compositing pipeline.
 
-**Files:** `TmpLayer.java`, `MoveTool.java`, `View.java` (rendering pipeline)
+**Addressed** by the Pixel Lift tool (see `PLAN-PIXEL-LIFT-TOOL.md`), which delivers the same user-facing gesture — drag inside a selection to move the selected pixels, leaving a filled hole — using a real layer plus Auto Merge instead of a virtual one, recorded as a single undoable edit. A genuinely virtual overlay would still be cheaper for large selections and would avoid the layer churn, so the idea above isn't obsolete.
+
+**Files:** `TmpLayer.java`, `MoveTool.java`, `View.java` (rendering pipeline), `tools/selection/PixelLiftTool.java`
 
 ---
 

@@ -67,6 +67,7 @@
         <li><a href="#move_tool">Move Tool</a></li>
         <li><a href="#crop_tool">Crop Tool</a></li>
         <li><a href="#selection_tool">Selection Tool</a></li>
+        <li><a href="#pixel_lift_tool">Pixel Lift Tool</a></li>
         <li><a href="#brush_tool">Brush Tool</a></li>
         <li><a href="#clone_stamp_tool">Clone Stamp Tool</a></li>
         <li><a href="#eraser_tool">Eraser Tool</a></li>
@@ -384,7 +385,7 @@ While using the Rectangle Selection or Ellipse Selection tool, hold <kbd>Ctrl</k
 </p><p>
 On macOS, hold <kbd>Command</kbd> when pressing or dragging with the Move tool to perform <b>Layer via Fill Cut</b> on the active selection before moving. If <b>Auto Select Layer</b> is enabled, the source layer under the pointer is selected first; the extracted layer then becomes active and receives the drag. Command has no additional effect when there is no active selection.
 </p><p>
-The Rectangle Selection and Ellipse Selection tools have an <b>Auto Merge</b> option. When it is enabled, a layer created by holding <kbd>Ctrl</kbd> to temporarily use the Move tool and then Command-pressing or Command-dragging is merged down when <kbd>Ctrl</kbd> is released. If a drag is still in progress, the merge waits until the mouse button is released. Auto Merge does not affect ordinary Move tool use or layers created in other ways.
+The Rectangle Selection, Ellipse Selection, and <a href="#pixel_lift_tool">Pixel Lift</a> tools have an <b>Auto Merge</b> option. When it is enabled, a layer created by holding <kbd>Ctrl</kbd> to temporarily use the Move tool and then Command-pressing or Command-dragging is merged down when <kbd>Ctrl</kbd> is released. If a drag is still in progress, the merge waits until the mouse button is released. Auto Merge does not affect ordinary Move tool use or layers created in other ways.
 </p>
 
 <h3 id="free_transform">Free Transform</h3>
@@ -480,6 +481,21 @@ Layer masks also have the advantage of being able to be non-destructively modifi
 If you have a selection active on the image when you create the layer mask, the selection will be used to define the initial colors of the layer mask. 
 This means that the selected area will become visible, and the unselected area will be transparent.
 You can run a blur filter on the mask if you want soft, feathered selections.
+</p>
+
+<h3 id="pixel_lift_tool">Pixel Lift Tool</h3>
+<p>
+The Pixel Lift tool (<kbd>J</kbd>) is a rectangle selection tool that can also move the selected pixels. Drag anywhere outside the current selection and it behaves exactly like the Rectangle Selection tool. Drag from a point <i>inside</i> the selection and it instead performs <b>Layer via Fill Cut</b> on the selection and moves the resulting layer with the drag, so the hole left behind is filled with the surrounding color.
+</p><p>
+This is the "select something, then nudge it into place" workflow in a single gesture. The same result can be produced with the Rectangle Selection tool by holding <kbd>Ctrl</kbd> for the temporary Move tool and then <kbd>Command</kbd>-dragging, but that needs two modifier keys and costs three undo steps. The whole Pixel Lift gesture is recorded as a <b>single</b> undoable edit named <i>Pixel Lift</i>.
+</p><p>
+The selection travels with the pixels and stays active after the drop, so you can keep dragging the same content into place. Press <kbd>Esc</kbd> during a lift to cancel the whole gesture: the pixels and the layer structure are restored and nothing is added to the history. The selection itself is kept, so <kbd>Esc</kbd> deselects only when no lift is in progress.
+</p><p>
+When <b>Auto Merge</b> is enabled, the lifted layer is merged back into the layer it came from as soon as the mouse button is released, leaving the layer count unchanged. When it is disabled, the moved pixels stay in their own layer.
+</p><p>
+When <b>Auto Select Layer</b> is enabled, the pixels are cut from the layer under the mouse rather than from the active layer, in the same way as the Move tool's option of that name.
+</p><p>
+Lifting requires an ordinary image layer, so the drag falls back to normal selection behavior when the resolved layer is a text, shape, gradient, smart, or adjustment layer, when a layer mask is being edited, when the selection outline is hidden, or when the <b>New Selection</b> mode is something other than <i>Replace</i>. <kbd>Shift</kbd>-drag, <kbd>Alt</kbd>-drag, and right-drag also keep their usual selection meanings, so the combinator shortcuts still work inside the selection.
 </p>
 
 <h3 id="brush_tool">Brush Tool <img src="images/doc/brush_tool.svg" class="icon-svg"></h3>

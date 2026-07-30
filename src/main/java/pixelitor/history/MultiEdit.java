@@ -82,6 +82,23 @@ public class MultiEdit extends PixelitorEdit {
         return children.isEmpty();
     }
 
+    /**
+     * A combined edit consumes as much memory as its children,
+     * so it's heavy if any of them is heavy.
+     */
+    @Override
+    public boolean isHeavy() {
+        if (super.isHeavy()) {
+            return true;
+        }
+        for (PixelitorEdit child : children) {
+            if (child.isHeavy()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void undo() throws CannotUndoException {
         super.undo();

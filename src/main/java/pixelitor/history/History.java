@@ -51,6 +51,10 @@ public class History {
     // it's a program error to add edits if true
     private static boolean rejectEdits = false;
 
+    // if not null, new edits are collected into it instead of
+    // being added to the history individually (see startTransaction)
+    private static MultiEdit transaction = null;
+
     static {
         setUndoLevels(AppPreferences.loadUndoLevels());
     }
@@ -74,6 +78,18 @@ public class History {
         if (ignoreEdits) {
             return;
         }
+        if (transaction != null && edit.canUndo()) {
+            // collect the edit instead of adding it to the history:
+            // it will become a child of the transaction's combined edit.
+            // This runs before the checker is notified, because only the
+            // combined edit will ever reach the undo/redo stacks.
+            if (edit.makesDirty()) {
+                edit.getComp().setDirty(true);
+            }
+            edit.setEmbedded(true);
+            transaction.add(edit);
+            return;
+        }
         if (checker != null && edit.canUndo()) {
             checker.registerAdd(edit.getName());
         }
@@ -85,6 +101,9 @@ public class History {
         if (edit.canUndo()) {
             undoManager.addEdit(edit);
         } else {
+            // a non-undoable edit invalidates the whole history,
+            // including any edits collected by an open transaction
+            transaction = null;
             undoManager.discardAllEdits();
         }
 
@@ -97,7 +116,72 @@ public class History {
         }
     }
 
+    /**
+     * Starts collecting the subsequent edits so that they can be undone
+     * and redone together, as a single edit with the given name.
+     * <p>
+     * Every started transaction must be closed by {@link #endTransaction()}
+     * or {@link #abortTransaction()}, preferably from a finally block,
+     * because a leaked transaction silently swallows all later edits.
+     * Transactions can't be nested.
+     */
+    public static void startTransaction(String name, Composition comp) {
+        assert transaction == null : "already in the transaction " + transaction.getName();
+
+        transaction = new MultiEdit(name, comp);
+    }
+
+    /**
+     * Ends the collecting of edits, and adds the combined edit to the history.
+     * Returns the added edit, or null if no undoable edit was collected.
+     */
+    public static PixelitorEdit endTransaction() {
+        MultiEdit collected = transaction;
+        transaction = null;
+        if (collected == null || collected.isEmpty()) {
+            return null;
+        }
+
+        List<PixelitorEdit> children = collected.getChildren();
+        PixelitorEdit combined;
+        if (children.size() == 1) {
+            // don't wrap a single edit into a group with a different name
+            combined = children.getFirst();
+            combined.setEmbedded(false);
+        } else {
+            combined = collected;
+        }
+
+        add(combined);
+        return combined;
+    }
+
+    /**
+     * Ends the collecting of edits by undoing the collected edits and
+     * discarding them. Nothing is added to the history.
+     */
+    public static void abortTransaction() {
+        MultiEdit collected = transaction;
+        transaction = null;
+        if (collected == null || collected.isEmpty()) {
+            return;
+        }
+
+        collected.undo();
+        collected.die();
+    }
+
+    public static boolean isInTransaction() {
+        return transaction != null;
+    }
+
     public static void undo() {
+        if (transaction != null) {
+            // an interactive gesture is in progress: undoing now would undo
+            // the edit before it while its changes are still uncommitted
+            return;
+        }
+
         try {
             // increase it before calling undoManager.undo()
             // so that the result of undo is not fadeable
@@ -109,6 +193,10 @@ public class History {
     }
 
     public static void redo() {
+        if (transaction != null) {
+            return; // see undo()
+        }
+
         try {
             numUndoneEdits--; // after redo we should be fadeable again
             undoManager.redo();
@@ -247,6 +335,7 @@ public class History {
     public static void onAllViewsClosed() {
         numUndoneEdits = 0;
 
+        transaction = null;
         undoManager.discardAllEdits();
         notifyMenus();
     }
@@ -256,6 +345,7 @@ public class History {
     }
 
     public static void clear() {
+        transaction = null;
         undoManager.discardAllEdits();
         assertNumEditsIs(0);
 

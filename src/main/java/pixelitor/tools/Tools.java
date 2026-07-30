@@ -60,6 +60,7 @@ public class Tools {
 
     public static final MarqueeSelectionTool RECTANGLE_SELECTION = new MarqueeSelectionTool(SelectionType.RECTANGLE);
     public static final MarqueeSelectionTool ELLIPSE_SELECTION = new MarqueeSelectionTool(SelectionType.ELLIPSE);
+    public static final PixelLiftTool PIXEL_LIFT = new PixelLiftTool();
     public static final LassoSelectionTool LASSO_SELECTION = new LassoSelectionTool();
     public static final PolygonalSelectionTool POLY_SELECTION = new PolygonalSelectionTool();
     public static final MagicWandSelectionTool MAGIC_WAND = new MagicWandSelectionTool();
@@ -82,8 +83,8 @@ public class Tools {
 
     private static final Tool[] allTools = {
         MOVE, TRAIL_MOVE, CROP,
-        RECTANGLE_SELECTION, ELLIPSE_SELECTION, LASSO_SELECTION,
-        POLY_SELECTION, MAGIC_WAND,
+        RECTANGLE_SELECTION, ELLIPSE_SELECTION, PIXEL_LIFT,
+        LASSO_SELECTION, POLY_SELECTION, MAGIC_WAND,
         BRUSH, CLONE, ERASER,
         SMUDGE, GRADIENT, PAINT_BUCKET, COLOR_PICKER,
         PEN, NODE, TRANSFORM_PATH,
