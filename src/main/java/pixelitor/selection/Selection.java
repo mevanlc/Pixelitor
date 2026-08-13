@@ -225,16 +225,16 @@ public class Selection implements Transformable {
     }
 
     public void nudge(ArrowKey key) {
-        transformAndAddHistory("Nudge Selection", key.toTransform());
+        translateAndAddHistory("Nudge Selection", key.getDeltaX(), key.getDeltaY());
     }
 
-    private void transformAndAddHistory(String editName, AffineTransform at) {
+    private void translateAndAddHistory(String editName, double relImX, double relImY) {
         assert checkInvariants();
 
         Composition comp = view.getComp();
         Shape backupShape = shape;
 
-        Shape newShape = at.createTransformedShape(shape);
+        Shape newShape = translatePreservingType(shape, relImX, relImY);
         newShape = comp.clipToCanvasBounds(newShape);
 
         if (newShape.getBounds().isEmpty()) {
@@ -349,14 +349,18 @@ public class Selection implements Transformable {
         assert checkInvariants();
         assert shapeBeforeTransform != null;
 
-        if (shapeBeforeTransform instanceof Rectangle2D startRect) {
-            // translate manually to preserve the type information
-            shape = new Rectangle2D.Double(
-                startRect.getX() + relImX, startRect.getY() + relImY,
-                startRect.getWidth(), startRect.getHeight());
-        } else {
-            shape = Shapes.translate(shapeBeforeTransform, relImX, relImY);
+        shape = translatePreservingType(shapeBeforeTransform, relImX, relImY);
+    }
+
+    private static Shape translatePreservingType(Shape shape, double tx, double ty) {
+        if (shape instanceof Rectangle2D rect) {
+            // Rectangle type information is used to optimize selection operations
+            // and to validate selection-based crops.
+            return new Rectangle2D.Double(
+                rect.getX() + tx, rect.getY() + ty,
+                rect.getWidth(), rect.getHeight());
         }
+        return Shapes.translate(shape, tx, ty);
     }
 
     /**
