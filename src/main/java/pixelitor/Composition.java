@@ -33,7 +33,8 @@ import pixelitor.menus.file.RecentFilesMenu;
 import pixelitor.selection.Selection;
 import pixelitor.selection.SelectionActions;
 import pixelitor.selection.SelectionChangeResult;
-import pixelitor.selection.ShapeCombinator;
+import pixelitor.selection.SelectionCombinator;
+import pixelitor.selection.SelectionData;
 import pixelitor.tools.Tool;
 import pixelitor.tools.Tools;
 import pixelitor.tools.move.MoveMode;
@@ -1464,13 +1465,13 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
 
         DeselectEdit edit = null;
 
-        Shape shape = selection.getShape();
+        SelectionData data = selection.getData();
         boolean wasHidden = selection.isHidden();
 
         disposeSelection();
 
-        if (shape != null) { // null for a simple click without a previous selection
-            edit = new DeselectEdit(this, shape);
+        if (!SelectionData.selectsNothing(data)) {
+            edit = new DeselectEdit(this, data);
         }
         if (addToHistory && edit != null) {
             History.add(edit);
@@ -1501,6 +1502,15 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
         return selection != null;
     }
 
+    public SelectionData getSelectionData() {
+        return (selection != null) ? selection.getData() : null;
+    }
+
+    /**
+     * Returns the outline of the selection, or null if there is no selection.
+     * Only for code that genuinely performs geometry: the pixel
+     * consumers that still use it are migrated in phase 2.
+     */
     public Shape getSelectionShape() {
         return (selection != null) ? selection.getShape() : null;
     }
@@ -1522,39 +1532,47 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
      * with the existing selection via user interaction (dialog).
      */
     public SelectionChangeResult updateSelectionInteractively(Shape newShape) {
-        newShape = clipToCanvasBounds(newShape);
-        if (newShape.getBounds().isEmpty()) {
-            // the new shape is entirely outside the canvas
+        return updateSelectionInteractively(SelectionData.forShape(newShape));
+    }
+
+    /**
+     * Changes the selection based on new selection data, potentially combining
+     * with the existing selection via user interaction (dialog).
+     */
+    public SelectionChangeResult updateSelectionInteractively(SelectionData newData) {
+        SelectionData clipped = newData.clippedTo(canvas);
+        if (SelectionData.selectsNothing(clipped)) {
+            // the new selection is entirely outside the canvas
             return SelectionChangeResult.outOfBounds();
         }
 
         if (selection == null) { // no existing selection
             // a new selection is created successfully.
-            setSelection(new Selection(newShape, view));
+            setSelection(new Selection(clipped, view));
             return SelectionChangeResult.success(
-                new NewSelectionEdit(this, selection.getShape()));
+                new NewSelectionEdit(this, clipped));
         }
 
         // modify existing selection
-        ShapeCombinator combinator = Dialogs.showShapeCombinatorQuestion(this);
+        SelectionCombinator combinator = Dialogs.showSelectionCombinatorQuestion(this);
         if (combinator == null) {
             // the user cancelled the dialog
             return SelectionChangeResult.cancelled();
         }
 
-        Shape origShape = selection.getShape();
-        Shape combinedShape = combinator.combine(origShape, newShape);
+        SelectionData origData = selection.getData();
+        SelectionData combined = combinator.combine(origData, clipped, canvas);
 
-        if (combinedShape.getBounds().isEmpty()) {
-            // the combination resulted in an empty shape => deselect
+        if (SelectionData.selectsNothing(combined)) {
+            // the combination selects nothing => deselect
             deselect(false);
-            return SelectionChangeResult.success(new DeselectEdit(this, origShape));
+            return SelectionChangeResult.success(new DeselectEdit(this, origData));
         } else {
-            // the selection was successfully modified to a new, non-empty shape
-            selection.setShape(combinedShape);
+            // the selection was successfully modified
+            selection.setData(combined);
             selection.setHidden(false);
-            return SelectionChangeResult.success(new SelectionShapeChangeEdit(
-                combinator.getHistoryName(), this, origShape));
+            return SelectionChangeResult.success(new SelectionChangeEdit(
+                combinator.getHistoryName(), this, origData));
         }
     }
 
@@ -1563,10 +1581,18 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
      * It assumes that there is no existing selection.
      */
     public void createSelectionFrom(Shape shape) {
+        createSelectionFrom(SelectionData.forShape(shape));
+    }
+
+    /**
+     * A shortcut for creating a selection without history.
+     * It assumes that there is no existing selection.
+     */
+    public void createSelectionFrom(SelectionData data) {
         if (selection != null) {
             throw new IllegalStateException("There is already a selection: " + selection);
         }
-        setSelection(new Selection(shape, view));
+        setSelection(new Selection(data, view));
     }
 
     /**
@@ -1616,15 +1642,15 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
             throw new IllegalStateException();
         }
 
-        Shape origShape = selection.getShape();
-        Shape invertedShape = canvas.invertShape(origShape);
-        if (invertedShape.getBounds2D().isEmpty()) {
+        SelectionData origData = selection.getData();
+        SelectionData inverted = origData.inverted(canvas);
+        if (SelectionData.selectsNothing(inverted)) {
             // everything was selected, and now nothing is
             deselect(true);
         } else {
-            selection.setShape(invertedShape);
-            History.add(new SelectionShapeChangeEdit(
-                "Invert Selection", this, origShape));
+            selection.setData(inverted);
+            History.add(new SelectionChangeEdit(
+                "Invert Selection", this, origData));
             Tools.notifySelectionChanged();
         }
     }
@@ -1636,10 +1662,11 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
      * might not be open in a view.
      */
     public void imCoordsChanged(AffineTransform at, boolean isUndoRedo, View view) {
-        // the selection is explicitly reset to a backup shape
+        // the selection is explicitly reset to a backup
         // when something is undone/redone
-        if (selection != null && !isUndoRedo) {
-            selection.transform(at);
+        if (selection != null && !isUndoRedo && !selection.transform(at)) {
+            // the transform left nothing selected
+            deselect(false);
         }
 
         // the paths and the tool widgets are transformed even for undo/redo

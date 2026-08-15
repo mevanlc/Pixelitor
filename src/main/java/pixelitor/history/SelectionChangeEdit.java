@@ -18,48 +18,62 @@
 package pixelitor.history;
 
 import pixelitor.Composition;
+import pixelitor.selection.Selection;
+import pixelitor.selection.SelectionData;
 
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
-import java.awt.Shape;
 import java.util.Objects;
 
 /**
- * Represents the change of a selection shape
- * (via add, subtract, intersect, invert, move).
+ * Represents the change of a selection
+ * (via add, subtract, intersect, invert, modify, move).
  */
-public class SelectionShapeChangeEdit extends PixelitorEdit {
-    private Shape backupShape;
+public class SelectionChangeEdit extends PixelitorEdit {
+    private SelectionData backupData;
 
-    public SelectionShapeChangeEdit(String name, Composition comp, Shape backupShape) {
-        super(name, comp);
+    public SelectionChangeEdit(String name, Composition comp, SelectionData backupData) {
+        super(name, comp, isMaskBacked(comp, backupData));
 
-        this.backupShape = Objects.requireNonNull(backupShape);
+        this.backupData = Objects.requireNonNull(backupData);
+    }
+
+    /**
+     * A selection carrying a coverage mask uses much more
+     * memory than a shape, so it's limited like the image edits.
+     */
+    private static boolean isMaskBacked(Composition comp, SelectionData backupData) {
+        if (backupData.isMaskBacked()) {
+            return true;
+        }
+        Selection selection = comp.getSelection();
+        return selection != null && selection.getData().isMaskBacked();
     }
 
     @Override
     public void undo() throws CannotUndoException {
         super.undo();
 
-        swapShapes();
+        swapData();
     }
 
     @Override
     public void redo() throws CannotRedoException {
         super.redo();
 
-        swapShapes();
+        swapData();
     }
 
-    private void swapShapes() {
+    private void swapData() {
         var selection = comp.getSelection();
         if (selection == null) {
             throw new IllegalStateException("no selection in " + comp.getName());
         }
 
-        Shape tmp = selection.getShape();
-        selection.setShape(backupShape);
-        backupShape = tmp;
+        // the selection data is immutable, so it can be swapped without copying
+        SelectionData tmp = selection.getData();
+        selection.setData(backupData);
+        backupData = tmp;
     }
 
     @Override

@@ -26,7 +26,7 @@ import pixelitor.gui.GlobalEvents;
 import pixelitor.gui.PixelitorWindow;
 import pixelitor.gui.View;
 import pixelitor.layers.Layer;
-import pixelitor.selection.ShapeCombinator;
+import pixelitor.selection.SelectionCombinator;
 import pixelitor.utils.Messages;
 import pixelitor.utils.test.RandomGUITest;
 
@@ -404,7 +404,7 @@ public class Dialogs {
         return rasterize;
     }
 
-    public static ShapeCombinator showShapeCombinatorQuestion(Composition comp) {
+    public static SelectionCombinator showSelectionCombinatorQuestion(Composition comp) {
         String[] options = {"Replace", "Add", "Subtract", "Intersect", GUIText.CANCEL};
         String msg = "<html>There is already a selection on " + comp.getName() +
             ".<br>How do you want to combine the new selection with the existing one?";
@@ -417,10 +417,10 @@ public class Dialogs {
             QUESTION_MESSAGE);
 
         return switch (userChoice) {
-            case 0 -> ShapeCombinator.REPLACE;
-            case 1 -> ShapeCombinator.ADD;
-            case 2 -> ShapeCombinator.SUBTRACT;
-            case 3 -> ShapeCombinator.INTERSECT;
+            case 0 -> SelectionCombinator.REPLACE;
+            case 1 -> SelectionCombinator.ADD;
+            case 2 -> SelectionCombinator.SUBTRACT;
+            case 3 -> SelectionCombinator.INTERSECT;
             case JOptionPane.CLOSED_OPTION, 4 -> null; // canceled
             default -> throw new IllegalStateException("userChoice = " + userChoice);
         };

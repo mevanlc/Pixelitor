@@ -27,7 +27,7 @@ import pixelitor.layers.Layer;
 import pixelitor.layers.LayerHolder;
 import pixelitor.selection.Selection;
 import pixelitor.selection.SelectionType;
-import pixelitor.selection.ShapeCombinator;
+import pixelitor.selection.SelectionCombinator;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.move.MoveMode;
 import pixelitor.tools.util.ArrowKey;
@@ -140,7 +140,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
             // reserved for the temporary Move Tool workflows
             return false;
         }
-        if (getCombinator() != ShapeCombinator.REPLACE) {
+        if (getCombinator() != SelectionCombinator.REPLACE) {
             // the combo box asks for editing the existing selection
             return false;
         }

@@ -27,7 +27,7 @@ import pixelitor.filters.gui.UserPreset;
 import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.TextLayer;
-import pixelitor.selection.ShapeCombinator;
+import pixelitor.selection.SelectionCombinator;
 import pixelitor.tools.Tools;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.ImageUtils;
@@ -257,7 +257,7 @@ class PixelLiftToolTest {
     @Test
     void noLiftWhenTheCombinatorIsNotReplace() {
         configureTool(true, false);
-        setCombinator(ShapeCombinator.ADD);
+        setCombinator(SelectionCombinator.ADD);
 
         drag(INSIDE, new Point(11, 8));
 
@@ -284,9 +284,9 @@ class PixelLiftToolTest {
     void noLiftWhenTheDragStartsOutsideANonRectangularSelection() {
         // subtract the lower right quarter of SELECTION, so that (6, 4)
         // is inside the bounding box, but outside the shape
-        setCombinator(ShapeCombinator.SUBTRACT);
+        setCombinator(SelectionCombinator.SUBTRACT);
         drag(new Point(6, 4), new Point(10, 8));
-        setCombinator(ShapeCombinator.REPLACE);
+        setCombinator(SelectionCombinator.REPLACE);
         History.clear();
 
         assertThat(comp.getSelection().getShapeBounds()).isEqualTo(SELECTION);
@@ -428,13 +428,13 @@ class PixelLiftToolTest {
     private void configureTool(boolean autoMerge, boolean autoSelect) {
         var preset = new UserPreset("pixel lift settings");
         tool.saveStateTo(preset);
-        preset.put("New Selection", ShapeCombinator.REPLACE.name());
+        preset.put("New Selection", SelectionCombinator.REPLACE.name());
         preset.putBoolean("Auto Merge", autoMerge);
         preset.putBoolean("Auto Select", autoSelect);
         tool.loadUserPreset(preset);
     }
 
-    private void setCombinator(ShapeCombinator combinator) {
+    private void setCombinator(SelectionCombinator combinator) {
         var preset = new UserPreset("combinator");
         tool.saveStateTo(preset);
         preset.put("New Selection", combinator.name());

@@ -21,23 +21,22 @@ import pixelitor.Composition;
 import pixelitor.history.History;
 import pixelitor.history.NewSelectionEdit;
 import pixelitor.history.PixelitorEdit;
-import pixelitor.history.SelectionShapeChangeEdit;
+import pixelitor.history.SelectionChangeEdit;
 import pixelitor.tools.util.Drag;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.Messages;
 
-import java.awt.Shape;
 import java.util.Locale;
 
 /**
- * Manages the interactive creation and modification of a selection shape.
+ * Manages the interactive creation and modification of a selection.
  */
 public class SelectionBuilder {
     private final SelectionType selectionType;
-    private final ShapeCombinator combinator;
+    private final SelectionCombinator combinator;
     private Composition comp;
 
-    private Shape prevSelShape;
+    private SelectionData prevSelData;
 
     private boolean finalized = false;
 
@@ -45,7 +44,7 @@ public class SelectionBuilder {
     private boolean wasHidden = false;
     private boolean wasFrozen = false;
 
-    public SelectionBuilder(SelectionType selectionType, ShapeCombinator combinator, Composition comp) {
+    public SelectionBuilder(SelectionType selectionType, SelectionCombinator combinator, Composition comp) {
         this.combinator = combinator;
         this.selectionType = selectionType;
         this.comp = comp;
@@ -62,8 +61,8 @@ public class SelectionBuilder {
         wasHidden = existingSelection.isHidden();
         wasFrozen = existingSelection.isFrozen();
 
-        if (combinator == ShapeCombinator.REPLACE) {
-            prevSelShape = existingSelection.getShape();
+        if (combinator == SelectionCombinator.REPLACE) {
+            prevSelData = existingSelection.getData();
             // At this point the mouse was pressed, and it's clear that the
             // existing selection should go away, but we don't know yet whether the
             // mouse will be released at the same point (Deselect) or another
@@ -77,21 +76,23 @@ public class SelectionBuilder {
     }
 
     /**
-     * Updates the draft selection shape based on drag information.
+     * Updates the draft selection based on drag information.
      */
     public void updateDraftSelection(Drag drag) {
         Selection draftSelection = comp.getDraftSelection();
 
         if (draftSelection == null) {
-            createNewDraftSelectionFromDrag(drag);
+            comp.setDraftSelection(new Selection(
+                selectionType.createFromDrag(drag, null), comp.getView()));
         } else {
             assert draftSelection.isValid() : "disposed draft selection";
-            updateExistingDraftSelectionFromDrag(draftSelection, drag);
+            applyToDraft(draftSelection,
+                selectionType.createFromDrag(drag, draftSelection.getData()));
         }
     }
 
     /**
-     * Updates the draft selection shape based on a mouse event.
+     * Updates the draft selection based on a mouse event.
      */
     public void updateDraftSelection(PMouseEvent e) {
         // update the composition reference, because in a polygonal lasso
@@ -102,38 +103,17 @@ public class SelectionBuilder {
         Selection draftSelection = comp.getDraftSelection();
 
         if (draftSelection == null) {
-            createNewDraftSelectionFromEvent(e);
+            comp.setDraftSelection(new Selection(
+                selectionType.createFromEvent(e, null), comp.getView()));
         } else {
             assert draftSelection.isValid() : "disposed draft selection";
-            updateExistingDraftSelectionFromEvent(draftSelection, e);
+            applyToDraft(draftSelection,
+                selectionType.createFromEvent(e, draftSelection.getData()));
         }
     }
 
-    private void createNewDraftSelectionFromDrag(Drag drag) {
-        Shape newShape = selectionType.createShapeFromDrag(drag, null);
-        comp.setDraftSelection(new Selection(newShape, comp.getView()));
-    }
-
-    private void updateExistingDraftSelectionFromDrag(Selection draftSelection, Drag drag) {
-        Shape currentShape = draftSelection.getShape();
-        Shape newShape = selectionType.createShapeFromDrag(drag, currentShape);
-        applyShapeToDraft(draftSelection, newShape);
-    }
-
-    private void createNewDraftSelectionFromEvent(PMouseEvent e) {
-        assert e != null;
-        Shape newShape = selectionType.createShapeFromEvent(e, null);
-        comp.setDraftSelection(new Selection(newShape, comp.getView()));
-    }
-
-    private void updateExistingDraftSelectionFromEvent(Selection draftSelection, PMouseEvent e) {
-        Shape currentShape = draftSelection.getShape();
-        Shape newShape = selectionType.createShapeFromEvent(e, currentShape);
-        applyShapeToDraft(draftSelection, newShape);
-    }
-
-    private static void applyShapeToDraft(Selection draftSelection, Shape newShape) {
-        draftSelection.setShape(newShape);
+    private static void applyToDraft(Selection draftSelection, SelectionData newData) {
+        draftSelection.setData(newData);
 
         if (!draftSelection.isMarching()) {
             draftSelection.startMarching();
@@ -141,47 +121,45 @@ public class SelectionBuilder {
     }
 
     /**
-     * Finalizes the selection by combining the draft shape with
+     * Finalizes the selection by combining the draft with
      * any existing selection according to the combination mode.
      */
     public void combineShapes() {
         Selection draftSelection = comp.getDraftSelection();
 
-        Shape newShape = draftSelection.getShape();
-        newShape = comp.clipToCanvasBounds(newShape);
-        if (newShape.getBounds2D().isEmpty()) {
+        SelectionData newData = draftSelection.getData().clippedTo(comp.getCanvas());
+        if (SelectionData.selectsNothing(newData)) {
             // leave finalized false so cancelIfNotFinalized()
             // cleans up and restores the prior selection state
             return;
         }
 
         if (comp.hasSelection()) {
-            combineWithExistingSelection(draftSelection, newShape);
+            combineWithExistingSelection(draftSelection, newData);
         } else {
-            finalizeNewSelection(draftSelection, newShape);
+            finalizeNewSelection(draftSelection, newData);
         }
 
         finalized = true;
     }
 
     private void combineWithExistingSelection(Selection draftSelection,
-                                              Shape newShape) {
-        Selection origSelection = comp.getSelection();
-        Shape origShape = origSelection.getShape();
-        Shape combinedShape = combinator.combine(origShape, newShape);
+                                              SelectionData newData) {
+        SelectionData origData = comp.getSelection().getData();
+        SelectionData combined = combinator.combine(origData, newData, comp.getCanvas());
 
-        if (combinedShape.getBounds().isEmpty()) { // the resulting combined shape is empty
-            handleEmptyCombinedShape(draftSelection, origShape);
+        if (SelectionData.selectsNothing(combined)) {
+            handleEmptyCombination(draftSelection, origData);
         } else {
-            finalizeShapeCombination(draftSelection, combinedShape, origShape);
+            finalizeCombination(draftSelection, combined, origData);
         }
     }
 
-    private void handleEmptyCombinedShape(Selection draftSelection,
-                                          Shape origShape) {
-        // restore the original shape here so that the undo edit
+    private void handleEmptyCombination(Selection draftSelection,
+                                        SelectionData origData) {
+        // restore the original selection here so that the undo edit
         // in deselect(true) captures the correct backup
-        draftSelection.setShape(origShape);
+        draftSelection.setData(origData);
 
         comp.promoteSelection();
         comp.deselect(true);
@@ -193,32 +171,26 @@ public class SelectionBuilder {
             comp.getDialogParent());
     }
 
-    private void finalizeShapeCombination(Selection draftSelection,
-                                          Shape combinedShape,
-                                          Shape origShape) {
-        draftSelection.setShape(combinedShape);
+    private void finalizeCombination(Selection draftSelection,
+                                     SelectionData combined,
+                                     SelectionData origData) {
+        draftSelection.setData(combined);
         comp.promoteSelection();
 
-        History.add(new SelectionShapeChangeEdit(
-            combinator.getHistoryName(), comp, origShape));
+        History.add(new SelectionChangeEdit(
+            combinator.getHistoryName(), comp, origData));
     }
 
     private void finalizeNewSelection(Selection draftSelection,
-                                      Shape newShape) {
+                                      SelectionData newData) {
         // we can get here if either (1) a new selection
         // was created or (2) a selection was replaced
-        if (newShape.getBounds().isEmpty()) {
-            // the new shape can be empty if it has width or height = 0
-            comp.deselect(false);
-            return;
-        }
-
-        draftSelection.setShape(newShape);
+        draftSelection.setData(newData);
         comp.promoteSelection();
 
-        PixelitorEdit edit = (prevSelShape != null)
-            ? new SelectionShapeChangeEdit(combinator.getHistoryName(), comp, prevSelShape)
-            : new NewSelectionEdit(comp, newShape);
+        PixelitorEdit edit = (prevSelData != null)
+            ? new SelectionChangeEdit(combinator.getHistoryName(), comp, prevSelData)
+            : new NewSelectionEdit(comp, newData);
         History.add(edit);
     }
 

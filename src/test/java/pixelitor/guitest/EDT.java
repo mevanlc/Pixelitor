@@ -31,7 +31,7 @@ import pixelitor.layers.Layer;
 import pixelitor.layers.MaskViewMode;
 import pixelitor.menus.view.ZoomLevel;
 import pixelitor.selection.Selection;
-import pixelitor.selection.ShapeCombinator;
+import pixelitor.selection.SelectionCombinator;
 import pixelitor.tools.DragToolState;
 import pixelitor.tools.Tool;
 import pixelitor.tools.Tools;
@@ -153,8 +153,8 @@ public class EDT {
     /**
      * Asserts that the given selection tool is using the expected shape combinator.
      */
-    public static void assertSelectionCombinatorIs(AbstractSelectionTool tool, ShapeCombinator expected) {
-        ShapeCombinator actual = call(tool::getCombinator);
+    public static void assertSelectionCombinatorIs(AbstractSelectionTool tool, SelectionCombinator expected) {
+        SelectionCombinator actual = call(tool::getCombinator);
         assertThat(actual).isSameAs(expected);
     }
 

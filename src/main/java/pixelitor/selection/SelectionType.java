@@ -27,85 +27,90 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 
 /**
- * The different ways a selection shape can be created or updated interactively.
+ * The different ways a selection can be created or updated interactively.
  * Depending on the tool's interaction model (drag-based vs. click-based),
- * each constant implements either createShapeFromDrag or createShapeFromEvent,
+ * each constant implements either createFromDrag or createFromEvent,
  * throwing an exception for the unsupported interaction type.
  */
 public enum SelectionType {
     RECTANGLE("Rectangle") {
         @Override
-        public Shape createShapeFromDrag(Drag drag, Shape oldShape) {
-            // ignores oldShape, always creates a new rectangle from the drag
-            return drag.createPositiveImRect();
+        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
+            // ignores oldData, always creates a new rectangle from the drag
+            return SelectionData.forShape(drag.createPositiveImRect());
         }
 
         @Override
-        public Shape createShapeFromEvent(PMouseEvent e, Shape oldShape) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
             throw new UnsupportedOperationException("Rectangle selection uses Drag info");
         }
     }, ELLIPSE("Ellipse") {
         @Override
-        public Shape createShapeFromDrag(Drag drag, Shape oldShape) {
-            // ignores oldShape, always creates a new ellipse from the drag
+        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
+            // ignores oldData, always creates a new ellipse from the drag
             Rectangle2D r = drag.createPositiveImRect();
-            return new Ellipse2D.Double(r.getX(), r.getY(), r.getWidth(), r.getHeight());
+            return SelectionData.forShape(new Ellipse2D.Double(
+                r.getX(), r.getY(), r.getWidth(), r.getHeight()));
         }
 
         @Override
-        public Shape createShapeFromEvent(PMouseEvent e, Shape oldShape) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
             throw new UnsupportedOperationException("Ellipse selection uses Drag info");
         }
     }, LASSO("Freehand") {
         @Override
-        public Shape createShapeFromDrag(Drag drag, Shape oldShape) {
-            if (oldShape instanceof Path2D path) {
+        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
+            if (getOutline(oldData) instanceof Path2D path) {
                 // extend the existing path
                 path.lineTo(drag.getEndX(), drag.getEndY());
-                return path;
+                return SelectionData.forShape(path);
             } else {
                 // start a new path
                 Path2D p = new Path2D.Double();
                 p.moveTo(drag.getStartX(), drag.getStartY());
                 p.lineTo(drag.getEndX(), drag.getEndY());
-                return p;
+                return SelectionData.forShape(p);
             }
         }
 
         @Override
-        public Shape createShapeFromEvent(PMouseEvent e, Shape oldShape) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
             throw new UnsupportedOperationException("Lasso selection uses Drag info");
         }
     }, POLYGONAL_LASSO("Polygonal") {
         @Override
-        public Shape createShapeFromDrag(Drag drag, Shape oldShape) {
+        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
             throw new UnsupportedOperationException("Polygonal Lasso uses PMouseEvent info");
         }
 
         @Override
-        public Shape createShapeFromEvent(PMouseEvent e, Shape oldShape) {
-            if (oldShape instanceof Path2D path) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
+            if (getOutline(oldData) instanceof Path2D path) {
                 // extend the existing path
                 path.lineTo(e.getImX(), e.getImY());
-                return path;
+                return SelectionData.forShape(path);
             } else {
                 // start a new path
                 Path2D p = new Path2D.Double();
                 p.moveTo(e.getImX(), e.getImY());
                 // first point only defines the start, no line yet
-                return p;
+                return SelectionData.forShape(p);
             }
         }
     }, MAGIC_WAND("Magic Wand") {
         @Override
-        public Shape createShapeFromDrag(Drag drag, Shape oldShape) {
+        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
             throw new UnsupportedOperationException("Magic Wand uses PMouseEvent info");
         }
 
         @Override
-        public Shape createShapeFromEvent(PMouseEvent e, Shape oldShape) {
-            // ignores oldShape
-            return MagicWandSelectionTool.createSelectionPath(e);
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
+            // ignores oldData; the flood-filled pixels are kept
+            // as hard coverage instead of being traced into a path
+            SelectionMask mask = MagicWandSelectionTool.createSelectionMask(e);
+            return mask == null
+                ? SelectionData.forShape(new Path2D.Double()) // nothing selected
+                : SelectionData.forMask(mask);
         }
     };
 
@@ -116,18 +121,27 @@ public enum SelectionType {
     }
 
     /**
-     * Creates or updates a selection shape based on drag input.
+     * Creates or updates selection data based on drag input.
      * Some tools (like Marquee and Lasso) primarily provide drag
      * information (start/end points) encapsulated in a `Drag` object.
      */
-    public abstract Shape createShapeFromDrag(Drag drag, Shape oldShape);
+    public abstract SelectionData createFromDrag(Drag drag, SelectionData oldData);
 
     /**
-     * Creates or updates a selection shape based on mouse event input.
+     * Creates or updates selection data based on mouse event input.
      * Some tools (like Polygonal Lasso and Magic Wand) primarily operate
      * based on individual mouse events.
      */
-    public abstract Shape createShapeFromEvent(PMouseEvent e, Shape oldShape);
+    public abstract SelectionData createFromEvent(PMouseEvent e, SelectionData oldData);
+
+    /**
+     * Returns the outline of the draft selection being built, or null
+     * if there is none yet. The freehand selection types extend the
+     * returned path in place while the drag is in progress.
+     */
+    private static Shape getOutline(SelectionData oldData) {
+        return oldData == null ? null : oldData.getOutline();
+    }
 
     @Override
     public String toString() {

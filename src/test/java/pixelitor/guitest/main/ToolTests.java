@@ -62,8 +62,8 @@ import static pixelitor.guitest.GUITestUtils.checkRandomly;
 import static pixelitor.guitest.GUITestUtils.findButtonByText;
 import static pixelitor.menus.view.ZoomLevel.zoomLevels;
 import static pixelitor.selection.SelectionModifyType.EXPAND;
-import static pixelitor.selection.ShapeCombinator.ADD;
-import static pixelitor.selection.ShapeCombinator.REPLACE;
+import static pixelitor.selection.SelectionCombinator.ADD;
+import static pixelitor.selection.SelectionCombinator.REPLACE;
 import static pixelitor.tools.DragToolState.IDLE;
 import static pixelitor.tools.DragToolState.TRANSFORM;
 

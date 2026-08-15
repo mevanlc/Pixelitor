@@ -40,12 +40,12 @@ import java.util.ResourceBundle;
 public abstract class AbstractSelectionTool extends DragTool {
     private static final String PRESET_KEY_COMBINATOR = "New Selection";
 
-    private final EnumComboBoxModel<ShapeCombinator> combinatorModel
-        = new EnumComboBoxModel<>(ShapeCombinator.class);
+    private final EnumComboBoxModel<SelectionCombinator> combinatorModel
+        = new EnumComboBoxModel<>(SelectionCombinator.class);
 
     // the shape combinator selected in the UI
     // before being overridden by Shift/Alt keys
-    private ShapeCombinator baseShapeCombinator;
+    private SelectionCombinator baseCombinator;
 
     // is the currently-held-down Alt key the same one that was down when this
     // drag started (and therefore already consumed for the SUBTRACT/INTERSECT combinator),
@@ -64,7 +64,7 @@ public abstract class AbstractSelectionTool extends DragTool {
     @Override
     @SuppressWarnings("unchecked")
     public void initSettingsPanel(ResourceBundle resources) {
-        var combinatorCB = new JComboBox<ShapeCombinator>(combinatorModel);
+        var combinatorCB = new JComboBox<SelectionCombinator>(combinatorModel);
         settingsPanel.addComboBox("New Selection:",
             combinatorCB, "combinatorCB");
 
@@ -77,7 +77,7 @@ public abstract class AbstractSelectionTool extends DragTool {
             "toPathButton", "Convert the selection to a path");
     }
 
-    public ShapeCombinator getCombinator() {
+    public SelectionCombinator getCombinator() {
         return combinatorModel.getSelectedItem();
     }
 
@@ -103,14 +103,14 @@ public abstract class AbstractSelectionTool extends DragTool {
         altUsedForCombinator = altDown;
 
         if (shiftDown || altDown) {
-            baseShapeCombinator = getCombinator();
+            baseCombinator = getCombinator();
 
             if (shiftDown && altDown) {
-                setCombinator(ShapeCombinator.INTERSECT);
+                setCombinator(SelectionCombinator.INTERSECT);
             } else if (shiftDown) { // only shift
-                setCombinator(ShapeCombinator.ADD);
+                setCombinator(SelectionCombinator.ADD);
             } else { // only alt
-                setCombinator(ShapeCombinator.SUBTRACT);
+                setCombinator(SelectionCombinator.SUBTRACT);
             }
         }
     }
@@ -159,13 +159,13 @@ public abstract class AbstractSelectionTool extends DragTool {
      * Restores the shape combinator that was active before modifier keys were pressed.
      */
     protected void resetCombinator() {
-        if (baseShapeCombinator != null) {
-            setCombinator(baseShapeCombinator);
-            baseShapeCombinator = null;
+        if (baseCombinator != null) {
+            setCombinator(baseCombinator);
+            baseCombinator = null;
         }
     }
 
-    private void setCombinator(ShapeCombinator combinator) {
+    private void setCombinator(SelectionCombinator combinator) {
         combinatorModel.setSelectedItem(combinator);
     }
 
@@ -193,7 +193,7 @@ public abstract class AbstractSelectionTool extends DragTool {
      */
     protected void finalizeDragBasedSelection(PMouseEvent e) {
         if (drag.isClick()) {
-            if (e.isRight() || getCombinator() == ShapeCombinator.REPLACE) {
+            if (e.isRight() || getCombinator() == SelectionCombinator.REPLACE) {
                 cancelSelection(e.getComp()); // normal click-to-deselect
             } else {
                 // we assume that a 0-pixel click is an accidentally aborted drag
@@ -242,6 +242,6 @@ public abstract class AbstractSelectionTool extends DragTool {
 
     @Override
     public void loadUserPreset(UserPreset preset) {
-        setCombinator(preset.getEnum(PRESET_KEY_COMBINATOR, ShapeCombinator.class));
+        setCombinator(preset.getEnum(PRESET_KEY_COMBINATOR, SelectionCombinator.class));
     }
 }

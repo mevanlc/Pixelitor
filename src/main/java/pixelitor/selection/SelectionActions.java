@@ -30,9 +30,10 @@ import pixelitor.gui.utils.DialogBuilder;
 import pixelitor.gui.utils.GridBagHelper;
 import pixelitor.gui.utils.TaskAction;
 import pixelitor.history.History;
-import pixelitor.history.SelectionShapeChangeEdit;
+import pixelitor.history.SelectionChangeEdit;
 import pixelitor.menus.view.ShowHideSelectionAction;
 import pixelitor.tools.Tools;
+import pixelitor.utils.Messages;
 import pixelitor.utils.Threads;
 import pixelitor.utils.ViewActivationListener;
 
@@ -48,8 +49,9 @@ import static pixelitor.utils.Texts.i18n;
  * only when there is a selection in the active composition.
  */
 public final class SelectionActions {
-    // shape stored for copy/paste
-    private static Shape clipboardShape = null;
+    // the selection stored for copy/paste; it can be shared with
+    // the compositions, because the selection data is immutable
+    private static SelectionData clipboardData = null;
 
     private static final Action crop = new TaskAction(i18n("crop_selection"),
         Crop::cropActiveCompToSelection);
@@ -75,7 +77,7 @@ public final class SelectionActions {
      * @noinspection NonFinalStaticVariableUsedInClassInitialization
      */
     private static final Action pasteSel = new TaskAction(i18n("paste_sel"), () -> {
-        SelectionChangeResult result = getActiveComp().updateSelectionInteractively(clipboardShape);
+        SelectionChangeResult result = getActiveComp().updateSelectionInteractively(clipboardData);
         if (result.isSuccess()) {
             History.add(result.getEdit());
             Tools.notifySelectionChanged();
@@ -101,8 +103,8 @@ public final class SelectionActions {
         Views.addActivationListener(new ViewActivationListener() {
             @Override
             public void viewActivated(View oldView, View newView) {
-                // enable the paste selection menu only if a shape has been copied
-                pasteSel.setEnabled(clipboardShape != null);
+                // enable the paste selection menu only if a selection has been copied
+                pasteSel.setEnabled(clipboardData != null);
             }
 
             @Override
@@ -114,24 +116,38 @@ public final class SelectionActions {
     }
 
     /**
-     * Copies the active composition's selection shape to the internal clipboard.
+     * Copies the active composition's selection to the internal clipboard,
+     * preserving its exact coverage.
      */
     private static void copySelection() {
-        clipboardShape = getActiveComp().getSelectionShape();
+        clipboardData = getActiveComp().getSelectionData();
         pasteSel.setEnabled(true);
     }
 
+    /**
+     * Converts the selection into a path along its 50% contour.
+     */
     public static void selectionToPath(Composition comp, boolean addToHistory) {
-        Shape shape = comp.getSelection().getShape();
+        Shape outline = comp.getSelection().getShape();
+        if (outline.getBounds().isEmpty()) {
+            // a selection that never reaches 50% coverage has no contour:
+            // report it instead of discarding the low-coverage selection
+            Messages.showInfo("No Path Created",
+                "The selection is too faint to have a 50% contour, " +
+                    "so no path can be created from it.",
+                comp.getDialogParent());
+            return;
+        }
         comp.deselect(false);
-        comp.createPathFromImShape(shape, addToHistory, true);
+        comp.createPathFromImShape(outline, addToHistory, true);
     }
 
     private static void showModifySelectionDialog() {
         View view = Views.getActive();
         Composition comp = view.getComp();
         Selection selection = comp.getSelection();
-        Shape originalShape = selection.getShape();
+        // captured once, so that every preview starts from the original
+        SelectionData originalData = selection.getData();
 
         JPanel panel = new JPanel(new GridBagLayout());
         var gbh = new GridBagHelper(panel);
@@ -148,12 +164,10 @@ public final class SelectionActions {
 
         // listener for live preview
         ParamAdjustmentListener previewUpdater = () -> {
-            Shape potentialShape = type.getSelected().modifyShape(originalShape,
-                amount.getValue());
-            potentialShape = comp.clipToCanvasBounds(potentialShape);
+            SelectionData preview = modifySelection(originalData, type, amount, comp);
 
-            // update the selection shape for preview (no history)
-            selection.setShape(potentialShape);
+            // update the selection for preview (no history)
+            selection.setData(preview != null ? preview : originalData);
             view.repaint();
         };
 
@@ -161,30 +175,27 @@ public final class SelectionActions {
         type.setAdjustmentListener(previewUpdater);
 
         builder.okAction(() -> {
-            // calculate final shape based on dialog settings
-            Shape finalShape = type.getSelected().modifyShape(originalShape,
-                amount.getValue());
-            finalShape = comp.clipToCanvasBounds(finalShape);
+            SelectionData finalData = modifySelection(originalData, type, amount, comp);
 
-            if (finalShape.getBounds2D().isEmpty()) {
-                // result is empty, deselect and add history
-                selection.setShape(originalShape); // ensure correct undo
+            if (finalData == null) {
+                // nothing is selected anymore, deselect and add history
+                selection.setData(originalData); // ensure correct undo
                 comp.deselect(true);
             } else if (!amount.isZero()) {
-                // result is valid and different, update shape and add history
-                selection.setShape(finalShape);
-                var edit = new SelectionShapeChangeEdit(
-                    "Modify Selection", comp, originalShape);
+                // the result is valid and different, update it and add history
+                selection.setData(finalData);
+                var edit = new SelectionChangeEdit(
+                    "Modify Selection", comp, originalData);
                 History.add(edit);
                 Tools.notifySelectionChanged();
                 view.repaint();
             }
-            // else: shape is valid but same as original, do nothing
+            // else: the result is valid but the same as the original, do nothing
         });
 
         builder.cancelAction(() -> {
-            // restore original shape on cancel
-            selection.setShape(originalShape);
+            // restore the exact original representation on cancel
+            selection.setData(originalData);
             view.repaint();
         });
 
@@ -192,6 +203,19 @@ public final class SelectionActions {
         previewUpdater.paramAdjusted();
 
         builder.show();
+    }
+
+    /**
+     * Applies the dialog settings to the original selection, always
+     * starting from it and never from the previous preview.
+     */
+    private static SelectionData modifySelection(SelectionData originalData,
+                                                 EnumParam<SelectionModifyType> type,
+                                                 RangeParam amount,
+                                                 Composition comp) {
+        SelectionData modified = type.getSelected().modify(
+            originalData, amount.getValue(), comp.getCanvas());
+        return modified == null ? null : modified.clippedTo(comp.getCanvas());
     }
 
     /**

@@ -17,7 +17,7 @@
 
 package pixelitor.assertions;
 
-import pixelitor.selection.ShapeCombinator;
+import pixelitor.selection.SelectionCombinator;
 import pixelitor.tools.selection.AbstractSelectionTool;
 
 /**
@@ -28,7 +28,7 @@ public class SelectionToolAssert extends ToolAssert<SelectionToolAssert, Abstrac
         super(actual, SelectionToolAssert.class);
     }
 
-    public SelectionToolAssert combinatorIs(ShapeCombinator expected) {
+    public SelectionToolAssert combinatorIs(SelectionCombinator expected) {
         isNotNull();
 
         var combinator = actual.getCombinator();

@@ -17,23 +17,24 @@
 package pixelitor.history;
 
 import pixelitor.Composition;
+import pixelitor.selection.SelectionData;
 
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
-import java.awt.Shape;
+import java.util.Objects;
 
 /**
  * Represents the creation of a new selection.
  */
 public class NewSelectionEdit extends PixelitorEdit {
-    private final Shape newShape;
+    private final SelectionData newData;
 
-    public NewSelectionEdit(Composition comp, Shape shape) {
-        super("Create Selection", comp);
+    public NewSelectionEdit(Composition comp, SelectionData newData) {
+        super("Create Selection", comp, newData.isMaskBacked());
 
         assert comp.isOpen();
 
-        newShape = shape;
+        this.newData = Objects.requireNonNull(newData);
     }
 
     @Override
@@ -51,7 +52,7 @@ public class NewSelectionEdit extends PixelitorEdit {
 
         assert comp.isOpen();
 
-        comp.createSelectionFrom(newShape);
+        comp.createSelectionFrom(newData);
     }
 
     @Override

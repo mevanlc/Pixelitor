@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,10 +17,12 @@
 
 package pixelitor.selection;
 
+import pixelitor.Canvas;
 import pixelitor.filters.gui.EnumParam;
 import pixelitor.gui.GUIText;
 
 import java.awt.BasicStroke;
+import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.Area;
 
@@ -34,16 +36,36 @@ public enum SelectionModifyType {
             previousSelection.add(borderArea);
             return previousSelection;
         }
+
+        @Override
+        protected SelectionMask modifyMask(SelectionMask mask, int radius, Rectangle canvasBounds) {
+            return mask.dilated(radius, canvasBounds);
+        }
     }, CONTRACT("Contract") {
         @Override
         protected Shape modifyArea(Area previousSelection, Area borderArea) {
             previousSelection.subtract(borderArea);
             return previousSelection;
         }
+
+        @Override
+        protected SelectionMask modifyMask(SelectionMask mask, int radius, Rectangle canvasBounds) {
+            return mask.eroded(radius);
+        }
     }, BORDER("Border") {
         @Override
         protected Shape modifyArea(Area previousSelection, Area borderArea) {
             return borderArea;
+        }
+
+        @Override
+        protected SelectionMask modifyMask(SelectionMask mask, int radius, Rectangle canvasBounds) {
+            SelectionMask dilated = mask.dilated(radius, canvasBounds);
+            SelectionMask eroded = mask.eroded(radius);
+            if (eroded == null) {
+                return dilated;
+            }
+            return dilated == null ? null : dilated.absDifference(eroded);
         }
     }, OUTWARD_BORDER("Border Outwards Only") {
         @Override
@@ -51,11 +73,23 @@ public enum SelectionModifyType {
             borderArea.subtract(previousSelection);
             return borderArea;
         }
+
+        @Override
+        protected SelectionMask modifyMask(SelectionMask mask, int radius, Rectangle canvasBounds) {
+            SelectionMask dilated = mask.dilated(radius, canvasBounds);
+            return dilated == null ? null : dilated.subtract(mask);
+        }
     }, INWARD_BORDER("Border Inwards Only") {
         @Override
         protected Shape modifyArea(Area previousSelection, Area borderArea) {
             previousSelection.intersect(borderArea);
             return previousSelection;
+        }
+
+        @Override
+        protected SelectionMask modifyMask(SelectionMask mask, int radius, Rectangle canvasBounds) {
+            SelectionMask eroded = mask.eroded(radius);
+            return eroded == null ? mask : mask.subtract(eroded);
         }
     };
 
@@ -63,6 +97,26 @@ public enum SelectionModifyType {
 
     SelectionModifyType(String displayName) {
         this.displayName = displayName;
+    }
+
+    /**
+     * Modifies a selection based on this modification type,
+     * returning null if nothing is selected as a result.
+     */
+    public SelectionData modify(SelectionData data, float amount, Canvas canvas) {
+        if (data.isMaskBacked()) {
+            SelectionMask mask = data.materializeMask(canvas);
+            // A stroke of the given width extends by half of it on both
+            // sides of the outline, so that's the morphology radius.
+            SelectionMask modified = modifyMask(mask,
+                Math.round(amount / 2), canvas.getBounds());
+            return modified == null ? null : SelectionData.forMask(modified);
+        }
+
+        Shape modified = modifyShape(data.getOutline(), amount);
+        return modified.getBounds().isEmpty()
+            ? null
+            : SelectionData.forShape(modified);
     }
 
     /**
@@ -77,6 +131,13 @@ public enum SelectionModifyType {
     }
 
     protected abstract Shape modifyArea(Area previousSelection, Area borderArea);
+
+    /**
+     * Applies the equivalent grayscale morphology to a coverage mask.
+     * The structuring element is a square, matching the miter joins
+     * of the stroke used by the vector implementation.
+     */
+    protected abstract SelectionMask modifyMask(SelectionMask mask, int radius, Rectangle canvasBounds);
 
     public static EnumParam<SelectionModifyType> asParam() {
         return new EnumParam<>(GUIText.TYPE, SelectionModifyType.class);

@@ -17,24 +17,24 @@
 package pixelitor.history;
 
 import pixelitor.Composition;
+import pixelitor.selection.SelectionData;
 
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
-import java.awt.Shape;
 import java.util.Objects;
 
 /**
  * Represents a deselection operation.
  */
 public class DeselectEdit extends PixelitorEdit {
-    private final Shape backupShape;
+    private final SelectionData backupData;
 
-    public DeselectEdit(Composition comp, Shape backupShape) {
-        super("Deselect", comp);
+    public DeselectEdit(Composition comp, SelectionData backupData) {
+        super("Deselect", comp, backupData.isMaskBacked());
 
         assert !comp.hasSelection();
 
-        this.backupShape = Objects.requireNonNull(backupShape);
+        this.backupData = Objects.requireNonNull(backupData);
     }
 
     @Override
@@ -43,7 +43,7 @@ public class DeselectEdit extends PixelitorEdit {
 
         assert !comp.hasSelection();
 
-        comp.createSelectionFrom(backupShape);
+        comp.createSelectionFrom(backupData);
     }
 
     @Override

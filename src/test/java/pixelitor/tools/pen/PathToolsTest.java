@@ -36,7 +36,7 @@ import static pixelitor.TestHelper.assertHistoryEditsAre;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.history.History.redo;
 import static pixelitor.history.History.undo;
-import static pixelitor.selection.ShapeCombinator.REPLACE;
+import static pixelitor.selection.SelectionCombinator.REPLACE;
 
 @DisplayName("Path Tools tests")
 @TestMethodOrder(MethodOrderer.Random.class)

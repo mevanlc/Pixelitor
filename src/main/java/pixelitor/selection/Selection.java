@@ -23,11 +23,10 @@ import pixelitor.gui.View;
 import pixelitor.history.DeselectEdit;
 import pixelitor.history.History;
 import pixelitor.history.PixelitorEdit;
-import pixelitor.history.SelectionShapeChangeEdit;
+import pixelitor.history.SelectionChangeEdit;
 import pixelitor.tools.move.MoveMode;
 import pixelitor.tools.transform.Transformable;
 import pixelitor.tools.util.ArrowKey;
-import pixelitor.utils.Shapes;
 import pixelitor.utils.Threads;
 import pixelitor.utils.debug.DebugNode;
 
@@ -35,6 +34,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
+import java.util.Objects;
 
 import static java.awt.BasicStroke.CAP_BUTT;
 import static java.awt.BasicStroke.JOIN_ROUND;
@@ -51,11 +51,12 @@ public class Selection implements Transformable {
     private float dashPhase;
     private Timer marchingAntsTimer;
 
-    // the shape of the selection, in image-space coordinates relative to the canvas
-    private Shape shape;
+    // the geometry of the selection, in image-space coordinates
+    // relative to the canvas: either exact vector data or a coverage mask
+    private SelectionData data;
 
-    // backup of the shape before a drag/transform started
-    private Shape shapeBeforeTransform;
+    // backup of the selection data before a drag/transform started
+    private SelectionData dataBeforeTransform;
 
     // the view displaying this selection
     private View view;
@@ -69,10 +70,17 @@ public class Selection implements Transformable {
     // if true, this object should not be used anymore
     private boolean disposed = false;
 
+    /**
+     * A convenience constructor for the common case of a vector selection.
+     */
     public Selection(Shape shape, View view) {
+        this(SelectionData.forShape(shape), view);
+    }
+
+    public Selection(SelectionData data, View view) {
         assert view != null;
 
-        this.shape = shape;
+        this.data = Objects.requireNonNull(data);
         this.view = view;
 
         // prevent marching in unit tests
@@ -88,9 +96,9 @@ public class Selection implements Transformable {
     public Selection(Selection orig) {
         assert orig.checkInvariants();
 
-        // the shape can be shared because all changes create new instances
-        this.shape = orig.shape;
-        this.shapeBeforeTransform = orig.shapeBeforeTransform;
+        // the selection data can be shared because it's immutable
+        this.data = orig.data;
+        this.dataBeforeTransform = orig.dataBeforeTransform;
 
         this.frozen = orig.frozen;
         this.hidden = orig.hidden;
@@ -178,7 +186,9 @@ public class Selection implements Transformable {
         g2.setColor(color);
         g2.setStroke(new BasicStroke(lineWidth,
             CAP_BUTT, JOIN_ROUND, 0.0f, dash, phase));
-        g2.draw(shape);
+        // the ants follow the exact vector outline of a vector
+        // selection, and the 50% contour of a mask-backed one
+        g2.draw(data.getOutline());
     }
 
     /**
@@ -196,32 +206,45 @@ public class Selection implements Transformable {
         disposed = true;
     }
 
-    public void setShape(Shape newShape) {
-        shape = newShape;
+    public void setData(SelectionData newData) {
+        data = Objects.requireNonNull(newData);
         assert checkInvariants();
     }
 
-    public Shape getShape() {
+    public SelectionData getData() {
         assert checkInvariants();
-        return shape;
-    }
-
-    public boolean isRectangular() {
-        assert checkInvariants();
-        return shape instanceof Rectangle2D;
+        return data;
     }
 
     /**
-     * Returns the bounds of the selection shape in image-space coordinates.
+     * Returns the vector outline of the selection.
+     * Only for code that genuinely performs geometry: the pixel
+     * consumers that still use it are migrated in phase 2.
+     */
+    public Shape getShape() {
+        assert checkInvariants();
+        return data.getOutline();
+    }
+
+    /**
+     * Returns true if this is an exact hard rectangular selection.
+     */
+    public boolean isRectangular() {
+        assert checkInvariants();
+        return data.getExactHardRectangle().isPresent();
+    }
+
+    /**
+     * Returns the bounds of the selection outline in image-space coordinates.
      */
     public Rectangle getShapeBounds() {
         assert checkInvariants();
-        return shape.getBounds();
+        return data.getOutline().getBounds();
     }
 
     public Rectangle2D getShapeBounds2D() {
         assert checkInvariants();
-        return shape.getBounds2D();
+        return data.getOutlineBounds();
     }
 
     public void nudge(ArrowKey key) {
@@ -232,27 +255,35 @@ public class Selection implements Transformable {
         assert checkInvariants();
 
         Composition comp = view.getComp();
-        Shape backupShape = shape;
+        SelectionData backupData = data;
 
-        Shape newShape = translatePreservingType(shape, relImX, relImY);
-        newShape = comp.clipToCanvasBounds(newShape);
+        SelectionData newData = data.translated(relImX, relImY)
+            .clippedTo(comp.getCanvas());
 
-        if (newShape.getBounds().isEmpty()) {
+        if (SelectionData.selectsNothing(newData)) {
             // the selection moved entirely off the canvas
             comp.deselect(true);
         } else {
-            shape = newShape;
-            History.add(new SelectionShapeChangeEdit(
-                editName, comp, backupShape));
+            data = newData;
+            History.add(new SelectionChangeEdit(
+                editName, comp, backupData));
         }
     }
 
     /**
-     * Transforms the selection shape without history or canvas clipping.
+     * Transforms the selection into new image-space
+     * coordinates, without history or canvas clipping.
+     * Returns false if nothing is selected anymore.
      */
-    public void transform(AffineTransform at) {
+    public boolean transform(AffineTransform at) {
         assert checkInvariants();
-        shape = at.createTransformedShape(shape);
+
+        SelectionData transformed = data.transformed(at);
+        if (SelectionData.selectsNothing(transformed)) {
+            return false;
+        }
+        data = transformed;
+        return true;
     }
 
     public boolean isHidden() {
@@ -323,74 +354,69 @@ public class Selection implements Transformable {
     }
 
     /**
-     * Prepares for a drag operation by backing up the current shape.
+     * Prepares for a drag operation by backing up the current selection data.
      */
     @Override
     public void prepareForTransform() {
         assert checkInvariants();
 
-        shapeBeforeTransform = shape;
+        dataBeforeTransform = data;
     }
 
     /**
-     * Applies a transformation relative to the shape before the drag.
+     * Applies a transformation relative to the selection before the drag.
      */
     private void transformWhileDragging(AffineTransform at) {
         assert checkInvariants();
-        assert shapeBeforeTransform != null;
+        assert dataBeforeTransform != null;
 
-        shape = at.createTransformedShape(shapeBeforeTransform);
+        SelectionData transformed = dataBeforeTransform.transformed(at);
+        if (transformed != null) {
+            // a degenerate transform of a mask leaves the previous
+            // preview in place, the drag can still recover from it
+            data = transformed;
+        }
     }
 
     /**
-     * Moves the selection shape during a drag operation.
+     * Moves the selection during a drag operation.
      */
     public void moveWhileDragging(double relImX, double relImY) {
         assert checkInvariants();
-        assert shapeBeforeTransform != null;
+        assert dataBeforeTransform != null;
 
-        shape = translatePreservingType(shapeBeforeTransform, relImX, relImY);
-    }
-
-    private static Shape translatePreservingType(Shape shape, double tx, double ty) {
-        if (shape instanceof Rectangle2D rect) {
-            // Rectangle type information is used to optimize selection operations
-            // and to validate selection-based crops.
-            return new Rectangle2D.Double(
-                rect.getX() + tx, rect.getY() + ty,
-                rect.getWidth(), rect.getHeight());
-        }
-        return Shapes.translate(shape, tx, ty);
+        data = dataBeforeTransform.translated(relImX, relImY);
     }
 
     /**
-     * Finalizes the movement of the selection shape after
+     * Finalizes the movement of the selection after
      * a drag operation and returns an edit for undo/redo.
      */
     @Override
     public PixelitorEdit finalizeTransform() {
         assert checkInvariants();
-        assert shapeBeforeTransform != null;
+        assert dataBeforeTransform != null;
 
         Composition comp = view.getComp();
-        shape = comp.clipToCanvasBounds(shape);
-        if (shape.getBounds().isEmpty()) { // moved off-canvas
+        SelectionData clipped = data.clippedTo(comp.getCanvas());
+        if (SelectionData.selectsNothing(clipped)) { // moved off-canvas
             comp.deselect(false);
-            return new DeselectEdit(comp, shapeBeforeTransform);
+            return new DeselectEdit(comp, dataBeforeTransform);
         }
+        data = clipped;
 
-        // the selection shape was changed successfully
-        var edit = new SelectionShapeChangeEdit(
-            MoveMode.MOVE_SELECTION_ONLY.getEditName(), comp, shapeBeforeTransform);
-        shapeBeforeTransform = null;
+        // the selection was changed successfully
+        var edit = new SelectionChangeEdit(
+            MoveMode.MOVE_SELECTION_ONLY.getEditName(), comp, dataBeforeTransform);
+        dataBeforeTransform = null;
         return edit;
     }
 
     @Override
     public void cancelTransform() {
-        if (shapeBeforeTransform != null) {
-            shape = shapeBeforeTransform;
-            shapeBeforeTransform = null;
+        if (dataBeforeTransform != null) {
+            data = dataBeforeTransform;
+            dataBeforeTransform = null;
 
             // the view can be null if we are canceling because a deselect happened
             if (view != null) {
@@ -416,8 +442,8 @@ public class Selection implements Transformable {
         if (disposed) {
             throw new AssertionError("disposed");
         }
-        if (shape == null) {
-            throw new AssertionError("no shape");
+        if (data == null) {
+            throw new AssertionError("no selection data");
         }
         return true;
     }
@@ -431,10 +457,11 @@ public class Selection implements Transformable {
         node.addBoolean("frozen", frozen);
         node.addBoolean("marching", isMarching());
         node.addBoolean("rectangular", isRectangular());
+        node.addBoolean("mask-backed", data.isMaskBacked());
 
-        node.addString("shape class", shape.getClass().getName());
-        node.addAsString("bounds", getShapeBounds());
-        node.addAsString("bounds 2D", getShapeBounds2D());
+        node.addString("data", data.toString());
+        node.addAsString("coverage bounds", data.getCoverageBounds());
+        node.addAsString("outline bounds", getShapeBounds2D());
 
         return node;
     }
@@ -443,8 +470,7 @@ public class Selection implements Transformable {
     public String toString() {
         return "Selection{" +
             "composition=" + view.getComp().getName() +
-            ", shape-class=" + shape.getClass().getName() +
-            ", shapeBounds=" + shape.getBounds() +
+            ", data=" + data +
             '}';
     }
 }

@@ -22,6 +22,7 @@ import pixelitor.filters.gui.RangeParam;
 import pixelitor.filters.gui.UserPreset;
 import pixelitor.gui.View;
 import pixelitor.gui.utils.SliderSpinner;
+import pixelitor.selection.SelectionMask;
 import pixelitor.selection.SelectionType;
 import pixelitor.tools.ToolIcons;
 import pixelitor.tools.Tools;
@@ -31,12 +32,8 @@ import pixelitor.utils.Cursors;
 import pixelitor.utils.ImageUtils;
 
 import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.geom.Line2D;
-import java.awt.geom.Path2D;
-import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
-import java.util.*;
+import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
 import static pixelitor.gui.utils.SliderSpinner.LabelPosition.WEST;
@@ -139,9 +136,10 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
     }
 
     /**
-     * Creates a selection path based on color similarity using a flood-fill algorithm.
+     * Creates hard selection coverage based on color similarity using a
+     * flood-fill algorithm. Returns null if nothing gets selected.
      */
-    public static Path2D createSelectionPath(PMouseEvent e) {
+    public static SelectionMask createSelectionMask(PMouseEvent e) {
         // this implementation is based on the algorithm described at
         // https://losingfight.com/blog/2007/08/28/how-to-implement-a-magic-wand-tool/
         Composition comp = e.getComp();
@@ -154,9 +152,9 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
         int x = (int) e.getImX();
         int y = (int) e.getImY();
 
-        // return an empty shape if the click is outside the image bounds
+        // select nothing if the click is outside the image bounds
         if (x < 0 || x >= width || y < 0 || y >= height) {
-            return new Path2D.Double();
+            return null;
         }
 
         int[] pixels = ImageUtils.getPixels(image);
@@ -173,106 +171,7 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
                 }
             });
 
-        return convertMaskToPath(mask, width, height);
-    }
-
-    /**
-     * Converts a boolean pixel mask into a vector path that outlines the selected areas.
-     */
-    private static Path2D convertMaskToPath(boolean[] mask, int width, int height) {
-        // phase 1: find all edge segments of the selected regions
-        Map<Point, List<Line2D>> edgeMap = new HashMap<>();
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                // an edge exists between a selected pixel and a non-selected neighbor
-                if (mask[y * width + x]) {
-                    // check top neighbor
-                    if (y == 0 || !mask[(y - 1) * width + x]) {
-                        addEdge(edgeMap, new Point(x, y), new Point(x + 1, y));
-                    }
-                    // check bottom neighbor
-                    if (y == height - 1 || !mask[(y + 1) * width + x]) {
-                        addEdge(edgeMap, new Point(x, y + 1), new Point(x + 1, y + 1));
-                    }
-                    // check left neighbor
-                    if (x == 0 || !mask[y * width + x - 1]) {
-                        addEdge(edgeMap, new Point(x, y), new Point(x, y + 1));
-                    }
-                    // check right neighbor
-                    if (x == width - 1 || !mask[y * width + x + 1]) {
-                        addEdge(edgeMap, new Point(x + 1, y), new Point(x + 1, y + 1));
-                    }
-                }
-            }
-        }
-
-        // phase 2: connect the edge segments to form closed paths
-        Path2D path = new Path2D.Double();
-        while (!edgeMap.isEmpty()) {
-            Point startPoint = edgeMap.keySet().iterator().next();
-            Line2D currentLine = edgeMap.get(startPoint).getFirst();
-
-            path.moveTo(startPoint.x, startPoint.y);
-            Point currentPoint = startPoint;
-
-            while (true) {
-                Point nextPoint = getOtherEndpoint(currentLine, currentPoint);
-                path.lineTo(nextPoint.x, nextPoint.y);
-
-                // remove the used line segment from the map to avoid reprocessing
-                removeLine(edgeMap, currentLine, currentPoint);
-                removeLine(edgeMap, currentLine, nextPoint);
-
-                currentPoint = nextPoint;
-
-                // find the next connected segment
-                List<Line2D> nextSegments = edgeMap.get(currentPoint);
-                if (nextSegments == null || nextSegments.isEmpty()) {
-                    break; // path is complete
-                }
-                currentLine = nextSegments.getFirst();
-            }
-            path.closePath();
-        }
-        return path;
-    }
-
-    /**
-     * Adds a line segment to the edge map, indexed by both of its endpoints.
-     */
-    private static void addEdge(Map<Point, List<Line2D>> edgeMap, Point p1, Point p2) {
-        Line2D line = new Line2D.Double(p1, p2);
-        edgeMap.computeIfAbsent(p1, k -> new ArrayList<>()).add(line);
-        edgeMap.computeIfAbsent(p2, k -> new ArrayList<>()).add(line);
-    }
-
-    /**
-     * Returns the other endpoint of a line, given one of its endpoints.
-     */
-    private static Point getOtherEndpoint(Line2D line, Point p) {
-        Point2D p1 = line.getP1();
-        Point2D p2 = line.getP2();
-        // assumes p is one of the endpoints of the line
-        if (p1.getX() == p.x && p1.getY() == p.y) {
-            // p matches p1, so return p2
-            return new Point((int) p2.getX(), (int) p2.getY());
-        } else {
-            // p must match p2, so return p1
-            return new Point((int) p1.getX(), (int) p1.getY());
-        }
-    }
-
-    /**
-     * Removes a line segment associated with a specific endpoint from the edge map.
-     */
-    private static void removeLine(Map<Point, List<Line2D>> edgeMap, Line2D line, Point p) {
-        List<Line2D> segments = edgeMap.get(p);
-        if (segments != null) {
-            segments.remove(line);
-            if (segments.isEmpty()) {
-                edgeMap.remove(p);
-            }
-        }
+        return SelectionMask.fromBooleanMask(mask, width, height);
     }
 
     @Override
