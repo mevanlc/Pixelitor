@@ -30,6 +30,8 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.Transferable;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.concurrent.CompletableFuture;
 
 import static pixelitor.utils.Threads.onEDT;
@@ -63,11 +65,21 @@ public class CopyAction extends ViewEnabledAction {
 
         CompletableFuture.supplyAsync(() -> transferToClipboard(imageCopy))
             .thenAcceptAsync(success -> postCopyEDTActions(progressHandler, success), onEDT)
-            .exceptionally(Messages::showExceptionOnEDT);
+            .whenComplete((ignored, exception) -> {
+                if (exception != null) {
+                    progressHandler.stopProgressOnEDT();
+                    Messages.showExceptionOnEDT(exception);
+                }
+            });
     }
 
     private static boolean transferToClipboard(BufferedImage image) {
-        Transferable imageTransferable = new ImageTransferable(image);
+        Transferable imageTransferable;
+        try {
+            imageTransferable = new ImageTransferable(image);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not encode the copied image as PNG", e);
+        }
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
         try {
