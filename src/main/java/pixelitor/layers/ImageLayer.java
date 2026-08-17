@@ -1020,14 +1020,20 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         setImage(stitched);
 
         // adjust translation: layer parts before the band stay in place,
-        // but if the layer starts after the band, shift it
+        // but if the layer starts inside or after the band, shift it
         if (horizontal) {
-            if (ty >= removedBand.y + removedBand.height) {
+            int bandEnd = removedBand.y + removedBand.height;
+            if (ty >= bandEnd) {
                 setTranslation(tx, ty - removedBand.height);
+            } else if (ty >= removedBand.y) {
+                setTranslation(tx, removedBand.y);
             }
         } else {
-            if (tx >= removedBand.x + removedBand.width) {
+            int bandEnd = removedBand.x + removedBand.width;
+            if (tx >= bandEnd) {
                 setTranslation(tx - removedBand.width, ty);
+            } else if (tx >= removedBand.x) {
+                setTranslation(removedBand.x, ty);
             }
         }
 

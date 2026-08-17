@@ -247,6 +247,14 @@ public class Selection implements Transformable {
         return data.getOutlineBounds();
     }
 
+    /**
+     * Returns the canvas-space bounds of the nonzero coverage (all selected pixels).
+     */
+    public Rectangle getCoverageBounds() {
+        assert checkInvariants();
+        return data.getCoverageBounds();
+    }
+
     public void nudge(ArrowKey key) {
         translateAndAddHistory("Nudge Selection", key.getDeltaX(), key.getDeltaY());
     }

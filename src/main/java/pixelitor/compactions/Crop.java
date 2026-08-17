@@ -343,36 +343,99 @@ public class Crop implements CompAction {
 
     private static void inverseCrop(Composition comp) {
         Selection sel = comp.getSelection();
-        if (sel == null) {
-            throw new IllegalStateException();
+        if (sel == null || SelectionData.selectsNothing(sel.getData())) {
+            throw new IllegalStateException("No selection to inverse crop");
         }
 
-        if (!sel.isRectangular()) {
+        Canvas canvas = comp.getCanvas();
+        Rectangle aabb = sel.getCoverageBounds().intersection(canvas.getBounds());
+
+        if (aabb.isEmpty() || aabb.width <= 0 || aabb.height <= 0) {
             Messages.showError("Inverse Crop",
-                "Inverse Crop requires a rectangular selection.");
+                "The selection contains no pixels on the canvas.");
+            return;
+        }
+
+        boolean spansFullWidth = aabb.x == 0 && aabb.width == canvas.getWidth();
+        boolean spansFullHeight = aabb.y == 0 && aabb.height == canvas.getHeight();
+
+        if (spansFullWidth && spansFullHeight) {
+            Messages.showError("Inverse Crop",
+                "The selection covers the entire canvas.");
+        } else if (spansFullWidth) {
+            Rectangle removedBand = new Rectangle(0, aabb.y, canvas.getWidth(), aabb.height);
+            performInverseCrop(comp, removedBand, true);
+        } else if (spansFullHeight) {
+            Rectangle removedBand = new Rectangle(aabb.x, 0, aabb.width, canvas.getHeight());
+            performInverseCrop(comp, removedBand, false);
+        } else if (aabb.width > aabb.height) {
+            Rectangle removedBand = new Rectangle(0, aabb.y, canvas.getWidth(), aabb.height);
+            performInverseCrop(comp, removedBand, true);
+        } else if (aabb.height > aabb.width) {
+            Rectangle removedBand = new Rectangle(aabb.x, 0, aabb.width, canvas.getHeight());
+            performInverseCrop(comp, removedBand, false);
+        } else {
+            performSquareInverseCrop(comp, aabb);
+        }
+    }
+
+    static void performSquareInverseCrop(Composition comp, Rectangle squareBox) {
+        if (comp.containsLayerOfType(SmartObject.class)) {
+            Messages.showSmartObjectUnsupportedInfo("Inverse Crop");
             return;
         }
 
         Canvas canvas = comp.getCanvas();
-        Rectangle bounds = Shapes.roundRect(sel.getShapeBounds2D());
+        int newWidth = canvas.getWidth() - squareBox.width;
+        int newHeight = canvas.getHeight() - squareBox.height;
 
-        boolean spansFullWidth = bounds.x == 0 && bounds.width == canvas.getWidth();
-        boolean spansFullHeight = bounds.y == 0 && bounds.height == canvas.getHeight();
-
-        if (spansFullWidth == spansFullHeight) {
-            // both true (entire canvas) or both false (not edge-to-edge)
-            if (spansFullWidth) {
+        if (newWidth <= 0 || newHeight <= 0) {
+            if (newWidth <= 0 && newHeight <= 0) {
                 Messages.showError("Inverse Crop",
                     "The selection covers the entire canvas.");
             } else {
                 Messages.showError("Inverse Crop",
-                    "The selection must span the full width or the full height of the canvas.");
+                    "The selection covers the entire dimension — nothing would remain.");
             }
             return;
         }
 
-        boolean horizontal = spansFullWidth;
-        performInverseCrop(comp, bounds, horizontal);
+        View view = comp.getView();
+        Composition newComp = comp.copy(CopyOptions.fullStateBackup(false, false));
+
+        Rectangle hBand = new Rectangle(0, squareBox.y, canvas.getWidth(), squareBox.height);
+        Rectangle vBand = new Rectangle(squareBox.x, 0, squareBox.width, canvas.getHeight());
+
+        // handle guides
+        Guides guides = comp.getGuides();
+        if (guides != null) {
+            Guides newGuides = guides.copyInverseCropped(hBand, true, view)
+                .copyInverseCropped(vBand, false, view);
+            newComp.setGuides(newGuides);
+        }
+
+        // stitch each layer across both bands
+        newComp.forEachNestedLayerAndMask(layer -> {
+            layer.inverseCrop(hBand, true);
+            layer.inverseCrop(vBand, false);
+        });
+
+        // resize the canvas
+        newComp.getCanvas().resize(newWidth, newHeight, view, false);
+
+        view.ensurePositiveLocation();
+
+        History.add(new CompositionReplacedEdit(
+            "Inverse Crop", view, comp, newComp, null, false));
+        view.replaceComp(newComp);
+
+        newComp.updateAllIconImages();
+        SelectionActions.update(newComp);
+        newComp.update(true);
+
+        Messages.showStatusMessage(String.format(
+            "<b>%s</b> was inverse-cropped to %d \u00d7 %d pixels.",
+            newComp.getName(), newWidth, newHeight));
     }
 
     static void performInverseCrop(Composition comp,

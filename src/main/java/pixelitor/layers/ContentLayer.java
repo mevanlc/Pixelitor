@@ -203,11 +203,15 @@ public abstract class ContentLayer extends Layer {
             int bandBottom = removedBand.y + removedBand.height;
             if (translationY >= bandBottom) {
                 translationY -= removedBand.height;
+            } else if (translationY >= removedBand.y) {
+                translationY = removedBand.y;
             }
         } else {
             int bandRight = removedBand.x + removedBand.width;
             if (translationX >= bandRight) {
                 translationX -= removedBand.width;
+            } else if (translationX >= removedBand.x) {
+                translationX = removedBand.x;
             }
         }
     }
