@@ -106,6 +106,7 @@ public final class AppPreferences {
     private static final String UI_FONT_SIZE_KEY = "ui_font_size";
     private static final String UI_FONT_NAME_KEY = "ui_font_name";
     private static final String UI_FONT_TYPE_KEY = "ui_font_type"; // legacy key
+    private static final String LIVE_TEXT_RESIZE_KEY = "live_text_resize";
 
     private static int customUIFontSize = -1;
     private static String customUIFontName = null;
@@ -621,6 +622,14 @@ public final class AppPreferences {
 
     public static void setFlag(long mask, boolean newValue) {
         flags = newValue ? (flags | mask) : (flags & ~mask);
+    }
+
+    public static boolean isLiveTextResizeEnabled() {
+        return mainPrefs.getBoolean(LIVE_TEXT_RESIZE_KEY, true);
+    }
+
+    public static void setLiveTextResizeEnabled(boolean enabled) {
+        mainPrefs.putBoolean(LIVE_TEXT_RESIZE_KEY, enabled);
     }
 
     public static boolean loadExperimentalFeatures() {

@@ -10,6 +10,8 @@ This is the source code of [Pixelitor](https://pixelitor.sourceforge.io/) - an a
 
 Text dialogs remember the last formatting accepted with **OK**, including font, size, color, alignment, effects, and advanced settings, across dialog openings and app restarts. New text starts with the usual placeholder; editing a text layer uses that layer's settings. Cancel leaves the remembered defaults unchanged.
 
+**Preferences > UI > Live Text Resize** is enabled by default and previews font size changes while dragging the text dialog slider. Turn it off to apply the size only when the slider value commits, such as when you release the mouse. The preference persists across app restarts.
+
 The built-in color picker includes **Eyedropper** to sample a pixel from the active image and 20 **Recent Colors** swatches shared with foreground, background, and filter colors. Click a swatch to preview it, then **OK** to accept. During eyedropper sampling, **Esc** or right-click returns to the picker without changing the color.
 
 The **Text History** dropdown reuses the 20 most recent accepted texts, newest first. Each entry has a preview of up to 60 characters; selecting it restores the complete text, including line breaks. History also persists across app restarts.

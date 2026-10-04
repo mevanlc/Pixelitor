@@ -19,13 +19,19 @@ package pixelitor.filters.painters;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import pixelitor.TestHelper;
 import pixelitor.filters.gui.UserPreset;
 import pixelitor.layers.Filterable;
 import pixelitor.layers.TextLayer;
+import pixelitor.utils.AppPreferences;
 
 import javax.swing.*;
+import java.awt.Component;
+import java.awt.Container;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mockStatic;
@@ -36,6 +42,67 @@ class TextSettingsPanelTest {
     @BeforeAll
     static void beforeAll() {
         TestHelper.setUnitTestingMode();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, false", "false, false", "true, true", "false, true"})
+    void fontSizePreviewFollowsPreference(boolean liveResize, boolean useFilter) throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var comp = TestHelper.createEmptyComp("Font Size Preview");
+            TextSettings defaults = new TextSettings();
+            try (var textPreferences = mockStatic(TextDialogPreferences.class);
+                 var appPreferences = mockStatic(AppPreferences.class)) {
+                textPreferences.when(TextDialogPreferences::loadSettings).thenReturn(defaults);
+                textPreferences.when(TextDialogPreferences::loadHistory).thenReturn(List.of());
+                appPreferences.when(AppPreferences::isLiveTextResizeEnabled).thenReturn(liveResize);
+
+                TextSettingsPanel panel;
+                Supplier<TextSettings> currentSettings;
+                if (useFilter) {
+                    TextFilter filter = new TextFilter();
+                    Filterable layer = mock(Filterable.class);
+                    when(layer.getComp()).thenReturn(comp);
+                    panel = new TextSettingsPanel(filter, layer);
+                    currentSettings = filter::getSettings;
+                } else {
+                    TextLayer layer = TestHelper.createTextLayer(comp, "Text");
+                    comp.add(layer);
+                    panel = new TextSettingsPanel(layer);
+                    currentSettings = layer::getSettings;
+                }
+
+                JSlider slider = findFontSizeSlider(panel);
+                assertThat(slider).isNotNull();
+                int originalSize = currentSettings.get().getFont().getSize();
+                slider.setValueIsAdjusting(true);
+                slider.setValue(originalSize + 10);
+                assertThat(currentSettings.get().getFont().getSize())
+                    .isEqualTo(liveResize ? originalSize + 10 : originalSize);
+                slider.setValue(originalSize + 20);
+                assertThat(currentSettings.get().getFont().getSize())
+                    .isEqualTo(liveResize ? originalSize + 20 : originalSize);
+
+                slider.setValueIsAdjusting(false);
+                assertThat(currentSettings.get().getFont().getSize()).isEqualTo(originalSize + 20);
+                slider.setValue(originalSize + 30); // committed keyboard/click changes always preview
+                assertThat(currentSettings.get().getFont().getSize()).isEqualTo(originalSize + 30);
+            }
+        });
+    }
+
+    private static JSlider findFontSizeSlider(Container container) {
+        for (Component component : container.getComponents()) {
+            if (component instanceof JSlider slider && "fontSize".equals(container.getName())) {
+                return slider;
+            }
+            if (component instanceof Container child) {
+                JSlider slider = findFontSizeSlider(child);
+                if (slider != null) {
+                    return slider;
+                }
+            }
+        }
+        return null;
     }
 
     @Test

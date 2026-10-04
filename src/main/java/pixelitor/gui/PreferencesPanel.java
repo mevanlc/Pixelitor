@@ -68,6 +68,7 @@ public class PreferencesPanel extends JTabbedPane {
     private JComboBox<PanMethod> panMethodCB;
     private JCheckBox snapCB;
     private JCheckBox swapPasteCB;
+    private JCheckBox liveTextResizeCB;
     private JTextField magickDirTF;
     private JTextField gmicDirTF;
     private JCheckBox nativeChoosersCB;
@@ -98,6 +99,7 @@ public class PreferencesPanel extends JTabbedPane {
         addFontChoosers(gbh);
         addImageAreaChooser(gbh);
         addThumbSizeChooser(gbh);
+        addLiveTextResizeCB(gbh);
 
         uiPanel.setBorder(PANEL_PADDING);
         return uiPanel;
@@ -273,6 +275,14 @@ public class PreferencesPanel extends JTabbedPane {
         thumbSizeCB.addActionListener(_ -> updateThumbSize());
     }
 
+    private void addLiveTextResizeCB(GridBagHelper gbh) {
+        liveTextResizeCB = new JCheckBox("", AppPreferences.isLiveTextResizeEnabled());
+        liveTextResizeCB.setName("liveTextResizeCB");
+        liveTextResizeCB.setToolTipText(
+            "Preview font size changes while dragging the text dialog slider.");
+        gbh.addLabelAndControl("Live Text Resize:", liveTextResizeCB);
+    }
+
     private JPanel createMousePanel() {
         var mousePanel = new JPanel(new BorderLayout());
         // put the contents to the north of a border layout,
@@ -437,6 +447,7 @@ public class PreferencesPanel extends JTabbedPane {
         // (these can't be set interactively => set them here)
         AppPreferences.magickDirPath = magickDirTF.getText().trim();
         AppPreferences.gmicDirPath = gmicDirTF.getText().trim();
+        AppPreferences.setLiveTextResizeEnabled(liveTextResizeCB.isSelected());
         MouseZoomMethod.changeTo((MouseZoomMethod) zoomMethodCB.getSelectedItem());
         PanMethod.changeTo((PanMethod) panMethodCB.getSelectedItem());
 

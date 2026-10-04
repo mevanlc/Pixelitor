@@ -23,6 +23,7 @@ import pixelitor.filters.gui.*;
 import pixelitor.gui.utils.*;
 import pixelitor.layers.Filterable;
 import pixelitor.layers.TextLayer;
+import pixelitor.utils.AppPreferences;
 import pixelitor.utils.Messages;
 import pixelitor.utils.Utils;
 
@@ -261,6 +262,12 @@ public class TextSettingsPanel extends FilterGUI
         fontSizeSlider = SliderSpinner.from(fontSizeParam);
         fontSizeSlider.setName("fontSize");
         fontSizeParam.setAdjustmentListener(this);
+        fontSizeParam.addChangeListener(_ -> {
+            // RangeParam normally previews only after a slider drag commits.
+            if (fontSizeParam.getValueIsAdjusting() && AppPreferences.isLiveTextResizeEnabled()) {
+                paramAdjusted();
+            }
+        });
         gbh.addLastControl(fontSizeSlider);
 
         gbh.addLabel("Font Type:", 0, 1);
