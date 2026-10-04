@@ -1614,12 +1614,38 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
     }
 
     /**
+     * Selects the entire canvas, replacing any existing selection.
+     */
+    public void selectAll() {
+        SelectionData allData = SelectionData.forShape(canvas.getBounds());
+        if (selection == null) {
+            createSelectionFrom(allData);
+            History.add(new NewSelectionEdit("Select All", this, allData));
+        } else {
+            SelectionData origData = selection.getData();
+            selection.setData(allData);
+            selection.setHidden(false);
+            History.add(new SelectionChangeEdit("Select All", this, origData));
+        }
+        if (isActive()) {
+            SelectionActions.update(this);
+            Tools.notifySelectionChanged();
+        }
+        repaint();
+    }
+
+    /**
      * Inverts the current selection relative to the canvas bounds.
+     * If there is no selection, selects the entire canvas.
      */
     public void invertSelection() {
         if (selection == null) {
-            // alternatively we could select the whole canvas
-            throw new IllegalStateException();
+            SelectionData allData = SelectionData.forShape(canvas.getBounds());
+            createSelectionFrom(allData);
+            History.add(new NewSelectionEdit("Invert Selection", this, allData));
+            Tools.notifySelectionChanged();
+            repaint();
+            return;
         }
 
         SelectionData origData = selection.getData();

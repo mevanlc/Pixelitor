@@ -30,7 +30,11 @@ public class NewSelectionEdit extends PixelitorEdit {
     private final SelectionData newData;
 
     public NewSelectionEdit(Composition comp, SelectionData newData) {
-        super("Create Selection", comp, newData.isMaskBacked());
+        this("Create Selection", comp, newData);
+    }
+
+    public NewSelectionEdit(String name, Composition comp, SelectionData newData) {
+        super(name, comp, newData.isMaskBacked());
 
         assert comp.isOpen();
 

@@ -568,6 +568,7 @@ public class MenuBar extends JMenuBar {
     private JMenu createSelectMenu() {
         PMenu selectMenu = new PMenu(i18n, "select", 'S');
 
+        selectMenu.addViewEnabled(i18n, "select_all", Composition::selectAll, CTRL_A);
         selectMenu.add(SelectionActions.getDeselect(), CTRL_D);
         selectMenu.add(SelectionActions.getShowHide(), CTRL_H);
 

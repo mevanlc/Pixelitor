@@ -42,7 +42,7 @@ public class Keys {
     public static final KeyStroke CTRL_ALT_PAGE_DOWN = getKeyStroke(VK_PAGE_DOWN, CTRL | ALT);
     public static final KeyStroke CTRL_ALT_PAGE_UP = getKeyStroke(VK_PAGE_UP, CTRL | ALT);
 
-    //    public static final KeyStroke CTRL_A = getKeyStroke('A', CTRL);
+    public static final KeyStroke CTRL_A = getKeyStroke('A', CTRL);
     public static final KeyStroke CTRL_B = getKeyStroke('B', CTRL);
     public static final KeyStroke CTRL_C = getKeyStroke('C', CTRL);
     public static final KeyStroke CTRL_D = getKeyStroke('D', CTRL);

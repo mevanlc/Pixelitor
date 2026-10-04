@@ -4,6 +4,10 @@
 
 This is the source code of [Pixelitor](https://pixelitor.sourceforge.io/) - an advanced Java image editor with layers, layer masks, text layers, 110+ image filters and color adjustments, multiple undo etc.
 
+**Select > Select All** (`Cmd+A` on macOS, `Ctrl+A` on Windows/Linux) selects the entire canvas, replacing the current selection. The change supports undo and redo.
+
+**Select > Invert Selection** (`Cmd+Shift+I` on macOS, `Ctrl+Shift+I` on Windows/Linux) selects the entire canvas when nothing is selected, and selects nothing when the entire canvas is selected.
+
 Contributions are welcome! See [Contributing](CONTRIBUTING.md). 
 
 ## Starting Pixelitor in an IDE

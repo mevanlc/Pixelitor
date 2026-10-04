@@ -26,6 +26,9 @@ import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
 import pixelitor.layers.LayerMoveDirection;
+import pixelitor.selection.SelectionActions;
+import pixelitor.selection.SelectionData;
+import pixelitor.selection.SelectionMask;
 
 import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
@@ -592,6 +595,93 @@ class CompositionTest {
         assertThat(comp).activeLayerIs(layer1);
         assertThat(comp.isActiveLayer(layer1)).isTrue();
         assertThat(comp.isActiveLayer(layer2)).isFalse();
+    }
+
+    @Test
+    void selectAllFromNoSelection() {
+        comp.selectAll();
+
+        assertThat(comp)
+            .selectionBoundsIs(comp.getCanvasBounds())
+            .isNotDirty();
+        assertThat(comp.getSelectionData().getExactHardRectangle())
+            .contains(comp.getCanvasBounds());
+
+        History.undo("Select All");
+        assertThat(comp).doesNotHaveSelection().isNotDirty();
+
+        History.redo("Select All");
+        assertThat(comp)
+            .selectionBoundsIs(comp.getCanvasBounds())
+            .isNotDirty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void selectAllRestoresExistingSelection(boolean maskBacked) {
+        SelectionData original = maskBacked
+            ? SelectionData.forMask(SelectionMask.fromCoverage(
+                new byte[]{64, (byte) 128, (byte) 255, 32}, 2, 2, 3, 3))
+            : SelectionData.forShape(new Rectangle(3, 3, 4, 4));
+        comp.createSelectionFrom(original);
+        comp.getSelection().setHidden(true);
+
+        comp.selectAll();
+
+        assertThat(comp).selectionBoundsIs(comp.getCanvasBounds()).isNotDirty();
+        assertThat(comp.getSelection().isHidden()).isFalse();
+        assertThat(comp.getSelectionData().getExactHardRectangle())
+            .contains(comp.getCanvasBounds());
+
+        History.undo("Select All");
+        assertThat(comp.getSelectionData()).isSameAs(original);
+        assertThat(comp).isNotDirty();
+
+        History.redo("Select All");
+        assertThat(comp).selectionBoundsIs(comp.getCanvasBounds()).isNotDirty();
+    }
+
+    @Test
+    void invertSelectionFromNoSelection() {
+        Views.setActiveView(comp.getView(), false);
+        SelectionActions.update(comp);
+        assertThat(SelectionActions.getInvert().isEnabled()).isTrue();
+        assertThat(SelectionActions.getDeselect().isEnabled()).isFalse();
+
+        SelectionActions.getInvert().actionPerformed(null);
+
+        assertThat(comp).selectionBoundsIs(comp.getCanvasBounds()).isNotDirty();
+        assertThat(comp.getSelectionData().getExactHardRectangle())
+            .contains(comp.getCanvasBounds());
+
+        History.undo("Invert Selection");
+        assertThat(comp).doesNotHaveSelection().isNotDirty();
+        assertThat(SelectionActions.getInvert().isEnabled()).isTrue();
+        assertThat(SelectionActions.getDeselect().isEnabled()).isFalse();
+
+        History.redo("Invert Selection");
+        assertThat(comp).selectionBoundsIs(comp.getCanvasBounds()).isNotDirty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void invertSelectionFromAllSelected(boolean maskBacked) {
+        SelectionData allData = maskBacked
+            ? SelectionData.forMask(SelectionMask.rasterize(
+                comp.getCanvasBounds(), comp.getCanvasBounds(), false))
+            : SelectionData.forShape(comp.getCanvasBounds());
+        comp.createSelectionFrom(allData);
+
+        comp.invertSelection();
+
+        assertThat(comp).doesNotHaveSelection().isNotDirty();
+
+        History.undo("Deselect");
+        assertThat(comp.getSelectionData()).isSameAs(allData);
+        assertThat(comp).isNotDirty();
+
+        History.redo("Deselect");
+        assertThat(comp).doesNotHaveSelection().isNotDirty();
     }
 
     @Test

@@ -750,7 +750,7 @@ public class RandomGuiTest {
     }
 
     private void invertSelection() {
-        if (SelectionActions.areEnabled()) {
+        if (SelectionActions.getInvert().isEnabled()) {
             runAction(SelectionActions.getInvert());
         }
     }

@@ -45,8 +45,7 @@ import static pixelitor.Views.getActiveComp;
 import static pixelitor.utils.Texts.i18n;
 
 /**
- * Static methods related to actions that should be enabled
- * only when there is a selection in the active composition.
+ * Static methods related to selection actions in the active composition.
  */
 public final class SelectionActions {
     // the selection stored for copy/paste; it can be shared with
@@ -231,7 +230,7 @@ public final class SelectionActions {
         crop.setEnabled(hasSelection);
         inverseCrop.setEnabled(hasSelection);
         deselect.setEnabled(hasSelection);
-        invert.setEnabled(hasSelection);
+        invert.setEnabled(comp != null);
         showHide.setEnabled(hasSelection);
         modify.setEnabled(hasSelection);
         convertToPath.setEnabled(hasSelection);
@@ -250,7 +249,7 @@ public final class SelectionActions {
     }
 
     /**
-     * Returns true if selection-dependent actions (excluding paste) are currently enabled.
+     * Returns true if selection-dependent actions (excluding invert and paste) are currently enabled.
      */
     public static boolean areEnabled() {
         // check any action updated by the update method
