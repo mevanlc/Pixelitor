@@ -27,6 +27,7 @@ import java.awt.Color;
 import java.awt.GridLayout;
 import java.awt.Window;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.SequencedSet;
 
 import static javax.swing.BorderFactory.createEmptyBorder;
@@ -72,6 +73,13 @@ public class ColorHistory {
 
     public static void remember(Color newColor) {
         INSTANCE.add(newColor);
+    }
+
+    /**
+     * Returns a snapshot of the most recent colors, newest first.
+     */
+    public List<Color> getRecentColors(int limit) {
+        return colors.reversed().stream().limit(limit).toList();
     }
 
     /**

@@ -8,6 +8,12 @@ This is the source code of [Pixelitor](https://pixelitor.sourceforge.io/) - an a
 
 **Select > Invert Selection** (`Cmd+Shift+I` on macOS, `Ctrl+Shift+I` on Windows/Linux) selects the entire canvas when nothing is selected, and selects nothing when the entire canvas is selected.
 
+Text dialogs remember the last formatting accepted with **OK**, including font, size, color, alignment, effects, and advanced settings, across dialog openings and app restarts. New text starts with the usual placeholder; editing a text layer uses that layer's settings. Cancel leaves the remembered defaults unchanged.
+
+The built-in color picker includes **Eyedropper** to sample a pixel from the active image and 20 **Recent Colors** swatches shared with foreground, background, and filter colors. Click a swatch to preview it, then **OK** to accept. During eyedropper sampling, **Esc** or right-click returns to the picker without changing the color.
+
+The **Text History** dropdown reuses the 20 most recent accepted texts, newest first. Each entry has a preview of up to 60 characters; selecting it restores the complete text, including line breaks. History also persists across app restarts.
+
 Contributions are welcome! See [Contributing](CONTRIBUTING.md). 
 
 ## Starting Pixelitor in an IDE

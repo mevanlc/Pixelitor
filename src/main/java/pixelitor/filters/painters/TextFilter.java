@@ -42,7 +42,7 @@ public class TextFilter extends FilterWithGUI {
     private static final long serialVersionUID = -2525209248829018779L;
 
     public TextFilter() {
-        settings = new TextSettings();
+        settings = TextDialogPreferences.loadSettings();
     }
 
     @Override
@@ -74,6 +74,9 @@ public class TextFilter extends FilterWithGUI {
 
     @Override
     public FilterGUI createGUI(Filterable layer, boolean resetSettings) {
+        if (resetSettings) {
+            settings = TextDialogPreferences.loadSettings();
+        }
         return new TextSettingsPanel(this, layer);
     }
 

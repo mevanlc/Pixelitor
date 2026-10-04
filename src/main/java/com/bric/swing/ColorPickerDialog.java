@@ -20,6 +20,8 @@
 package com.bric.swing;
 
 import com.bric.swing.DialogFooter.EscapeKeyBehavior;
+import pixelitor.colors.ColorHistory;
+import pixelitor.colors.ColorPickerExtras;
 
 import javax.swing.*;
 import java.awt.*;
@@ -57,10 +59,14 @@ class ColorPickerDialog extends JDialog {
         c.insets = new Insets(10, 10, 10, 10);
         getContentPane().add(cp, c);
         c.gridy++;
+        c.weighty = 0;
+        c.insets = new Insets(0, 13, 0, 13);
+        getContentPane().add(ColorPickerExtras.createPanel(this, cp, includeOpacity), c);
+
         DialogFooter footer = DialogFooter.createDialogFooter(new JComponent[]{},
             DialogFooter.OK_CANCEL_OPTION, DialogFooter.OK_OPTION, EscapeKeyBehavior.TRIGGERS_CANCEL);
         c.gridy++;
-        c.weighty = 0;
+        c.insets = new Insets(10, 10, 10, 10);
         getContentPane().add(footer, c);
         cp.setRGB(color.getRed(), color.getGreen(), color.getBlue());
         cp.setOpacity(color.getAlpha());
@@ -74,6 +80,7 @@ class ColorPickerDialog extends JDialog {
 
     private void setReturnValue() {
         selectedColor = cp.getColor();
+        ColorHistory.remember(selectedColor);
     }
 
     /**

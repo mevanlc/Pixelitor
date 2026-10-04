@@ -25,6 +25,7 @@ import pixelitor.compactions.QuadrantAngle;
 import pixelitor.filters.gui.DialogMenuBar;
 import pixelitor.filters.gui.DialogMenuOwner;
 import pixelitor.filters.gui.UserPreset;
+import pixelitor.filters.painters.TextDialogPreferences;
 import pixelitor.filters.painters.TextSettings;
 import pixelitor.filters.painters.TextSettingsPanel;
 import pixelitor.filters.painters.TransformedTextPainter;
@@ -105,10 +106,10 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     }
 
     /**
-     * Creates a new text layer with default settings and shows an editing dialog.
+     * Creates a new text layer with the last accepted formatting and shows an editing dialog.
      */
     public static TextLayer createNew(Composition comp) {
-        return createNew(comp, new TextSettings());
+        return createNew(comp, TextDialogPreferences.loadSettings());
     }
 
     /**
@@ -138,8 +139,10 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
             .content(settingsPanel)
             .withScrollbars()
             .align(FRAME_RIGHT)
-            .okAction(() ->
-                textLayer.finalizeCreation(prevActiveLayer, prevViewMode))
+            .okAction(() -> {
+                textLayer.finalizeCreation(prevActiveLayer, prevViewMode);
+                settingsPanel.onDialogAccepted();
+            })
             .cancelAction(() -> holder.deleteLayer(textLayer, false))
             .show();
         return textLayer;
@@ -162,14 +165,18 @@ public class TextLayer extends ContentLayer implements DialogMenuOwner {
     @Override
     public boolean showEditUI() {
         TextSettings prevSettings = getSettings();
+        var settingsPanel = new TextSettingsPanel(this);
 
         return new DialogBuilder()
             .title("Edit Text Layer")
             .menuBar(getMenuBar())
-            .content(new TextSettingsPanel(this))
+            .content(settingsPanel)
             .withScrollbars()
             .align(FRAME_RIGHT)
-            .okAction(() -> commitSettings(prevSettings))
+            .okAction(() -> {
+                commitSettings(prevSettings);
+                settingsPanel.onDialogAccepted();
+            })
             .cancelAction(() -> restorePrevSettings(prevSettings))
             .show()
             .wasAccepted();

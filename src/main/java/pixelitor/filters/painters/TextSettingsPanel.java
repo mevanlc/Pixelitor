@@ -27,12 +27,14 @@ import pixelitor.utils.Messages;
 import pixelitor.utils.Utils;
 
 import javax.swing.*;
+import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagLayout;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static java.awt.FlowLayout.LEFT;
@@ -49,6 +51,7 @@ public class TextSettingsPanel extends FilterGUI
     private static final int DEFAULT_TEXT_AREA_ROWS = 3;
     private static final int DEFAULT_TEXT_AREA_COLS = 20;
     private static final int DEFAULT_MAX_FONT_SIZE = 1000;
+    private static final int TEXT_HISTORY_PREVIEW_LENGTH = 60;
 
     private TextLayer textLayer; // null when used as a filter
     private FontInfo fontInfo;
@@ -134,7 +137,20 @@ public class TextSettingsPanel extends FilterGUI
 
         gbh.addLabel("Text:", 0, 0);
         createTextArea(settings);
-        gbh.addLastControl(textArea);
+        JPanel textEntryPanel = new JPanel(new BorderLayout(5, 0));
+        textEntryPanel.add(textArea, BorderLayout.CENTER);
+        JButton historyButton = new JButton("Text History \u25be");
+        historyButton.setName("textHistoryButton");
+        historyButton.setEnabled(!TextDialogPreferences.loadHistory().isEmpty());
+        historyButton.setToolTipText("Reuse recently inserted text (saved after clicking OK).");
+        historyButton.addActionListener(_ -> {
+            JPopupMenu menu = createTextHistoryMenu(TextDialogPreferences.loadHistory());
+            menu.show(historyButton, 0, historyButton.getHeight());
+        });
+        JPanel historyPanel = new JPanel(new BorderLayout());
+        historyPanel.add(historyButton, BorderLayout.NORTH);
+        textEntryPanel.add(historyPanel, BorderLayout.EAST);
+        gbh.addLastControl(textEntryPanel);
 
         gbh.addLabel("Color:", 0, 1);
         color = new ColorParam("Color", settings.getColor(), MANUAL_ALPHA_ONLY);
@@ -190,6 +206,24 @@ public class TextSettingsPanel extends FilterGUI
 
         textArea.getDocument().addDocumentListener(
             new SimpleDocumentListener(_ -> textChanged()));
+    }
+
+    JPopupMenu createTextHistoryMenu(List<String> history) {
+        JPopupMenu menu = new JPopupMenu();
+        for (String text : history) {
+            String preview = Utils.shorten(text.replaceAll("\\s+", " ").strip(),
+                TEXT_HISTORY_PREVIEW_LENGTH);
+            JMenuItem item = new JMenuItem();
+            item.putClientProperty("html.disable", true);
+            item.setText(preview);
+            item.addActionListener(_ -> {
+                textArea.setText(text);
+                textArea.requestFocusInWindow();
+                textArea.setCaretPosition(text.length());
+            });
+            menu.add(item);
+        }
+        return menu;
     }
 
     private void textChanged() {
@@ -454,5 +488,13 @@ public class TextSettingsPanel extends FilterGUI
 
     private boolean isUsingFilter() {
         return filter != null;
+    }
+
+    @Override
+    public void onDialogAccepted() {
+        TextSettings settings = isUsingFilter()
+            ? ((TextFilter) filter).getSettings()
+            : textLayer.getSettings();
+        TextDialogPreferences.remember(settings);
     }
 }

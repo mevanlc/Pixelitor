@@ -798,6 +798,16 @@ public class ColorPicker extends JPanel {
     }
 
     /**
+     * Selects a color from an additional user control and updates the live preview.
+     */
+    public void selectColor(Color color) {
+        setColor(color);
+        if (colorChangeListener != null) {
+            colorChangeListener.accept(getColor());
+        }
+    }
+
+    /**
      * Sets the current color of this <code>ColorPicker</code>
      *
      * @param r the red value.  Must be between [0,255].

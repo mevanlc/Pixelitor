@@ -119,7 +119,10 @@ public interface Filterable {
                 .withScrollbars()
                 .enableCopyShortcuts()
                 .onVisibleAction(() -> gui.startPreview(true))
-                .okAction(() -> onFilterDialogAccepted(filter.getName()))
+                .okAction(() -> {
+                    onFilterDialogAccepted(filter.getName());
+                    gui.onDialogAccepted();
+                })
                 .cancelAction(this::onFilterDialogCanceled);
             JDialog dialog = dialogBuilder.build();
 
