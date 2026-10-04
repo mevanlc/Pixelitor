@@ -30,7 +30,6 @@ import pixelitor.tools.crop.CropTool;
 import pixelitor.tools.gradient.GradientTool;
 import pixelitor.tools.gui.ToolSettingsPanelContainer;
 import pixelitor.tools.move.MoveTool;
-import pixelitor.tools.move.TrailMoveTool;
 import pixelitor.tools.pen.NodeTool;
 import pixelitor.tools.pen.PathTool;
 import pixelitor.tools.pen.PenTool;
@@ -56,7 +55,6 @@ public class Tools {
     }
 
     public static final MoveTool MOVE = new MoveTool();
-    public static final TrailMoveTool TRAIL_MOVE = new TrailMoveTool();
     public static final CropTool CROP = new CropTool();
 
     public static final MarqueeSelectionTool RECTANGLE_SELECTION = new MarqueeSelectionTool(SelectionType.RECTANGLE);
@@ -83,7 +81,7 @@ public class Tools {
     public static final ZoomTool ZOOM = new ZoomTool();
 
     private static final Tool[] allTools = {
-        MOVE, TRAIL_MOVE, CROP,
+        MOVE, CROP,
         RECTANGLE_SELECTION, ELLIPSE_SELECTION, PIXEL_LIFT,
         LASSO_SELECTION, POLY_SELECTION, MAGIC_WAND,
         BRUSH, CLONE, ERASER,
