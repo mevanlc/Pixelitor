@@ -108,7 +108,7 @@ Selection consumers do not share one selection-coverage abstraction:
   brushes, Paint Bucket, and rasterized shapes.
 - `TmpLayer` optionally rasterizes nonrectangular shapes into an antialiased
   temporary mask, but rectangles and most callers use hard clipping.
-- `ImageUtils.replaceSelectedRegion`, `CopySource`, and Gradient
+- `ImageUtils.replaceSelectedRegion`, `CopySource`, Gradient, and Trail Move
   build their own antialiased masks from the shape.
 - Layer via Cut and Fill Cut extract rectangular bounds and clear or fill the
   source through a hard shape clip.
@@ -121,7 +121,7 @@ partial coverage away from an edge.
 ### Shape assumptions outside pixel application
 
 - Crop, Inverse Crop, transforms, selection bounds, hit testing, movement,
-  Pixel Lift, and Fill Cut sampling query the shape directly.
+  Pixel Lift, Trail Move, and Fill Cut sampling query the shape directly.
 - Copy/Paste Selection stores a static `Shape` clipboard.
 - Convert to Path assumes an exact shape is always available.
 - `SelectionShapeChangeEdit`, `NewSelectionEdit`, and `DeselectEdit` store
@@ -349,7 +349,7 @@ boolean. Its merge-down operation, not arbitrary drawing code, applies
 coverage. This gives direct and temporary brush targets the same result and
 ensures erasing is attenuated rather than all-or-nothing.
 
-### Copy, cut, and lift operations
+### Copy, cut, lift, and trail operations
 
 - Copy multiplies source premultiplied alpha and color by selection coverage
   within the nonzero bounds.
@@ -358,8 +358,10 @@ ensures erasing is attenuated rather than all-or-nothing.
 - Layer via Fill Cut creates the covered extraction and blends its sampled fill
   color into the source by coverage. Boundary-color sampling uses the 50%
   contour, retaining its current outer-band, inner-band, transparent fallback.
-- Pixel Lift extracts coverage-masked pixels, moves the complete mask with the
-  content, and preserves fractional edges.
+- Pixel Lift and Trail Move snapshot coverage-masked pixels, move the complete
+  mask with the content, and preserve fractional edges at every stamp.
+- Self Brush resamples pixels using the current moved selection data rather
+  than reconstructing a mask from an outline.
 
 ### Layer masks and crop
 
@@ -401,7 +403,7 @@ selection lifecycle assumes that a shape is authoritative.
    commit paths.
 2. Migrate direct drawing, temporary drawing layers, gradients, Paint Bucket,
    rasterized shapes, and erasing.
-3. Migrate Copy, Cut, Fill Cut, Pixel Lift, movement, Free
+3. Migrate Copy, Cut, Fill Cut, Pixel Lift, Trail Move, movement, Free
    Transform, layer-mask creation, selection crop, and any remaining shape
    consumers found by repository-wide search.
 4. Remove general `getSelectionShape`, `Selection.getShape`, and
@@ -573,7 +575,7 @@ to 5.
 ### Pixel-consumer tests
 
 For filters, previews, brush painting, erasing, gradients, Paint Bucket,
-rasterized shapes, copy, cut, Fill Cut, and Pixel Lift, test at
+rasterized shapes, copy, cut, Fill Cut, Pixel Lift, and Trail Move, test at
 least one mask containing 0, 64, 128, and 255 coverage. Assert exact or
 one-rounding-unit pixel results as appropriate.
 

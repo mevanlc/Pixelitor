@@ -266,7 +266,7 @@ that the filled hole and the moved pixels can both be checked:
 - the preset round-trips both checkboxes.
 
 Run with
-`./mvnw test -Dtest='PixelLiftToolTest,HistoryTransactionTest,MarqueeSelectionToolTest,MoveToolTest,ToolTest,LayerViaFillCutTest'`,
+`./mvnw test -Dtest='PixelLiftToolTest,HistoryTransactionTest,MarqueeSelectionToolTest,MoveToolTest,TrailMoveToolTest,ToolTest,LayerViaFillCutTest'`,
 then the full suite (`./mvnw clean package`) to confirm the `History.add()` change did not
 disturb the many existing history assertions.
 

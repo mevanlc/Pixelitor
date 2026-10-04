@@ -471,7 +471,7 @@ This phase delivers a complete affine Free Transform command.
 ### Phase 5: Additional transform targets and polish
 
 - Evaluate selected-pixel transformation as a `Transformable` target, reusing
-  existing selection extraction and masking support.
+  the selection snapshot/masking work currently local to `TrailMoveTool`.
 - Adapt selection-border and path targets to the new affine mapping adapter.
 - Decide separately whether shape/text/smart-object layers remain native during
   affine transforms or require rasterization for projective/warp modes.
