@@ -62,7 +62,7 @@ public class JHWrapAroundArc extends ParametrizedFilter {
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
         double spreadValue = spread.getValueAsDouble();
-        float spreadRadians = (float) (2 * Math.PI / spreadValue);
+        float spreadRadians = (float) (Math.TAU / spreadValue);
 
         CircleFilter filter = new CircleFilter(NAME,
             edgeAction.getValue(),

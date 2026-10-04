@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -40,7 +40,7 @@ class UtilsTest {
             assertThat(atan).isCloseTo(a, within(0.01));
         }
 
-        for (double a = 0.0; a < 2 * Math.PI; a += 0.1) {
+        for (double a = 0.0; a < Math.TAU; a += 0.1) {
             double atan = Geometry.intuitiveToAtan2(a);
             double b = Geometry.atan2ToIntuitive(atan);
             assertThat(a).isCloseTo(b, within(0.01));

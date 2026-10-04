@@ -33,7 +33,6 @@ import pixelitor.utils.debug.Debuggable;
 
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.Shape;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
@@ -42,7 +41,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.random.RandomGenerator;
 
 import static java.util.stream.Collectors.joining;
 import static pixelitor.tools.pen.AnchorPointType.SMOOTH;
@@ -111,7 +110,7 @@ public class Path implements Serializable, Debuggable {
     }
 
     /**
-     * Renders the path in the transform tool.
+     * Renders the path in the Transform Tool.
      */
     public void paintForTransforming(Graphics2D g) {
         Shapes.drawVisibly(g, toComponentSpaceShape());
@@ -125,9 +124,9 @@ public class Path implements Serializable, Debuggable {
         return findHandleAt(e.getX(), e.getY(), e.isAltDown());
     }
 
-    public DraggablePoint findHandleAt(double x, double y, boolean altDown) {
+    public DraggablePoint findHandleAt(double coX, double coY, boolean altDown) {
         for (SubPath subPath : subPaths) {
-            DraggablePoint handle = subPath.findHandleAt(x, y, altDown);
+            DraggablePoint handle = subPath.findHandleAt(coX, coY, altDown);
             if (handle != null) {
                 return handle;
             }
@@ -143,7 +142,7 @@ public class Path implements Serializable, Debuggable {
         return path;
     }
 
-    public Shape toComponentSpaceShape() {
+    public Path2D toComponentSpaceShape() {
         Path2D path = new Path2D.Double();
         for (SubPath subPath : subPaths) {
             subPath.addToComponentSpaceShape(path);
@@ -151,12 +150,13 @@ public class Path implements Serializable, Debuggable {
         return path;
     }
 
-    public void delete(SubPath subPath) {
+    public void deleteSubPath(SubPath subPath) {
         assert comp.getActivePath() == this;
 
         boolean wasActive = subPath == activeSubPath;
-
         Path backup = deepCopy(comp);
+
+        // remove by reference, not by equals
         subPaths.removeIf(sp -> sp == subPath);
         assert !subPaths.isEmpty(); // should never be called for the last subpath
 
@@ -171,7 +171,7 @@ public class Path implements Serializable, Debuggable {
     }
 
     /**
-     * Returns true if there are no more subpaths left.
+     * Deletes the last subpath and returns true if there are no more subpaths left.
      */
     public boolean deleteLastSubPath() {
         int lastIndex = subPaths.size() - 1;
@@ -181,8 +181,8 @@ public class Path implements Serializable, Debuggable {
         assert activeSubPath.getNumAnchors() == 1;
 
         subPaths.remove(lastIndex);
-        if (lastIndex == 0) { // the last subpath was deleted
-            return true;
+        if (lastIndex == 0) {
+            return true; // the path has no subpaths left
         }
         activeSubPath = subPaths.get(lastIndex - 1);
         return false;
@@ -217,9 +217,9 @@ public class Path implements Serializable, Debuggable {
         }
     }
 
-    public SubPath startNewSubpath(double x, double y, View view) {
+    public SubPath startNewSubpath(double imX, double imY, View view) {
         SubPath subPath = startNewSubpath();
-        AnchorPoint first = new AnchorPoint(PPoint.lazyFromIm(x, y, view), subPath);
+        AnchorPoint first = new AnchorPoint(PPoint.lazyFromIm(imX, imY, view), subPath);
         first.setType(SMOOTH);
         subPath.addStartingAnchor(first, false);
         return subPath;
@@ -249,8 +249,8 @@ public class Path implements Serializable, Debuggable {
         assert Tools.isPathToolActive();
         PathTool tool = (PathTool) Tools.getActive();
 
-        // create the edit before the actual removing
-        // so that it can remember the pen tool mode
+        // create the edit before the actual removal
+        // so that it can remember the Pen Tool mode
         PathEdit edit = new PathEdit("Delete Path", comp, this, null, tool);
 
         tool.removePath(true);
@@ -289,7 +289,9 @@ public class Path implements Serializable, Debuggable {
         return subPaths.indexOf(subPath);
     }
 
-    // return true if it could be closed
+    /**
+     * Returns true if the subpath could be closed.
+     */
     boolean tryClosing(PMouseEvent e) {
         return activeSubPath.tryClosing(e);
     }
@@ -302,7 +304,7 @@ public class Path implements Serializable, Debuggable {
         return toImageSpaceShape().getBounds();
     }
 
-    public void randomize(Random rng, double amount) {
+    public void randomize(RandomGenerator rng, double amount) {
         for (SubPath subPath : subPaths) {
             subPath.randomize(rng, amount);
         }
@@ -332,8 +334,8 @@ public class Path implements Serializable, Debuggable {
         return activeSubPath.getMovingPoint();
     }
 
-    public void moveMovingPointTo(double x, double y, boolean nullOK) {
-        activeSubPath.moveMovingPointTo(x, y, nullOK);
+    public void moveMovingPointTo(double coX, double coY, boolean allowNull) {
+        activeSubPath.moveMovingPointTo(coX, coY, allowNull);
     }
 
     public boolean hasMovingPoint() {
@@ -349,7 +351,7 @@ public class Path implements Serializable, Debuggable {
     }
 
     /**
-     * Checks whether all the objects are wired together correctly
+     * Checks whether all the objects are wired together correctly.
      */
     @SuppressWarnings("SameReturnValue")
     public boolean checkInvariants() {

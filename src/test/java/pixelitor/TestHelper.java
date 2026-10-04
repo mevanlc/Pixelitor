@@ -26,6 +26,7 @@ import pixelitor.filters.Filter;
 import pixelitor.filters.Invert;
 import pixelitor.filters.painters.AreaEffects;
 import pixelitor.filters.painters.TextSettings;
+import pixelitor.gui.AppPanel;
 import pixelitor.gui.View;
 import pixelitor.gui.utils.MlpAlignmentSelector;
 import pixelitor.history.History;
@@ -57,7 +58,7 @@ import java.util.stream.Stream;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Mockito.*;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
-import static pixelitor.colors.Colors.toPackedARGB;
+import static pixelitor.colors.Colors.toPackedArgb;
 import static pixelitor.layers.MaskInitMethod.REVEAL_ALL;
 import static pixelitor.layers.MaskViewMode.NORMAL;
 import static pixelitor.tools.move.MoveMode.MOVE_LAYER_ONLY;
@@ -101,7 +102,7 @@ public class TestHelper {
     private static Composition createEmptyComp(String name, int width, int height, boolean addMockView) {
         var comp = Composition.createEmpty(width, height, ImageMode.RGB);
         comp.setName(name);
-        comp.createDebugName();
+        comp.initDebugName();
 
         if (addMockView) {
             createMockViewFor(comp);
@@ -432,7 +433,7 @@ public class TestHelper {
 
     public static BufferedImage create1x1Image(int a, int r, int g, int b) {
         BufferedImage img = ImageUtils.createSysCompatibleImage(1, 1);
-        img.setRGB(0, 0, toPackedARGB(a, r, g, b));
+        img.setRGB(0, 0, toPackedArgb(a, r, g, b));
         return img;
     }
 
@@ -444,22 +445,13 @@ public class TestHelper {
      * Configures the application for unit testing.
      */
     public static void setUnitTestingMode(boolean checkHistory) {
-        if (checkHistory) {
-            historyChecker = new HistoryChecker();
-        } else {
-            historyChecker = null; // clear previous checker
-        }
-        History.setChecker(historyChecker);
+        initHistoryChecker(checkHistory);
+        clearViews();
 
         if (AppMode.isUnitTesting()) {
             return; // already in unit testing mode
         }
         AppMode.setUnitTestingMode();
-
-        if (Texts.getResources() == null) {
-            Texts.init(); // needed for view initialization
-        }
-        Views.clear();
 
         Utils.ensureAssertionsEnabled();
         Utils.preloadUnitTestFontNames();
@@ -473,8 +465,25 @@ public class TestHelper {
         History.setUndoLevels(15);
 
         Layer.uiFactory = TestLayerUI::new;
-        ToolSettingsPanelContainer.setInstance(mock(ToolSettingsPanelContainer.class));
+        AppPanel.TOOL_SETTINGS.setComponent(mock(ToolSettingsPanelContainer.class));
         setupMockFgBgSelector();
+    }
+
+    private static void initHistoryChecker(boolean checkHistory) {
+        if (checkHistory) {
+            historyChecker = new HistoryChecker();
+        } else {
+            historyChecker = null; // clear previous checker
+        }
+        History.setChecker(historyChecker);
+    }
+
+    // clear views set by previous tests
+    private static void clearViews() {
+        if (Texts.getResources() == null) {
+            Texts.init(); // needed for the static initialization of Views
+        }
+        Views.clear();
     }
 
     public static void verifyAndClearHistory() {

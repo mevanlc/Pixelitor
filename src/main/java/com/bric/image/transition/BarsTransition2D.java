@@ -104,7 +104,7 @@ public class BarsTransition2D extends Transition2D {
                 a++;
             }
         }
-        return v.toArray(new Transition2DInstruction[v.size()]);
+        return v.toArray(new Transition2DInstruction[0]);
     }
 
     @Override

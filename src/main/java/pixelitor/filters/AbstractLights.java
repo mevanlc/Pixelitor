@@ -286,7 +286,7 @@ public class AbstractLights extends ParametrizedFilter {
 
         Color color = Color.getHSBColor(hue / 360.0f, 1.0f, bri);
         if (whiteBlendParam.getValue() > 0) {
-            color = Colors.interpolateRGB(color, Color.WHITE, whiteBlendParam.getPercentage());
+            color = Colors.interpolateRgb(color, Color.WHITE, whiteBlendParam.getPercentage());
         }
         return color;
     }
@@ -365,7 +365,7 @@ public class AbstractLights extends ParametrizedFilter {
             this.radiusX = radiusX;
             this.radiusY = radiusY;
             this.angle = initialAngle;
-            this.angleIncrement = 2 * Math.PI * speed / DEFAULT_NUM_ITERATIONS;
+            this.angleIncrement = Math.TAU * speed / DEFAULT_NUM_ITERATIONS;
 
             // set initial position on the ellipse
             updatePosition();

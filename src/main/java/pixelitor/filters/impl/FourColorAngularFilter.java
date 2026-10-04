@@ -65,14 +65,14 @@ public class FourColorAngularFilter extends FourColorFilter {
             return colorSpace.toSrgb(a, c1, c2, c3);
         }
 
-        double angle = ImageMath.mod(FastMath.atan2(dy, dx), Math.PI * 2.0);
+        double angle = ImageMath.mod(FastMath.atan2(dy, dx), Math.TAU);
 
         return switch (calcAngularSegment(angle)) {
             case 0 -> interpolate(corners[0], corners[1], angle, corners[0].angle(), invRange01);
             case 1 -> interpolate(corners[1], corners[2], angle, corners[1].angle(), invRange12);
             case 2 -> interpolate(corners[2], corners[3], angle, corners[2].angle(), invRange23);
             default -> {
-                double angleAdjusted = angle < corners[0].angle() ? angle + Math.PI * 2.0 : angle;
+                double angleAdjusted = angle < corners[0].angle() ? angle + Math.TAU : angle;
                 yield interpolate(corners[3], corners[0], angleAdjusted, corners[3].angle(), invRange30);
             }
         };

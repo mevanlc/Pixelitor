@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
 import static net.jafama.FastMath.cos;
 import static net.jafama.FastMath.sin;
 
@@ -56,18 +56,15 @@ public class StarsTransition2D extends AbstractClippedTransition2D {
      * Creates a 5-pointed star.
      * There are 2 distances involved.  The distance from the center to middle edge
      * is 1, and the distance from the center to the tips of the star is r2.
-     *
-     * @param r2
-     * @return
      */
     private static GeneralPath createStar(float r2) {
         GeneralPath p = new GeneralPath();
         double angle = 0;
-        double k = PI * 2 / 10;
+        double k = TAU / 10;
         p.moveTo((float) cos(angle), (float) sin(angle));
         for (int a = 0; a < 5; a++) {
             p.lineTo((float) (r2 * cos(angle + k)), (float) (r2 * sin(angle + k)));
-            angle += PI * 2.0 / 5.0;
+            angle += TAU / 5.0;
             p.lineTo((float) cos(angle), (float) sin(angle));
         }
         p.closePath();
@@ -218,7 +215,7 @@ public class StarsTransition2D extends AbstractClippedTransition2D {
             v.add(star8);
         }
 
-        Shape[] shapes = v.toArray(new Shape[v.size()]);
+        Shape[] shapes = v.toArray(new Shape[0]);
         if (type == LEFT) {
             AffineTransform flipHorizontal = TransformUtils.createAffineTransform(0, 0,
                     0, size.height,

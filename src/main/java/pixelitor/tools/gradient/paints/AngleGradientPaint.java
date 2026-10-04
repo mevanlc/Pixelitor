@@ -26,6 +26,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.ColorModel;
 import java.awt.image.Raster;
 
+import static com.jhlabs.image.ImageMath.INV_TAU;
 import static java.awt.MultipleGradientPaint.CycleMethod.REFLECT;
 import static java.awt.MultipleGradientPaint.CycleMethod.REPEAT;
 
@@ -176,7 +177,7 @@ public record AngleGradientPaint(Drag drag, Color startColor, Color endColor,
 
             // relativeAngle is now between -2*PI and 2*PI, and the -2*PI..0 range is the same as 0..2*PI
 
-            double interpolated = relativeAngle / (Math.PI * 2) + 1.0; // between 0..2
+            double interpolated = relativeAngle * INV_TAU + 1.0; // between 0..2
             interpolated %= 1.0f; // between 0..1
 
             if (cycleMethod == REFLECT) {

@@ -47,7 +47,13 @@ import static pixelitor.gui.GUIText.CLOSE_DIALOG;
 import static pixelitor.utils.Texts.i18n;
 
 /**
- * The GUI for the preferences dialog
+ * The GUI for the preferences dialog.
+ *
+ * <p>Settings that can be meaningfully previewed live (theme, language, font,
+ * thumbnail size, image area layout) are applied immediately via action
+ * listeners. Settings that don't need a live preview, or that are risky to
+ * re-apply on every keystroke (e.g. undo levels), are only validated and
+ * applied when the dialog closes — see {@link #validateAndApply}.
  */
 public class PreferencesPanel extends JTabbedPane {
     private static final Border PANEL_PADDING =
@@ -148,8 +154,7 @@ public class PreferencesPanel extends JTabbedPane {
             EventQueue.invokeLater(() -> {
                 Themes.apply(theme, true, false);
 //                accentColorEnabler.accept(theme.isFlat());
-                SwingUtilities.getWindowAncestor(this).pack();
-                setCursor(Cursors.DEFAULT);
+                packAndRestoreCursor();
             });
         });
 
@@ -175,25 +180,25 @@ public class PreferencesPanel extends JTabbedPane {
         fontChoices[0] = "Default";
         System.arraycopy(availableFonts, 0, fontChoices, 1, availableFonts.length);
 
-        // load currently saved type; if empty, show "Default" in the UI
-        String currentType = AppPreferences.loadUIFontType();
-        String initialChoice = currentType.isEmpty() ? "Default" : currentType;
+        // load currently saved font name; if empty, show "Default" in the UI
+        String currentName = AppPreferences.loadUIFontName();
+        String initialChoice = currentName.isEmpty() ? "Default" : currentName;
 
-        ChoiceParam<String> fontType = new ChoiceParam<>("Font Type", fontChoices, initialChoice);
-        gbh.addParam(fontType);
+        ChoiceParam<String> fontName = new ChoiceParam<>("Font Name", fontChoices, initialChoice);
+        gbh.addParam(fontName);
 
         // a single callback for both listeners
         Runnable updateFont = () -> {
-            String selectedType = fontType.getSelected();
+            String selectedName = fontName.getSelected();
             int newSize = fontSize.getValue();
 
             // map the "Default" UI selection to an empty string internally
-            String typeToSave = "Default".equals(selectedType) ? "" : selectedType;
-            AppPreferences.setUIFont(typeToSave, newSize);
+            String nameToSave = "Default".equals(selectedName) ? "" : selectedName;
+            AppPreferences.setUIFont(nameToSave, newSize);
 
-            // execute live UI preview
+            // apply a live preview of the new font
             Font newFont;
-            if (typeToSave.isEmpty()) {
+            if (nameToSave.isEmpty()) {
                 // derive size off the original LAF font if returning to default
                 Font baseFont = Themes.getOriginalDefaultFont();
                 if (baseFont == null) {
@@ -201,13 +206,13 @@ public class PreferencesPanel extends JTabbedPane {
                 }
                 newFont = baseFont.deriveFont((float) newSize);
             } else {
-                newFont = new Font(typeToSave, Font.PLAIN, newSize);
+                newFont = new Font(nameToSave, Font.PLAIN, newSize);
             }
             changeFont(newFont);
         };
 
         fontSize.setAdjustmentListener(updateFont::run);
-        fontType.setAdjustmentListener(updateFont::run);
+        fontName.setAdjustmentListener(updateFont::run);
     }
 
     private void changeFont(Font newFont) {
@@ -227,9 +232,13 @@ public class PreferencesPanel extends JTabbedPane {
 
         EventQueue.invokeLater(() -> {
             Themes.refreshComponentUIs();
-            SwingUtilities.getWindowAncestor(this).pack();
-            setCursor(Cursors.DEFAULT);
+            packAndRestoreCursor();
         });
+    }
+
+    private void packAndRestoreCursor() {
+        SwingUtilities.getWindowAncestor(this).pack();
+        setCursor(Cursors.DEFAULT);
     }
 
     private static void addImageAreaChooser(GridBagHelper gbh) {
@@ -274,12 +283,12 @@ public class PreferencesPanel extends JTabbedPane {
         var gbh = new GridBagHelper(contents);
 
         zoomMethodCB = new JComboBox<>(MouseZoomMethod.values());
-        zoomMethodCB.setSelectedItem(MouseZoomMethod.ACTIVE);
+        zoomMethodCB.setSelectedItem(MouseZoomMethod.active);
         zoomMethodCB.setName("zoomMethod");
         gbh.addLabelAndControlNoStretch("Zoom with:", zoomMethodCB);
 
         panMethodCB = new JComboBox<>(PanMethod.values());
-        panMethodCB.setSelectedItem(PanMethod.ACTIVE);
+        panMethodCB.setSelectedItem(PanMethod.active);
         panMethodCB.setName("panMethod");
         gbh.addLabelAndControlNoStretch("Pan with:", panMethodCB);
 
@@ -385,15 +394,18 @@ public class PreferencesPanel extends JTabbedPane {
     }
 
     private void addMagickDirField(GridBagHelper gbh) {
-        magickDirTF = new JTextField(AppPreferences.magickDirPath);
-        magickDirTF.setColumns(10);
-        gbh.addLabelAndControl(IMAGEMAGICK_FOLDER_LABEL + ": ", magickDirTF);
+        magickDirTF = addDirField(gbh, IMAGEMAGICK_FOLDER_LABEL, AppPreferences.magickDirPath);
     }
 
     private void addGmicDirField(GridBagHelper gbh) {
-        gmicDirTF = new JTextField(AppPreferences.gmicDirPath);
-        gmicDirTF.setColumns(10);
-        gbh.addLabelAndControl(GMIC_FOLDER_LABEL + ": ", gmicDirTF);
+        gmicDirTF = addDirField(gbh, GMIC_FOLDER_LABEL, AppPreferences.gmicDirPath);
+    }
+
+    private static JTextField addDirField(GridBagHelper gbh, String label, String currentPath) {
+        var dirTF = new JTextField(currentPath);
+        dirTF.setColumns(10);
+        gbh.addLabelAndControl(label + ": ", dirTF);
+        return dirTF;
     }
 
     private void addExperimentalCB(GridBagHelper gbh) {

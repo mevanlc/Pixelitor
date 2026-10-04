@@ -32,10 +32,6 @@ import javax.swing.*;
 import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.image.MultiResolutionImage;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 
 import static java.lang.String.format;
 import static javax.swing.BorderFactory.createEmptyBorder;
@@ -44,7 +40,7 @@ import static pixelitor.utils.MemoryInfo.BYTES_PER_MEGABYTE;
 /**
  * The panel in the "New Image" dialog.
  */
-public class NewImagePanel extends JPanel implements Validated, DialogMenuOwner, KeyListener, ItemListener, DimensionHelper.DimensionChangeCallback {
+public class NewImagePanel extends JPanel implements Validated, DialogMenuOwner, DimensionHelper.DimensionChangeCallback {
     private static final int PANEL_PADDING = 7;
 
     private final JTextField nameTF;
@@ -65,24 +61,21 @@ public class NewImagePanel extends JPanel implements Validated, DialogMenuOwner,
         nameTF.setName("nameTF");
         gbh.addLabelAndLastControl("Name", nameTF);
 
-        ResizeUnit[] units = {ResizeUnit.PIXELS, ResizeUnit.CENTIMETERS, ResizeUnit.INCHES};
-
-        // originalSize is 1, as it's only used by PERCENTAGE unit, which is not present here
-        dimensions = new DimensionHelper(this, units,
+        // uses 1 as a dummy value for the original width/height (they are used only by PERCENTAGE)
+        dimensions = new DimensionHelper(this, ResizeUnit.ABSOLUTE_UNITS,
             settings.width(), settings.height(), settings.dpi(), 1, 1);
 
         gbh.addVerticalSpace(PANEL_PADDING);
 
-        var widthLayer = dimensions.createWidthTextField(this);
-        var widthUnitChooser = dimensions.createUnitChooser(this);
+        var widthLayer = dimensions.createWidthTextField();
+        var widthUnitChooser = dimensions.createUnitChooser();
         gbh.addLabelAndTwoControls("Width:", widthLayer, widthUnitChooser);
 
-        var heightLayer = dimensions.createHeightTextField(this);
-        var heightUnitChooser = dimensions.createUnitChooser(this);
+        var heightLayer = dimensions.createHeightTextField();
+        var heightUnitChooser = dimensions.createUnitChooser();
         gbh.addLabelAndTwoControls("Height:", heightLayer, heightUnitChooser);
 
         var dpiChooser = dimensions.getDpiChooser();
-        dpiChooser.addItemListener(this);
         gbh.addLabelAndLastControl("DPI:", dpiChooser);
 
         var clipboardSizeBtn = new JButton("Clipboard Size");
@@ -98,15 +91,6 @@ public class NewImagePanel extends JPanel implements Validated, DialogMenuOwner,
 
         dimensions.getUnitSelectorModel().setSelectedItem(settings.unit());
         dimensions.setInitialValues();
-    }
-
-    @Override
-    public void itemStateChanged(ItemEvent e) {
-        if (e.getStateChange() != ItemEvent.SELECTED) {
-            return;
-        }
-        // forward events from DPI and unit choosers to the helper
-        dimensions.itemStateChanged(e);
     }
 
     private void setDimensionsFromClipboard() {
@@ -135,19 +119,6 @@ public class NewImagePanel extends JPanel implements Validated, DialogMenuOwner,
     @Override
     public void dimensionChanged(boolean isWidthChanged) {
         // no-op, no proportions to keep or border to update
-    }
-
-    @Override
-    public void keyTyped(KeyEvent e) {
-    }
-
-    @Override
-    public void keyPressed(KeyEvent e) {
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e) {
-        dimensions.keyReleased(e);
     }
 
     @Override

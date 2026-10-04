@@ -26,13 +26,9 @@ import pixelitor.ExceptionHandler;
 import pixelitor.Views;
 import pixelitor.filters.painters.EffectsPanel;
 import pixelitor.gui.GlobalEvents;
-import pixelitor.gui.HistogramsPanel;
-import pixelitor.gui.PixelitorWindow;
-import pixelitor.gui.StatusBar;
 import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
-import pixelitor.layers.LayersContainer;
 import pixelitor.tools.AbstractBrushTool;
 import pixelitor.tools.BrushType;
 import pixelitor.tools.Tool;
@@ -66,11 +62,12 @@ import java.util.function.Supplier;
 import static java.awt.event.KeyEvent.*;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.*;
+import static pixelitor.gui.AppPanel.*;
 import static pixelitor.guitest.GUITestUtils.*;
 import static pixelitor.tools.Tools.*;
 import static pixelitor.utils.Threads.*;
-import static pixelitor.utils.test.RandomGUITest.EXIT_KEY_CHAR;
-import static pixelitor.utils.test.RandomGUITest.PAUSE_KEY_CHAR;
+import static pixelitor.utils.test.RandomGuiTest.EXIT_KEY_CHAR;
+import static pixelitor.utils.test.RandomGuiTest.PAUSE_KEY_CHAR;
 
 /**
  * A standalone program which tests the tools with randomly
@@ -113,7 +110,7 @@ public class RandomToolTest {
         VK_G, VK_N, VK_I, VK_P, VK_U, VK_H, VK_Z,
     };
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         Utils.ensureAssertionsEnabled();
         FailOnThreadViolationRepaintManager.install();
 
@@ -334,7 +331,7 @@ public class RandomToolTest {
     }
 
     private void activate(Tool tool) {
-        boolean toolsShown = EDT.call(() -> PixelitorWindow.get().areToolsShown());
+        boolean toolsShown = EDT.call(TOOLS::isShown);
         if (toolsShown) {
             log("activating " + tool.getName() + " by clicking on the button");
             app.clickTool(tool);
@@ -346,7 +343,7 @@ public class RandomToolTest {
 
     private void randomizeToolSettings(Tool tool) {
         log("randomize the settings of " + tool.getName());
-        EDT.run(ToolSettingsPanelContainer.get()::randomizeToolSettings);
+        EDT.run(() -> TOOL_SETTINGS.<ToolSettingsPanelContainer>getComponent().randomizeToolSettings());
     }
 
     private void initActions() {
@@ -637,7 +634,7 @@ public class RandomToolTest {
     }
 
     private void clickToolButtons() {
-        boolean toolsShown = EDT.call(() -> PixelitorWindow.get().areToolsShown());
+        boolean toolsShown = EDT.call(TOOLS::isShown);
         if (!toolsShown) {
             return;
         }
@@ -676,7 +673,7 @@ public class RandomToolTest {
         log("randomizing the shape type setting for " + shapeType);
 
         app.withToolDialog("shapeSettingsButton",
-            "Settings for " + shapeType.toString(),
+            "Settings for " + shapeType,
             dialog -> randomizeShapeSettingsDialog(dialog, shapeType));
     }
 
@@ -847,10 +844,10 @@ public class RandomToolTest {
     private void randomShowHide() {
         int randomNumber = Rnd.nextInt(10);
         switch (randomNumber) {
-            case 0 -> randomShowHide("Tools", () -> PixelitorWindow.get().areToolsShown());
-            case 1 -> randomShowHide("Layers", LayersContainer::areLayersShown);
-            case 2 -> randomShowHide("Histograms", HistogramsPanel::isShown);
-            case 3 -> randomShowHide("Status Bar", StatusBar::isShown);
+            case 0 -> randomShowHide("Tools", TOOLS::isShown);
+            case 1 -> randomShowHide("Layers", LAYERS::isShown);
+            case 2 -> randomShowHide("Histograms", HISTOGRAMS::isShown);
+            case 3 -> randomShowHide("Status Bar", STATUS_BAR::isShown);
             // by default do nothing, this doesn't have to be tested all the time
         }
     }

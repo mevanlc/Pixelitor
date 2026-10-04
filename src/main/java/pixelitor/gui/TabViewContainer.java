@@ -164,11 +164,7 @@ public class TabViewContainer extends JComponent implements ViewContainer {
         }
 
         String fileName = file.getName().toLowerCase(Locale.ROOT);
-        if (fileName.endsWith(".pxc") || fileName.endsWith(".ora")) {
-            return false;
-        }
-
-        return true;
+        return !fileName.endsWith(".pxc") && !fileName.endsWith(".ora");
     }
 
     private void addDebugAction(JPopupMenu popup) {

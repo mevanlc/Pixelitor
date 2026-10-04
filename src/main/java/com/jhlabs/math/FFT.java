@@ -34,7 +34,7 @@ public class FFT {
         int N = 1;
         for (int k = 0; k < logN; k++) {
             N <<= 1;
-            double angle = -2.0 * Math.PI / N;
+            double angle = -Math.TAU / N;
             double w1 = Math.sin(0.5 * angle);
             w2[k] = (float) (-2.0f * w1 * w1);
             w3[k] = (float) Math.sin(angle);

@@ -292,8 +292,8 @@ public class TrailMoveTool extends DragTool {
         if (session == null) {
             return;
         }
-        int totalDx = (int) Math.round(drag.getDX());
-        int totalDy = (int) Math.round(drag.getDY());
+        int totalDx = (int) Math.round(drag.getDx());
+        int totalDy = (int) Math.round(drag.getDy());
         if (totalDx == session.currentDx && totalDy == session.currentDy) {
             return;
         }
@@ -547,5 +547,10 @@ public class TrailMoveTool extends DragTool {
     public Consumer<Graphics2D> createIconPainter() {
         // reuse the move icon for now; can be customized later
         return ToolIcons::paintMoveIcon;
+    }
+
+    @Override
+    public boolean checkInvariants() {
+        return true; // TODO
     }
 }

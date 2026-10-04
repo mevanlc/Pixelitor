@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,41 +17,50 @@
 
 package pixelitor;
 
+import pixelitor.utils.Utils;
+
 /**
- * The way in which the GUI is created.
+ * The execution mode of the application (standard GUI,
+ * development mode, or headless unit testing).
  */
 public enum AppMode {
     /**
      * The mode used by end-users.
      */
-    STANDARD_GUI() {
-    },
+    STANDARD_GUI,
     /**
      * In this mode there are additional development menus and runtime checks.
      */
-    DEVELOPMENT_GUI() {
-    },
+    DEVELOPMENT_GUI,
     /**
      * In this mode there is no GUI, and some objects might be mocked.
      */
-    UNIT_TESTS() {
-    };
+    UNIT_TESTS;
 
-    public static AppMode ACTIVE = STANDARD_GUI;
+    private static AppMode activeMode = STANDARD_GUI;
 
     /**
      * Returns true if the app was started in development mode.
      * In this mode, additional menus and correctness checks are enabled.
      */
     public static boolean isDevelopment() {
-        return ACTIVE == DEVELOPMENT_GUI;
+        return activeMode == DEVELOPMENT_GUI;
     }
 
     public static boolean isUnitTesting() {
-        return ACTIVE == UNIT_TESTS;
+        return activeMode == UNIT_TESTS;
+    }
+
+    public static void detectDevMode() {
+        // the app can be put into development mode by
+        // adding -Dpixelitor.development=true to the command line
+        if ("true".equals(System.getProperty("pixelitor.development"))) {
+            Utils.ensureAssertionsEnabled();
+            activeMode = DEVELOPMENT_GUI;
+        }
     }
 
     public static void setUnitTestingMode() {
-        ACTIVE = UNIT_TESTS;
+        activeMode = UNIT_TESTS;
     }
 }

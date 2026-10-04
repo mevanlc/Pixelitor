@@ -171,7 +171,7 @@ public class GridTester extends JFrame {
         testPanel.setGridSize(gridSizeSlider.getValue());
     }
 
-    public static void main(String[] args) {
+    static void main() {
         SwingUtilities.invokeLater(() ->
             new GridTester().setVisible(true));
     }

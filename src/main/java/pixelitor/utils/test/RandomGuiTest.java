@@ -84,7 +84,7 @@ import static pixelitor.gui.ImageArea.Mode.TABS;
  * WARNING: This test generates native mouse events that may affect
  * other applications if they accidentally receive focus during testing.
  */
-public class RandomGUITest {
+public class RandomGuiTest {
     public static final char EXIT_KEY_CHAR = 'Q';
     public static final char PAUSE_KEY_CHAR = 'A';
 
@@ -118,16 +118,16 @@ public class RandomGUITest {
 
     private int pastedImagesCount = 0;
 
-    private static RandomGUITest instance = null;
+    private static RandomGuiTest instance = null;
 
-    private RandomGUITest() {
+    private RandomGuiTest() {
     }
 
-    public static RandomGUITest get() {
+    public static RandomGuiTest get() {
         assert Threads.calledOnEDT();
         if (instance == null) {
             //noinspection NonThreadSafeLazyInitialization
-            instance = new RandomGUITest();
+            instance = new RandomGuiTest();
         }
         return instance;
     }
@@ -706,7 +706,7 @@ public class RandomGUITest {
 
     private void randomizeToolSettings() {
         log("randomize tool settings for " + Tools.getActive());
-        ToolSettingsPanelContainer.get().randomizeToolSettings();
+        AppPanel.TOOL_SETTINGS.<ToolSettingsPanelContainer>getComponent().randomizeToolSettings();
     }
 
     private void arrangeWindows() {
@@ -824,12 +824,12 @@ public class RandomGUITest {
 
     private void raiseLayerSelection(Composition comp) {
         log("layer selection change: raise selection");
-        comp.getActiveHolder().raiseLayerSelection();
+        comp.getActiveHolder().activateLayerAbove();
     }
 
     private void lowerLayerSelection(Composition comp) {
         log("layer selection change: lower selection");
-        comp.getActiveHolder().lowerLayerSelection();
+        comp.getActiveHolder().activateLayerBelow();
     }
 
     private void moveActiveLayerUp(Composition comp) {
@@ -872,10 +872,10 @@ public class RandomGUITest {
     private void randomlyTogglePanelVisibility() {
         WorkSpace workSpace = PixelitorWindow.get().getWorkSpace();
         Action[] actions = {
-            workSpace.getHistogramsAction(),
-            workSpace.getToolsAction(),
-            workSpace.getLayersAction(),
-            workSpace.getStatusBarAction(),
+            workSpace.getAction(AppPanel.HISTOGRAMS),
+            workSpace.getAction(AppPanel.TOOLS),
+            workSpace.getAction(AppPanel.LAYERS),
+            workSpace.getAction(AppPanel.STATUS_BAR),
             workSpace.getAllAction()
         };
         runAction(Rnd.chooseFrom(actions));

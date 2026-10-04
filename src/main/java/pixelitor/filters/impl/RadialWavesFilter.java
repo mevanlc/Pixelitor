@@ -17,6 +17,7 @@
 
 package pixelitor.filters.impl;
 
+import com.jhlabs.image.ImageMath;
 import com.jhlabs.image.WaveType;
 import net.jafama.FastMath;
 import pixelitor.filters.RadialWaves;
@@ -33,6 +34,7 @@ public class RadialWavesFilter extends CenteredTransformFilter {
     private final int angularDivision;
     private final double radialAmplitude;
     private final double phase;
+    private final double twist;
     private final double zoom;
     private final int waveType;
 
@@ -48,17 +50,19 @@ public class RadialWavesFilter extends CenteredTransformFilter {
      * @param angularDivision the number of wave cycles around the center
      * @param radialAmplitude the strength or amount of the wave displacement
      * @param phase           the phase shift of the wave (can be used for animation/time)
+     * @param twist           the spiral twist angle in radians
      * @param zoom            the zoom level percentage
      * @param waveType        the type of wave to apply
      */
     public RadialWavesFilter(String filterName, int edgeAction, int interpolation, Point2D center,
                              int angularDivision, double radialAmplitude, double phase,
-                             double zoom, int waveType) {
+                             double twist, double zoom, int waveType) {
         super(filterName, edgeAction, interpolation, center);
 
         this.angularDivision = angularDivision;
         this.radialAmplitude = radialAmplitude;
         this.phase = phase;
+        this.twist = twist;
         this.zoom = zoom;
         this.waveType = waveType;
     }
@@ -76,11 +80,11 @@ public class RadialWavesFilter extends CenteredTransformFilter {
         double dy = y - cy;
 
         // convert to polar coordinates
-        double r = FastMath.hypot(dx, dy);
+        double r = ImageMath.hypot(dx, dy);
         double angle = FastMath.atan2(dy, dx);
 
         // calculate the wave effect and apply it to the radius
-        double waveInput = angle * angularDivision - phase;
+        double waveInput = (angle - twist * r / maxSize) * angularDivision - phase;
         double waveValue = WaveType.wave(waveInput, waveType);
         r += waveValue * radialAmplitude * r / maxSize;
 

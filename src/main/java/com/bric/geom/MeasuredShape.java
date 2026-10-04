@@ -19,6 +19,8 @@
  */
 package com.bric.geom;
 
+import com.jhlabs.image.ImageMath;
+
 import java.awt.Shape;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Path2D;
@@ -29,11 +31,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.awt.geom.PathIterator.SEG_CLOSE;
-import static java.awt.geom.PathIterator.SEG_CUBICTO;
-import static java.awt.geom.PathIterator.SEG_LINETO;
-import static java.awt.geom.PathIterator.SEG_MOVETO;
-import static java.awt.geom.PathIterator.SEG_QUADTO;
+import static java.awt.geom.PathIterator.*;
 
 /**
  * This represents a single closed path.
@@ -115,7 +113,7 @@ public class MeasuredShape implements Serializable {
         if (path != null) {
             v.add(new MeasuredShape(path, spacing));
         }
-        return v.toArray(new MeasuredShape[v.size()]);
+        return v.toArray(new MeasuredShape[0]);
     }
 
     static class Segment implements Serializable {
@@ -268,8 +266,7 @@ public class MeasuredShape implements Serializable {
                 realDistance = 0;
             } else if (type == SEG_LINETO) {
                 data = new float[]{lastX, lastY, coords[0], coords[1]};
-                realDistance = (float) Math.sqrt(
-                        (coords[0] - lastX) * (coords[0] - lastX) + (coords[1] - lastY) * (coords[1] - lastY));
+                realDistance = ImageMath.hypot(coords[0] - lastX, coords[1] - lastY);
             } else if (type == SEG_CLOSE) {
                 data = new float[0];
             } else {
@@ -313,7 +310,7 @@ public class MeasuredShape implements Serializable {
             for (double t = spacing; t < 1; t += spacing) {
                 x1 = ((ax * t + bx) * t + cx) * t + dx;
                 y1 = ((ay * t + by) * t + cy) * t + dy;
-                sum += Math.sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1));
+                sum += ImageMath.hypot(x0 - x1, y0 - y1);
                 x0 = x1;
                 y0 = y1;
             }
@@ -431,7 +428,7 @@ public class MeasuredShape implements Serializable {
             originalDistance = closedDistance;
         }
 
-        segments = v.toArray(new Segment[v.size()]);
+        segments = v.toArray(new Segment[0]);
         //normalize everything:
         for (Segment segment : segments) {
             segment.normalizedDistance = segment.realDistance / closedDistance;
@@ -536,7 +533,7 @@ public class MeasuredShape implements Serializable {
      * @param w             the destination to write to
      * @param includeMoveTo this controls whether a moveTo is the first thing
      *                      written to the path.
-     *                      Note setting this to <code>false</code> means its the caller's responsibility
+     *                      Note setting this to <code>false</code> means it's the caller's responsibility
      *                      to make sure the path is in the correct position.
      */
     public void writeShape(float position, float length, PathWriter w, boolean includeMoveTo) {

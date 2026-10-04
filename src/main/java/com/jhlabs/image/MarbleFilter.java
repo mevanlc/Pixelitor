@@ -34,7 +34,7 @@ public class MarbleFilter extends TransformFilter {
      * @param filterName    the name of the filter.
      * @param edgeAction    the edge handling strategy.
      * @param interpolation the interpolation method.
-     * @param scale         the X scale of the effect.
+     * @param scale         the scale of the effect.
      * @param amount        the amount of the effect.
      * @param turbulence    the turbulence of the effect (in the range [0, 1]).
      * @param time          the time of the effect.
@@ -42,15 +42,17 @@ public class MarbleFilter extends TransformFilter {
     public MarbleFilter(String filterName, int edgeAction, int interpolation, float scale, float amount, float turbulence, float time) {
         super(filterName, edgeAction, interpolation);
 
+        assert scale != 0;
+
         this.scale = scale;
         this.time = time;
 
         sinTable = new float[TABLE_SIZE];
         cosTable = new float[TABLE_SIZE];
 
-        float angleMultiplier = ImageMath.TWO_PI * turbulence / TABLE_SIZE;
+        double angleMultiplier = Math.TAU * turbulence / TABLE_SIZE;
         for (int i = 0; i < TABLE_SIZE; i++) {
-            float angle = i * angleMultiplier;
+            double angle = i * angleMultiplier;
 
             sinTable[i] = (float) (-amount * Math.sin(angle));
             cosTable[i] = (float) (amount * Math.cos(angle));
@@ -77,9 +79,10 @@ public class MarbleFilter extends TransformFilter {
     @Override
     protected void transformInverse(int x, int y, float[] out) {
         float noise = Noise.noise3(x / scale, y / scale, time); // mostly between -1 and 1 but not distributed uniformly
-        int displacement = PixelUtils.clamp((int) (127.0f * (1.0f + noise)));
 
-        out[0] = x + sinTable[displacement];
-        out[1] = y + cosTable[displacement];
+        int index = PixelUtils.clamp((int) (127.0f * (1.0f + noise)));
+
+        out[0] = x + sinTable[index];
+        out[1] = y + cosTable[index];
     }
 }

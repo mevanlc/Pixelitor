@@ -37,9 +37,7 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.io.Serial;
 
-import static pixelitor.tools.pen.AnchorPointType.CUSP;
-import static pixelitor.tools.pen.AnchorPointType.SMOOTH;
-import static pixelitor.tools.pen.AnchorPointType.SYMMETRIC;
+import static pixelitor.tools.pen.AnchorPointType.*;
 
 /**
  * An anchor point on a {@link SubPath}.
@@ -48,9 +46,9 @@ public class AnchorPoint extends DraggablePoint {
     @Serial
     private static final long serialVersionUID = -7001569188242665053L;
 
+    // image-space distance and collinearity (cross-product) thresholds
     private static final double SYMMETRY_THRESHOLD = 2.0;
     private static final double COLLINEARITY_THRESHOLD = 0.1;
-    public static final double RETRACTION_TOLERANCE = 1.0;
 
     // an anchor point has two associated control points that define
     // the curvature of the path segments connected to this point
@@ -170,37 +168,37 @@ public class AnchorPoint extends DraggablePoint {
      * Tries to locate a handle (anchor or control) at the given coordinates.
      * When Alt is pressed, it prioritizes finding control handles over the anchor point.
      */
-    public DraggablePoint findHandleAt(double x, double y,
+    public DraggablePoint findHandleAt(double coX, double coY,
                                        boolean altDown) {
         return altDown
-            ? findControlHandleFirst(x, y)
-            : findAnchorHandleFirst(x, y);
+            ? findControlHandleFirst(coX, coY)
+            : findAnchorHandleFirst(coX, coY);
     }
 
     // checks the control handles first, so that
     // retracted handles can be dragged out with Alt-drag
-    private DraggablePoint findControlHandleFirst(double x, double y) {
-        if (ctrlOut.contains(x, y)) {
+    private DraggablePoint findControlHandleFirst(double coX, double coY) {
+        if (ctrlOut.contains(coX, coY)) {
             return ctrlOut;
         }
-        if (ctrlIn.contains(x, y)) {
+        if (ctrlIn.contains(coX, coY)) {
             return ctrlIn;
         }
-        if (contains(x, y)) {
+        if (contains(coX, coY)) {
             return this;
         }
         return null;
     }
 
     // checks the anchor handle first
-    private DraggablePoint findAnchorHandleFirst(double x, double y) {
-        if (contains(x, y)) {
+    private DraggablePoint findAnchorHandleFirst(double coX, double coY) {
+        if (contains(coX, coY)) {
             return this;
         }
-        if (ctrlOut.contains(x, y)) {
+        if (ctrlOut.contains(coX, coY)) {
             return ctrlOut;
         }
-        if (ctrlIn.contains(x, y)) {
+        if (ctrlIn.contains(coX, coY)) {
             return ctrlIn;
         }
         return null;
@@ -221,7 +219,7 @@ public class AnchorPoint extends DraggablePoint {
         }
     }
 
-    public void changeTypeFromSymToSmooth() {
+    public void setToSmoothIfSymmetric() {
         if (type == SYMMETRIC) { // set to smooth only if it wasn't broken
             setType(SMOOTH);
         }
@@ -231,14 +229,14 @@ public class AnchorPoint extends DraggablePoint {
      * Determines the appropriate handle type based on control point positions.
      */
     public void setHeuristicType() {
-        boolean inRetracted = ctrlIn.isRetracted(RETRACTION_TOLERANCE);
-        boolean outRetracted = ctrlOut.isRetracted(RETRACTION_TOLERANCE);
+        boolean inRetracted = ctrlIn.isRetracted();
+        boolean outRetracted = ctrlOut.isRetracted();
 
         if (inRetracted && outRetracted) {
             // so that they can be easily dragged out
             setType(SYMMETRIC);
         } else if (inRetracted || outRetracted) {
-            // so that dragging out the retraced doesn't cause surprises
+            // so that dragging out the retracted handle doesn't cause surprises
             setType(CUSP);
         } else {
             setType(calcHeuristicType());
@@ -258,7 +256,7 @@ public class AnchorPoint extends DraggablePoint {
         }
 
         // are they at least collinear?
-        // (checks the slope equality while avoids dividing by 0)
+        // (checks the 2D cross product to avoid division by zero)
         if (Math.abs(dOutY * dInX - dOutX * dInY) < COLLINEARITY_THRESHOLD) {
             return SMOOTH;
         }

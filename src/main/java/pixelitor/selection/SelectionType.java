@@ -37,7 +37,7 @@ public enum SelectionType {
         @Override
         public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
             // ignores oldData, always creates a new rectangle from the drag
-            return SelectionData.forShape(drag.createPositiveImRect());
+            return SelectionData.forShape(drag.toPosImRect());
         }
 
         @Override
@@ -48,7 +48,7 @@ public enum SelectionType {
         @Override
         public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
             // ignores oldData, always creates a new ellipse from the drag
-            Rectangle2D r = drag.createPositiveImRect();
+            Rectangle2D r = drag.toPosImRect();
             return SelectionData.forShape(new Ellipse2D.Double(
                 r.getX(), r.getY(), r.getWidth(), r.getHeight()));
         }

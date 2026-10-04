@@ -191,7 +191,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         if (isFreeTransforming()) {
             getTransformBox().processMouseDragged(e);
         } else {
-            e.getComp().moveActiveContent(dragMode, drag.getDX(), drag.getDY());
+            e.getComp().moveActiveContent(dragMode, drag.getDx(), drag.getDy());
         }
     }
 
@@ -244,9 +244,9 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     }
 
     @Override
-    public void paintOverCanvas(Graphics2D g2, Composition comp) {
+    public void paintOverCanvas(Graphics2D g, Composition comp) {
         if (isFreeTransforming()) {
-            getTransformBox().paint(g2);
+            getTransformBox().paint(g);
             return;
         }
 
@@ -254,8 +254,8 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             return;
         }
 
-        comp.drawMovementContours(g2, dragMode);
-        OverlayType.REL_MOUSE_POS.draw(g2, drag);
+        comp.drawMovementContours(g, dragMode);
+        OverlayType.REL_MOUSE_POS.draw(g, drag);
     }
 
     @Override
@@ -684,5 +684,10 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     @Override
     public Consumer<Graphics2D> createIconPainter() {
         return ToolIcons::paintMoveIcon;
+    }
+
+    @Override
+    public boolean checkInvariants() {
+        return true; // TODO
     }
 }

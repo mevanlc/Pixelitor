@@ -33,6 +33,7 @@ import java.util.Random;
 
 import static java.awt.AlphaComposite.SRC_OVER;
 import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
 
 /**
  * "Drunk Vision" filter inspired by "Fragment Blur" in paint.net
@@ -119,7 +120,7 @@ public class DrunkVision extends ParametrizedFilter {
                 double angle = rangeStart + PI * rand.nextDouble() / 2;
                 retVal[i] = Geometry.polarToCartesian(maxDistance, angle);
             } else {
-                double randomAngle = rand.nextDouble() * PI * 2;
+                double randomAngle = rand.nextDouble() * TAU;
 
                 double minDistance = maxDistance / (double) i;
                 double distance = minDistance + (maxDistance - minDistance) * rand.nextDouble();

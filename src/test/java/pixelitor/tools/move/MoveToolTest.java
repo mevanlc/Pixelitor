@@ -33,6 +33,7 @@ import pixelitor.tools.util.ArrowKey;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.Messages;
 import pixelitor.utils.TestMessageHandler;
+import pixelitor.utils.Texts;
 
 import java.awt.Color;
 import java.awt.Point;
@@ -59,8 +60,9 @@ class MoveToolTest {
     private MoveTool tool;
 
     @BeforeAll
-    static void beforeAllTests() {
+    static void beforeAllTests() throws Exception {
         TestHelper.setUnitTestingMode();
+        TestHelper.initToolSettings(Tools.MOVE, Texts.getResources());
     }
 
     @BeforeEach
@@ -203,7 +205,7 @@ class MoveToolTest {
         tool.startFreeTransform(comp, TransformStartSource.EDIT_COMMAND);
 
         assertThat(tool.isFreeTransforming()).isTrue();
-        assertThat(tool.getTransformBox().getOrigImRect())
+        assertThat(tool.getTransformBox().createMemento().getOrigImRect())
             .isEqualTo(new Rectangle(-3, -1, 4, 4));
     }
 
@@ -218,7 +220,7 @@ class MoveToolTest {
         tool.toolActivated(comp.getView());
 
         assertThat(tool.isFreeTransforming()).isTrue();
-        assertThat(tool.getTransformBox().getOrigImRect())
+        assertThat(tool.getTransformBox().createMemento().getOrigImRect())
             .isEqualTo(new Rectangle(-5, -4, 20, 20));
     }
 
@@ -237,7 +239,7 @@ class MoveToolTest {
         configureMove(MoveMode.MOVE_LAYER_ONLY, false, true);
         tool.toolActivated(comp.getView());
         assertThat(tool.isFreeTransforming()).isTrue();
-        assertThat(tool.getTransformBox().getOrigImRect())
+        assertThat(tool.getTransformBox().createMemento().getOrigImRect())
             .isEqualTo(transparent.getContentBounds(true));
     }
 
@@ -263,7 +265,7 @@ class MoveToolTest {
 
         tool.toolActivated(comp.getView());
 
-        assertThat(tool.getTransformBox().getOrigImRect()).isEqualTo(expected);
+        assertThat(tool.getTransformBox().createMemento().getOrigImRect()).isEqualTo(expected);
     }
 
     @Test

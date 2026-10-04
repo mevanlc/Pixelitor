@@ -35,9 +35,7 @@ import java.util.ResourceBundle;
 
 /**
  * This is a row of buttons, intended to be displayed at the
- * bottom of a dialog.  This class is strongly related to the
- * {@link com.bric.swing.QDialog} project, although the
- * <code>DialogFooter</code> can exist by itself.
+ * bottom of a dialog.
  * <P>On the left of a footer are controls that should apply to the dialog itself,
  * such as "Help" button, or a "Reset Preferences" button.
  * On the far right are buttons that should dismiss this dialog.  They
@@ -79,8 +77,6 @@ import java.util.ResourceBundle;
  * <h3>Platform Differences</h3>
  * These are based mostly on studying Apple and Vista interface guidelines.
  * <ul><LI> On Mac, command-period acts like the escape key in dialogs.</li>
- * <LI> On Mac the Help component is the standard Mac help icon.  On other platforms
- * the help component is a {@link com.bric.swing.JLink}.</li>
  * <LI> By default button order is reversed on Macs compared to other platforms.  See
  * the <code>DialogFooter.reverseButtonOrder</code> field for details.</li>
  * <LI> There is a static boolean to control whether button mnemonics should be

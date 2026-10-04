@@ -31,7 +31,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestMethodOrder(MethodOrderer.Random.class)
 class GuidesTest {
     private Guides guides;
-    private Composition comp;
     private View view;
 
     @BeforeAll
@@ -41,7 +40,7 @@ class GuidesTest {
 
     @BeforeEach
     void beforeEachTest() {
-        comp = TestHelper.createEmptyComp("GuidesTest");
+        Composition comp = TestHelper.createEmptyComp("GuidesTest");
         guides = new Guides();
         view = comp.getView();
     }
@@ -52,22 +51,22 @@ class GuidesTest {
     }
 
     @Test
-    @DisplayName("horizontal line, relative")
-    void addHorRelative() {
+    @DisplayName("add horizontal lines")
+    void addHorizontal() {
         guides.addHorizontal(0.25);
         assertThat(guides.getHorizontals()).containsOnly(0.25);
     }
 
     @Test
-    @DisplayName("vertical line, relative")
-    void addVerRelative() {
+    @DisplayName("add vertical lines")
+    void addVertical() {
         guides.addVertical(0.33);
         assertThat(guides.getVerticals()).containsOnly(0.33);
     }
 
     @Test
-    @DisplayName("relative grid")
-    void addRelativeGrid() {
+    @DisplayName("add grid")
+    void addGrid() {
         guides.addGrid(4, 4);
         assertThat(guides.getHorizontals()).containsOnly(0.25, 0.5, 0.75);
         assertThat(guides.getVerticals()).containsOnly(0.25, 0.5, 0.75);

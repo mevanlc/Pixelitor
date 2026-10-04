@@ -19,6 +19,7 @@ package pixelitor.filters;
 
 import pixelitor.filters.gui.*;
 import pixelitor.filters.gui.IntChoiceParam.Item;
+import pixelitor.filters.impl.ComplexPlaneFilter;
 import pixelitor.gui.GUIText;
 
 import java.awt.Color;
@@ -28,18 +29,12 @@ import java.io.Serial;
 
 import static java.awt.RenderingHints.KEY_INTERPOLATION;
 import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
-import static pixelitor.filters.impl.ComplexFractalFilter.BurningShipStrategy;
-import static pixelitor.filters.impl.ComplexFractalFilter.IterationStrategy;
-import static pixelitor.filters.impl.ComplexFractalFilter.MandelbrotStrategy;
-import static pixelitor.filters.impl.ComplexFractalFilter.MultibrotStrategy3;
-import static pixelitor.filters.impl.ComplexFractalFilter.MultibrotStrategy4;
-import static pixelitor.filters.impl.ComplexFractalFilter.MultibrotStrategy5;
-import static pixelitor.filters.impl.ComplexFractalFilter.TricornStrategy;
+import static pixelitor.filters.impl.EscapeTimeFilter.*;
 
 /**
- * Common superclass for the Julia and Mandelbrot sets.
+ * Common superclass for the Julia and Mandelbrot set UIs.
  */
-public abstract class ComplexFractal extends ParametrizedFilter {
+public abstract class EscapeTimeFractal extends ParametrizedFilter {
     @Serial
     private static final long serialVersionUID = 9185505916174567657L;
 
@@ -47,8 +42,8 @@ public abstract class ComplexFractal extends ParametrizedFilter {
     private static final int COLORS_CONTINUOUS = 2;
     private static final int COLORS_BLUES = 3;
 
-    private static final int AA_NONE = 1;
-    private static final int AA_2x2 = 2;
+    private static final int SUPERSAMPLING_NONE = 1;
+    private static final int SUPERSAMPLING_2X2 = 2;
 
     private static final int ITERATION_MANDELBROT = 0;
     private static final int ITERATION_BURNING_SHIP = 1;
@@ -79,12 +74,12 @@ public abstract class ComplexFractal extends ParametrizedFilter {
         new Item("Continuous", COLORS_CONTINUOUS),
         new Item("Blues", COLORS_BLUES),
     });
-    private final IntChoiceParam aaParam = new IntChoiceParam("Supersampling", new Item[]{
-        new Item("None (Faster)", AA_NONE),
-        new Item("2x2 (Better, Slower)", AA_2x2),
+    private final IntChoiceParam supersamplingParam = new IntChoiceParam("Supersampling", new Item[]{
+        new Item("None (Faster)", SUPERSAMPLING_NONE),
+        new Item("2x2 (Better, Slower)", SUPERSAMPLING_2X2),
     }, RandomizeMode.IGNORE);
 
-    protected ComplexFractal(int defaultIterations, float zoomX) {
+    protected EscapeTimeFractal(int defaultIterations, float defaultZoomCenterX) {
         super(false);
 
         iterationsParam = new RangeParam.Builder("Iterations")
@@ -95,8 +90,9 @@ public abstract class ComplexFractal extends ParametrizedFilter {
             .build();
 
         zoomParam.setPresetKey("Zoom");
+        insideOutParam.setToolTip("Inverts the starting coordinates: f(z) = 1/z");
 
-        zoomCenterParam = new ImagePositionParam("Zoom Center", zoomX, 0.5f);
+        zoomCenterParam = new ImagePositionParam("Zoom Center", defaultZoomCenterX, 0.5f);
         initParams(
             iterationTypeParam,
             insideOutParam,
@@ -104,28 +100,28 @@ public abstract class ComplexFractal extends ParametrizedFilter {
             zoomCenterParam.withDecimalPlaces(2),
             iterationsParam,
             colorsParam,
-            aaParam);
+            supersamplingParam);
     }
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        return switch (aaParam.getValue()) {
-            case AA_NONE -> renderFractal(src, dest);
-            case AA_2x2 -> {
+        return switch (supersamplingParam.getValue()) {
+            case SUPERSAMPLING_NONE -> renderFractal(src, dest);
+            case SUPERSAMPLING_2X2 -> {
                 // render at double resolution, then scale down for 2x2 supersampling
                 BufferedImage bigSrc = new BufferedImage(
                     src.getWidth() * 2, src.getHeight() * 2, src.getType());
                 BufferedImage bigDest = renderFractal(bigSrc, null);
                 bigSrc.flush();
-                Graphics2D g2 = dest.createGraphics();
-                g2.setRenderingHint(KEY_INTERPOLATION, VALUE_INTERPOLATION_BILINEAR);
-                g2.scale(0.5, 0.5);
-                g2.drawImage(bigDest, 0, 0, null);
-                g2.dispose();
+                Graphics2D g = dest.createGraphics();
+                g.setRenderingHint(KEY_INTERPOLATION, VALUE_INTERPOLATION_BILINEAR);
+                g.scale(0.5, 0.5);
+                g.drawImage(bigDest, 0, 0, null);
+                g.dispose();
                 bigDest.flush();
                 yield dest;
             }
-            default -> throw new IllegalStateException("aa = " + aaParam.getValue());
+            default -> throw new IllegalStateException("supersampling = " + supersamplingParam.getValue());
         };
     }
 
@@ -149,23 +145,23 @@ public abstract class ComplexFractal extends ParametrizedFilter {
         return colors;
     }
 
+    /**
+     * Creates a lookup table mapping iteration counts to RGB colors based on the given style.
+     */
     private static int[] generateColors(int colorsStyle, int maxIterations) {
         int[] colors = new int[maxIterations + 1];
         double normalizer = Math.log(maxIterations + 1);
-        for (int it = 0; it <= maxIterations; it++) {
+
+        colors[0] = ComplexPlaneFilter.IN_SET_COLOR; // 0 remaining iterations => point belongs to the set
+
+        for (int it = 1; it <= maxIterations; it++) {
             float bri = (float) (1 + Math.log(maxIterations - it + 1) / normalizer) / 2;
             colors[it] = switch (colorsStyle) {
-                case COLORS_CONTRASTING -> Color.HSBtoRGB(
-                    maxIterations / (float) it,
-                    0.9f, it > 0 ? bri : 0); // black for points in the set
-                case COLORS_CONTINUOUS -> Color.HSBtoRGB(
-                    (float) it / maxIterations,
-                    0.9f, it > 0 ? bri : 0); // black for points in the set
-                case COLORS_BLUES -> Color.HSBtoRGB(
-                    0.5f + (float) it / (maxIterations * 10),
-                    (float) it / maxIterations,
-                    it > 0 ? bri : 0); // black for points in the set
-                default -> throw new IllegalStateException("value = " + colorsStyle);
+                case COLORS_CONTRASTING -> Color.HSBtoRGB(maxIterations / (float) it, 0.9f, bri);
+                case COLORS_CONTINUOUS -> Color.HSBtoRGB((float) it / maxIterations, 0.9f, bri);
+                case COLORS_BLUES ->
+                    Color.HSBtoRGB(0.5f + (float) it / (maxIterations * 10), (float) it / maxIterations, bri);
+                default -> throw new IllegalStateException("Unknown color style: " + colorsStyle);
             };
         }
         return colors;

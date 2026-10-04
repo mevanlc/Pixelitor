@@ -19,6 +19,7 @@ package pixelitor.io;
 
 import pixelitor.Composition;
 import pixelitor.progress.ProgressTracker;
+import pixelitor.progress.ProgressTrackingInputStream;
 import pixelitor.progress.StatusBarProgressTracker;
 import pixelitor.progress.SubtaskProgressTracker;
 import pixelitor.utils.ImageUtils;
@@ -120,7 +121,7 @@ public class PXCFormat {
     public static void write(Composition comp, File file) {
         mainPT = new StatusBarProgressTracker(
             "Writing " + file.getName(), 100);
-        int numImages = comp.countImages();
+        int numImages = comp.getNumImages();
         if (numImages > 0) {
             workRatioForOneImage = 1.0 / numImages;
         } else {
@@ -170,7 +171,7 @@ public class PXCFormat {
             }
 
             int versionByte = is.read();
-            if (versionByte != THUMBNAIL_SUPPORTING_VERSION) {
+            if (versionByte < THUMBNAIL_SUPPORTING_VERSION) {
                 return null; // old version, no thumbnail
             }
 

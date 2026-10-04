@@ -110,7 +110,7 @@ public final class ShapeSelectionData implements SelectionData {
 
     @Override
     public SelectionData clippedTo(Canvas canvas) {
-        Shape clipped = canvas.clip(shape);
+        Shape clipped = canvas.intersect(shape);
         if (clipped.getBounds().isEmpty()) {
             return null;
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -28,16 +28,18 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.io.Serial;
 
-import static pixelitor.tools.pen.AnchorPoint.RETRACTION_TOLERANCE;
 import static pixelitor.tools.pen.AnchorPointType.CUSP;
 import static pixelitor.tools.pen.AnchorPointType.SYMMETRIC;
 
 /**
- * A control point of an {@link AnchorPoint}.
+ * An off-curve control handle of an {@link AnchorPoint} that defines
+ * the curvature and tangent of an adjacent Bézier curve segment.
  */
 public class ControlPoint extends DraggablePoint {
     @Serial
     private static final long serialVersionUID = 8776344572399099909L;
+
+    private static final double RETRACTION_TOLERANCE = 1.0;
 
     private final AnchorPoint anchor;
 
@@ -108,7 +110,7 @@ public class ControlPoint extends DraggablePoint {
     @Override
     public void copyPositionFrom(DraggablePoint that) {
         super.copyPositionFrom(that);
-        if (that instanceof ControlPoint thatCP) { // should be always the case
+        if (that instanceof ControlPoint thatCP) { // should always be the case
             rememberedDistFromAnchor = thatCP.getRememberedDistFromAnchor();
         }
     }

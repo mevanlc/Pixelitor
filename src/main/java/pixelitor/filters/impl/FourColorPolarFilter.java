@@ -81,21 +81,21 @@ public class FourColorPolarFilter extends FourColorFilter {
     public int processPixel(int x, int y, int rgb) {
         double dx = x - cx;
         double dy = y - cy;
-        double distance = Math.sqrt(dx * dx + dy * dy);
+        double distance = ImageMath.hypot(dx, dy);
 
         // explicit center coordinates (radius is 0)
         if (distance == 0) {
             return colorSpace.toSrgb(centerA, centerC1, centerC2, centerC3);
         }
 
-        double angle = ImageMath.mod(FastMath.atan2(dy, dx), Math.PI * 2.0);
+        double angle = ImageMath.mod(FastMath.atan2(dy, dx), Math.TAU);
 
         return switch (calcAngularSegment(angle)) {
             case 0 -> interpolate(corners[0], corners[1], angle, corners[0].angle(), invRange01, distance);
             case 1 -> interpolate(corners[1], corners[2], angle, corners[1].angle(), invRange12, distance);
             case 2 -> interpolate(corners[2], corners[3], angle, corners[2].angle(), invRange23, distance);
             default -> {
-                double adjustedAngle = angle < corners[0].angle() ? angle + Math.PI * 2.0 : angle;
+                double adjustedAngle = angle < corners[0].angle() ? angle + Math.TAU : angle;
                 yield interpolate(corners[3], corners[0], adjustedAngle, corners[3].angle(), invRange30, distance);
             }
         };

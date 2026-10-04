@@ -93,7 +93,6 @@ public class CompositionAssert extends AbstractAssert<CompositionAssert, Composi
         int actualNumLayers = actual.getNumLayers();
         if (actualNumLayers != numLayers) {
             failWithMessage("""
-                    
                 Expecting number of layers of:
                   <%s>
                 to be:
@@ -202,7 +201,6 @@ public class CompositionAssert extends AbstractAssert<CompositionAssert, Composi
         String actualName = actual.getName();
         if (!Objects.equals(actualName, name)) {
             failWithMessage("""
-                    
                 Expecting name of:
                   <%s>
                 to be:

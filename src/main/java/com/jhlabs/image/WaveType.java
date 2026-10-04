@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -52,7 +52,7 @@ public class WaveType {
             case SINE -> FastMath.sin(in);
             case SAWTOOTH -> ImageMath.sinLikeSawtooth(in);
             case TRIANGLE -> ImageMath.sinLikeTriangle(in);
-            case NOISE -> Noise.sinLikeNoise1((float) in);
+            case NOISE -> Noise.sinLikeNoise1(in);
             default -> throw new IllegalStateException("type == " + type);
         };
     }
@@ -63,9 +63,9 @@ public class WaveType {
     public static double wave01(double in, int type) {
         return switch (type) {
             case SINE -> (1 + FastMath.sin(in)) / 2;
-            case SAWTOOTH -> ImageMath.mod(in / (2 * Math.PI), 1);
-            case TRIANGLE -> ImageMath.triangle(in / (2 * Math.PI));
-            case NOISE -> Noise.noise1((float) in / ImageMath.PI);
+            case SAWTOOTH -> ImageMath.mod(in * ImageMath.INV_TAU, 1);
+            case TRIANGLE -> ImageMath.triangle(in * ImageMath.INV_TAU);
+            case NOISE -> Noise.noise1((float) (in * ImageMath.INV_PI));
             default -> throw new IllegalStateException("type == " + type);
         };
     }

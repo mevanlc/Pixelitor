@@ -21,6 +21,7 @@ package com.bric.swing;
 
 import com.bric.plaf.PlafPaintUtils;
 import com.bric.swing.ColorPicker.Mode;
+import com.jhlabs.image.ImageMath;
 
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
@@ -35,16 +36,12 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.bric.swing.ColorPicker.Mode.BLUE;
-import static com.bric.swing.ColorPicker.Mode.BRI;
-import static com.bric.swing.ColorPicker.Mode.GREEN;
-import static com.bric.swing.ColorPicker.Mode.HUE;
-import static com.bric.swing.ColorPicker.Mode.RED;
-import static com.bric.swing.ColorPicker.Mode.SAT;
+import static com.bric.swing.ColorPicker.Mode.*;
 import static java.awt.RenderingHints.KEY_ANTIALIASING;
 import static java.awt.RenderingHints.VALUE_ANTIALIAS_ON;
 import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
 import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
 import static net.jafama.FastMath.cos;
 import static net.jafama.FastMath.sin;
 
@@ -437,8 +434,8 @@ public class ColorPickerPanel extends JPanel {
             double radius = size / 2.0;
             double x = p.getX() - size / 2.0;
             double y = p.getY() - size / 2.0;
-            double r = Math.sqrt(x * x + y * y) / radius;
-            double theta = Math.atan2(y, x) / (PI * 2.0);
+            double r = ImageMath.hypot(x, y) / radius;
+            double theta = Math.atan2(y, x) / TAU;
 
             if (r > 1) {
                 r = 1;
@@ -572,9 +569,9 @@ public class ColorPickerPanel extends JPanel {
                 Math.round(sat * size),
                 Math.round(bri * size));
             case SAT -> {
-                double theta = hue * 2 * PI - PI / 2;
+                double theta = hue * TAU - PI / 2;
                 if (theta < 0) {
-                    theta += 2 * PI;
+                    theta += TAU;
                 }
 
                 double r = bri * size / 2;
@@ -583,9 +580,9 @@ public class ColorPickerPanel extends JPanel {
                     (int) Math.round(r * sin(theta) + size / 2.0));
             }
             case BRI -> {
-                double theta = hue * 2 * PI - PI / 2;
+                double theta = hue * TAU - PI / 2;
                 if (theta < 0) {
-                    theta += 2 * PI;
+                    theta += TAU;
                 }
                 double r = sat * size / 2;
                 yield new Point(
@@ -635,16 +632,16 @@ public class ColorPickerPanel extends JPanel {
                 float relX = (x - size / 2.0f);
                 double theta = Math.atan2(relY, relX) - 3 * PI / 2.0;
                 if (theta < 0) {
-                    theta += 2 * PI;
+                    theta += TAU;
                 }
 
-                double r = Math.sqrt(relX * relX + relY * relY);
+                double r = ImageMath.hypot(relX, relY);
                 if (r <= radius) {
                     if (mode == BRI) {
-                        pixelHue = (float) (theta / (2 * PI));
+                        pixelHue = (float) (theta / TAU);
                         pixelSat = (float) (r / radius);
                     } else { //SAT
-                        pixelHue = (float) (theta / (2 * PI));
+                        pixelHue = (float) (theta / TAU);
                         pixelBri = (float) (r / radius);
                     }
                     row[x] = Color.HSBtoRGB(pixelHue, pixelSat, pixelBri);

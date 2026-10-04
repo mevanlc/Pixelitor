@@ -32,7 +32,6 @@ public class BooleanParamGUI extends JPanel implements ParamGUI {
     private final BooleanParam model;
     private final JCheckBox checkBox;
     private ResetButton resetButton;
-    private FilterButtonModel sideButtonModel;
 
     public BooleanParamGUI(BooleanParam model, boolean addResetButton, FilterButtonModel sideButtonModel) {
         super(new FlowLayout(LEFT));
@@ -56,7 +55,6 @@ public class BooleanParamGUI extends JPanel implements ParamGUI {
         }
 
         if (sideButtonModel != null) {
-            this.sideButtonModel = sideButtonModel;
             add(Box.createHorizontalStrut(BUTTON_SPACING));
             add(sideButtonModel.createGUI());
         }

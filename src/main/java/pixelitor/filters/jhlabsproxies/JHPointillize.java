@@ -20,10 +20,7 @@ package pixelitor.filters.jhlabsproxies;
 import com.jhlabs.image.CellularFilter;
 import com.jhlabs.image.PointillizeFilter;
 import pixelitor.filters.ParametrizedFilter;
-import pixelitor.filters.gui.BooleanParam;
-import pixelitor.filters.gui.ColorParam;
-import pixelitor.filters.gui.EnumParam;
-import pixelitor.filters.gui.RangeParam;
+import pixelitor.filters.gui.*;
 import pixelitor.utils.Texts;
 
 import java.awt.image.BufferedImage;
@@ -42,15 +39,16 @@ public class JHPointillize extends ParametrizedFilter {
     public static final String NAME = Texts.i18n("pointillize");
 
     private final RangeParam gridSize = new RangeParam("Grid Size", 1, 15, 200);
-    private final RangeParam dotSize = new RangeParam("Dot Relative Size (%)", 0, 45, 100);
+    private final RangeParam dotRadius = new RangeParam("Dot Relative Size (%)", 0, 45, 100);
     private final RangeParam fuzziness = new RangeParam("Fill Fuzziness (%)", 0, 0, 100);
-    private final ColorParam edgeColor = new ColorParam("Fill Color", BLACK, RANDOMIZED_ALPHA);
+    private final ColorParam fillColor = new ColorParam("Fill Color", BLACK, RANDOMIZED_ALPHA);
     private final BooleanParam fadeEdges = new BooleanParam("Fade Instead of Fill", true);
 
     private final RangeParam randomness = new RangeParam("Grid Randomness (%)", 0, 0, 100);
     private final EnumParam<CellularFilter.GridType> gridType = EnumParam.forGridType("Grid Type", randomness);
 
-    private PointillizeFilter filter;
+    private final AngleParam angle = new AngleParam("Angle", 0);
+    private final RangeParam stretch = new RangeParam("Stretch (%)", 100, 100, 1000);
 
     public JHPointillize() {
         super(true);
@@ -60,30 +58,32 @@ public class JHPointillize extends ParametrizedFilter {
             gridType,
             randomness,
             fadeEdges,
-            edgeColor,
-            dotSize,
-            fuzziness
+            fillColor,
+            dotRadius,
+            fuzziness,
+            angle,
+            stretch
         ).withAction(paramSet.createReseedCachedAndNoiseAction());
 
-        fadeEdges.disableOtherWhenChecked(edgeColor);
-        fadeEdges.disableOtherWhenChecked(dotSize);
+        // when "Fade Instead of Fill" is checked, then "Fill Color",
+        // "Dot Relative Size" and "Fill Fuzziness" should be disabled
+        fadeEdges.disableOtherWhenChecked(fillColor);
+        fadeEdges.disableOtherWhenChecked(dotRadius);
         fadeEdges.disableOtherWhenChecked(fuzziness);
     }
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        if (filter == null) {
-            filter = new PointillizeFilter();
-        }
-
-        // there is an angle property, but it does not work as expected
-        filter.setScale(gridSize.getValueAsFloat());
-        filter.setRandomness((float) randomness.getPercentage());
-        filter.setEdgeThickness((float) dotSize.getPercentage());
-        filter.setFuzziness((float) fuzziness.getPercentage());
-        filter.setGridType(gridType.getSelected());
-        filter.setFadeEdges(fadeEdges.isChecked());
-        filter.setEdgeColor(edgeColor.getColor().getRGB());
+        PointillizeFilter filter = new PointillizeFilter(NAME,
+            gridSize.getValueAsFloat(),
+            (float) stretch.getPercentage(),
+            (float) (angle.getValueInRadians() + Math.PI / 2),
+            gridType.getSelected(),
+            (float) randomness.getPercentage(),
+            (float) dotRadius.getPercentage(),
+            (float) fuzziness.getPercentage(),
+            fillColor.getColor().getRGB(),
+            fadeEdges.isChecked());
 
         return filter.filter(src, dest);
     }

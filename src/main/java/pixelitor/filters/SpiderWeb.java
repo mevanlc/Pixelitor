@@ -146,7 +146,7 @@ public class SpiderWeb extends CurveFilter {
                                                            double baseRadius, double cx, double cy,
                                                            Random random, double randomness) {
         Point2D.Double[][] points = new Point2D.Double[numBranches][numConnections];
-        double angleIncrement = 2 * Math.PI / numBranches;
+        double angleIncrement = Math.TAU / numBranches;
 
         double maxAngleDeviation = angleIncrement * 0.45; // prevent crossing
         double maxRadiusDeviation = baseRadius * 0.1;

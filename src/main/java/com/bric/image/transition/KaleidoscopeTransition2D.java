@@ -26,7 +26,7 @@ import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
 
 /**
  * This resembles looking through a kaleidoscope.
@@ -61,8 +61,8 @@ public class KaleidoscopeTransition2D extends Transition2D {
 
                 double halfWidth = size.width / 2.0;
                 double halfHeight = size.height / 2.0;
-                transform.setToRotation(-2 * PI * (1 - Math
-                        .sqrt(progress)), halfWidth + dx, halfHeight + dy);
+                transform.setToRotation(-TAU * (1 - Math.sqrt(progress)),
+                    halfWidth + dx, halfHeight + dy);
                 transform.translate(halfWidth, halfHeight);
                 transform.scale(progress * progress, progress * progress);
                 transform.translate(-halfWidth, -halfHeight);
@@ -72,7 +72,7 @@ public class KaleidoscopeTransition2D extends Transition2D {
                 transform.setToTranslation(p2.getX() - p1.getX(), p2.getY() - p1.getY());
                 v2.add(new ImageInstruction(false, progress, transform.createInverse(), rectangle));
 
-                transform.setToRotation(-2 * PI * (1 - Math.sqrt(progress)),
+                transform.setToRotation(-TAU * (1 - Math.sqrt(progress)),
                     halfWidth + dx, halfHeight + dy);
 
                 p2 = new Point2D.Double();
@@ -83,7 +83,7 @@ public class KaleidoscopeTransition2D extends Transition2D {
                 e.printStackTrace();
             }
         }
-        return v2.toArray(new Transition2DInstruction[v2.size()]);
+        return v2.toArray(new Transition2DInstruction[0]);
     }
 
     @Override

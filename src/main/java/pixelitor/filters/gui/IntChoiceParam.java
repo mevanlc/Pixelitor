@@ -83,6 +83,15 @@ public class IntChoiceParam extends ChoiceParam<IntChoiceParam.Item> {
             return value == v;
         }
 
+        public boolean hasValue(int... arr) {
+            for (int a : arr) {
+                if (value == a) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {

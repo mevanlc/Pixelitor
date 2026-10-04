@@ -18,6 +18,7 @@
 package pixelitor.filters;
 
 
+import com.jhlabs.image.ImageMath;
 import net.jafama.FastMath;
 import org.jdesktop.swingx.graphics.ColorUtilities;
 import pixelitor.ThreadPool;
@@ -32,6 +33,8 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
 import java.util.concurrent.Future;
+
+import static com.jhlabs.image.ImageMath.INV_TAU;
 
 /**
  * Renders a color wheel.
@@ -63,13 +66,13 @@ public class ColorWheel extends ParametrizedFilter {
             @Override
             int toSrgb(double angle, double sat, double bri) {
                 // HSBtoRGB handles hue wrapping automatically
-                float hue = (float) (angle / (2 * Math.PI));
+                float hue = (float) (angle * INV_TAU);
                 return Color.HSBtoRGB(hue, (float) sat, (float) bri);
             }
         }, HSL {
             @Override
             int toSrgb(double angle, double sat, double bri) {
-                float hue = (float) (angle / (2 * Math.PI));
+                float hue = (float) (angle * INV_TAU);
                 int[] buffer = new int[3];
                 // HSL hue is also 0-1
                 ColorUtilities.HSLtoRGB((hue - (float) Math.floor(hue)), (float) sat, (float) bri, buffer);
@@ -144,7 +147,7 @@ public class ColorWheel extends ParametrizedFilter {
             double baseAngle = FastMath.atan2(yDiff, xDiff);
             double angle = baseAngle + hueRot;
             if (spiral != 0.0) {
-                double radius = FastMath.hypot(xDiff, yDiff);
+                double radius = ImageMath.hypot(xDiff, yDiff);
                 double spiralAngleOffset = spiral * radius * SPIRAL_EFFECT_SCALE;
                 angle += spiralAngleOffset;
             }

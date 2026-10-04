@@ -22,6 +22,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * This filter diffuses an image by moving its pixels in random directions.
  */
 public class DiffuseFilter extends TransformFilter {
+    public static final int TABLE_SIZE = 256;
+
     private final float[] sinTable;
     private final float[] cosTable;
 
@@ -36,11 +38,11 @@ public class DiffuseFilter extends TransformFilter {
     public DiffuseFilter(String filterName, float amount, int edgeAction, int interpolation) {
         super(filterName, edgeAction, interpolation);
 
-        sinTable = new float[256];
-        cosTable = new float[256];
+        sinTable = new float[TABLE_SIZE];
+        cosTable = new float[TABLE_SIZE];
 
-        for (int i = 0; i < 256; i++) {
-            float angle = ImageMath.TWO_PI * i / 256.0f;
+        for (int i = 0; i < TABLE_SIZE; i++) {
+            double angle = Math.TAU * i / TABLE_SIZE;
             sinTable[i] = (float) (amount * Math.sin(angle));
             cosTable[i] = (float) (amount * Math.cos(angle));
         }
@@ -48,8 +50,9 @@ public class DiffuseFilter extends TransformFilter {
 
     @Override
     protected void transformInverse(int x, int y, float[] out) {
-        int angle = ThreadLocalRandom.current().nextInt(256);
-        float distance = ThreadLocalRandom.current().nextFloat();
+        var rng = ThreadLocalRandom.current();
+        int angle = rng.nextInt(TABLE_SIZE);
+        float distance = rng.nextFloat();
 
         out[0] = x + distance * sinTable[angle];
         out[1] = y + distance * cosTable[angle];

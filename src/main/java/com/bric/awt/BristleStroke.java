@@ -29,6 +29,7 @@ import java.awt.geom.Point2D;
 import java.util.Random;
 
 import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
 import static net.jafama.FastMath.cos;
 import static net.jafama.FastMath.sin;
 
@@ -170,8 +171,8 @@ public class BristleStroke implements Stroke {
 
                     switch (thisShape) {
                         case SHAPE_TRIANGLE -> {
-                            path.moveTo((float) (x + grain / 2.0 * cos(rotation + 2 * PI / 3)),
-                                (float) (y + grain / 2.0 * sin(rotation + 2 * PI / 3)));
+                            path.moveTo((float) (x + grain / 2.0 * cos(rotation + TAU / 3)),
+                                (float) (y + grain / 2.0 * sin(rotation + TAU / 3)));
                             path.lineTo((float) (x + grain / 2.0 * cos(rotation + 4 * PI / 3)),
                                 (float) (y + grain / 2.0 * sin(rotation + 4 * PI / 3)));
                             path.lineTo((float) (x + grain / 2.0 * cos(rotation)),
@@ -179,8 +180,8 @@ public class BristleStroke implements Stroke {
                             path.closePath();
                         }
                         case SHAPE_SQUARE -> {
-                            path.moveTo((float) (x + grain / 2.0 * cos(rotation + 2 * PI / 4)),
-                                (float) (y + grain / 2.0 * sin(rotation + 2 * PI / 4)));
+                            path.moveTo((float) (x + grain / 2.0 * cos(rotation + TAU / 4)),
+                                (float) (y + grain / 2.0 * sin(rotation + TAU / 4)));
                             path.lineTo((float) (x + grain / 2.0 * cos(rotation + 4 * PI / 4)),
                                 (float) (y + grain / 2.0 * sin(rotation + 4 * PI / 4)));
                             path.lineTo((float) (x + grain / 2.0 * cos(rotation + 6 * PI / 4)),
@@ -192,23 +193,23 @@ public class BristleStroke implements Stroke {
                         case SHAPE_STAR -> {
                             path.moveTo((float) (x + grain / (6.0 + 2 - 2 * thickness) * cos(rotation)),
                                 (float) (y + grain / (6.0 + 2 - 2 * thickness) * sin(rotation)));
-                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + 2 * PI / 8.0)),
-                                (float) (y + grain / 2.0 * sin(rotation + 2 * PI / 8.0)));
+                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + TAU / 8.0)),
+                                (float) (y + grain / 2.0 * sin(rotation + TAU / 8.0)));
 
                             path.lineTo((float) (x + grain / (6.0 + 2 - 2 * thickness) * cos(rotation + PI / 2)),
                                 (float) (y + grain / (6.0 + 2 - 2 * thickness) * sin(rotation + PI / 2)));
-                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + PI / 2 + 2 * PI / 8.0)),
-                                (float) (y + grain / 2.0 * sin(rotation + PI / 2 + 2 * PI / 8.0)));
+                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + PI / 2 + TAU / 8.0)),
+                                (float) (y + grain / 2.0 * sin(rotation + PI / 2 + TAU / 8.0)));
 
                             path.lineTo((float) (x + grain / (6.0 + 2 - 2 * thickness) * cos(rotation + PI)),
                                 (float) (y + grain / (6.0 + 2 - 2 * thickness) * sin(rotation + PI)));
-                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + PI + 2 * PI / 8.0)),
-                                (float) (y + grain / 2.0 * sin(rotation + PI + 2 * PI / 8.0)));
+                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + PI + TAU / 8.0)),
+                                (float) (y + grain / 2.0 * sin(rotation + PI + TAU / 8.0)));
 
                             path.lineTo((float) (x + grain / (6.0 + 2 - 2 * thickness) * cos(rotation + 3 * PI / 2)),
                                 (float) (y + grain / (6.0 + 2 - 2 * thickness) * sin(rotation + 3 * PI / 2)));
-                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + 3 * PI / 2 + 2 * PI / 8.0)),
-                                (float) (y + grain / 2.0 * sin(rotation + 3 * PI / 2 + 2 * PI / 8.0)));
+                            path.lineTo((float) (x + grain / 2.0 * cos(rotation + 3 * PI / 2 + TAU / 8.0)),
+                                (float) (y + grain / 2.0 * sin(rotation + 3 * PI / 2 + TAU / 8.0)));
                         }
                     }
 

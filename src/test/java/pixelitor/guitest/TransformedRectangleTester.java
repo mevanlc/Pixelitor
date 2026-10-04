@@ -43,7 +43,7 @@ class TransformedRectangleTester extends JPanel {
     private double shx;
     private double shy;
 
-    public static void main(String[] args) {
+    static void main() {
         SwingUtilities.invokeLater(TransformedRectangleTester::createGUI);
     }
 

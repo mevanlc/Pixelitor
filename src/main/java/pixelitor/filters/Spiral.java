@@ -85,7 +85,7 @@ public class Spiral extends CurveFilter {
             w = h = Math.max(w, h);
         }
 
-        double maxAngle = 2 * Math.PI * numSpins;
+        double maxAngle = Math.TAU * numSpins;
         int type = typeParam.getValue();
         if (type == TYPE_POLYGON) {
             // compensate rounding errors - otherwise
@@ -95,7 +95,7 @@ public class Spiral extends CurveFilter {
 
         double dt = switch (type) {
             case TYPE_CIRCULAR -> maxAngle / (NUM_STEPS_PER_SPIN * numSpins);
-            case TYPE_POLYGON -> (2 * Math.PI) / sidesParam.getValue();
+            case TYPE_POLYGON -> Math.TAU / sidesParam.getValue();
             default -> throw new IllegalStateException("Unexpected value: " + type);
         };
 

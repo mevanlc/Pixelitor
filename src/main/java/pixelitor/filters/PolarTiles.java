@@ -37,7 +37,12 @@ public class PolarTiles extends ParametrizedFilter {
         new Item("Concentric", PolarTilesFilter.MODE_CONCENTRIC),
         new Item("Spiral", PolarTilesFilter.MODE_SPIRAL),
         new Item("Vortex", PolarTilesFilter.MODE_VORTEX),
+        new Item("Vortex Tiles", PolarTilesFilter.MODE_VORTEX_TILES),
+        new Item("Flower", PolarTilesFilter.MODE_FLOWER),
+        new Item("Brick", PolarTilesFilter.MODE_BRICK),
+        new Item("Spider Web", PolarTilesFilter.MODE_WEB),
     });
+
     private final ImagePositionParam center = new ImagePositionParam("Center");
     private final RangeParam numAngDivisions = new RangeParam("Angular Divisions", 0, 7, 100);
     private final RangeParam numRadDivisions = new RangeParam("Radial Divisions", 0, 7, 50);

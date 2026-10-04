@@ -18,22 +18,16 @@ package com.jhlabs.math;
 
 import java.util.Random;
 
-import static com.jhlabs.image.ImageMath.PI;
-import static com.jhlabs.image.ImageMath.smoothStep01;
+import static com.jhlabs.image.ImageMath.*;
 
 /**
  * Perlin Noise functions.
  */
 public class Noise {
-    private static final Random randomGenerator = new Random();
-
     private Noise() {
     }
 
-    public static void reseed(long newSeed) {
-        randomGenerator.setSeed(newSeed);
-        init();
-    }
+    private static final Random randomGenerator = new Random();
 
     // the base size of the permutation/gradient tables
     private static final int B = 0x100; // 256
@@ -66,6 +60,11 @@ public class Noise {
     private static final float[] g3z = new float[B + B + 2];
 
     static {
+        init();
+    }
+
+    public static void reseed(long newSeed) {
+        randomGenerator.setSeed(newSeed);
         init();
     }
 
@@ -147,8 +146,8 @@ public class Noise {
      * @param x the x value
      * @return the noise value at x
      */
-    public static float sinLikeNoise1(float x) {
-        return 2.0f * noise1(x / PI);
+    public static float sinLikeNoise1(double x) {
+        return 2.0f * noise1((float) (x * INV_PI));
     }
 
     /**
@@ -261,10 +260,6 @@ public class Noise {
         return 1.5f * lerp(sz, c, d);
     }
 
-    public static float lerp(float t, float a, float b) {
-        return a + t * (b - a);
-    }
-
     // returns a non-negative random integer
     private static int random() {
         return randomGenerator.nextInt() & Integer.MAX_VALUE; // removes the sign bit
@@ -282,7 +277,7 @@ public class Noise {
                 g2y[i] = (float) ((random() % (B + B)) - B) / B;
             } while (g2x[i] == 0.0f && g2y[i] == 0.0f);
 
-            float s2 = (float) Math.sqrt(g2x[i] * g2x[i] + g2y[i] * g2y[i]);
+            float s2 = hypot(g2x[i], g2y[i]);
             g2x[i] /= s2;
             g2y[i] /= s2;
 

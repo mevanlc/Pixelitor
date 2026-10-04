@@ -76,7 +76,7 @@ public class WaterFilter extends TransformFilter {
             out[1] = y;
         } else {
             float distance = (float) Math.sqrt(distance2);
-            float amount = amplitude * (float) FastMath.sin(distance / wavelength * ImageMath.TWO_PI - phase);
+            float amount = amplitude * (float) FastMath.sin(distance / wavelength * Math.TAU - phase);
             amount *= (radius - distance) / radius;
 
             if (distance != 0) {

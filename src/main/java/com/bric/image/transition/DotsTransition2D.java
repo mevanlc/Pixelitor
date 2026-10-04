@@ -145,7 +145,7 @@ public class DotsTransition2D extends AbstractClippedTransition2D {
             }
         }
 
-        return v.toArray(new Shape[v.size()]);
+        return v.toArray(new Shape[0]);
     }
 
     @Override

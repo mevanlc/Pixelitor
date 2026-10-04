@@ -180,10 +180,7 @@ public class FilterAction extends AbstractViewEnabledAction {
         if (!(filter instanceof ParametrizedFilter pf)) {
             return false;
         }
-        if (!pf.isAnimatable()) {
-            return false;
-        }
-        return true;
+        return pf.isAnimatable();
     }
 
     @Override

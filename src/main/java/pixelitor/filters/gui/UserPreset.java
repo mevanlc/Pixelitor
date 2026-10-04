@@ -30,7 +30,6 @@ import java.awt.Color;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.Function;
 
 /**
  * Usually represents a user-created preset that stores configuration
@@ -227,29 +226,15 @@ public class UserPreset implements Preset {
     }
 
     /**
-     * Finds an enum constant by matching its toString() value.
-     */
-    public <T extends Enum<T>> T getEnumByToString(String key, Class<T> clazz) {
-        return getEnumHelper(key, clazz, T::toString);
-    }
-
-    /**
-     * Finds an enum constant by matching its name() value. This method
-     * should be preferred to {@link #getEnumByToString(String, Class<T>)}
-     * if the enum's toString() is localized.
+     * Finds an enum constant by matching its name() value.
      */
     public <T extends Enum<T>> T getEnum(String key, Class<T> clazz) {
-        return getEnumHelper(key, clazz, Enum::name);
-    }
-
-    private <T extends Enum<T>> T getEnumHelper(String key, Class<T> clazz,
-                                                Function<T, String> valueExtractor) {
         String storedValue = get(key);
         T[] enumConstants = clazz.getEnumConstants();
 
         if (storedValue != null) {
             for (T constant : enumConstants) {
-                if (valueExtractor.apply(constant).equals(storedValue)) {
+                if (constant.name().equals(storedValue)) {
                     return constant;
                 }
             }

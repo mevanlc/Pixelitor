@@ -222,7 +222,7 @@ public class TextSettings implements Serializable, Debuggable {
                 MlpAlignmentSelector.RIGHT
             }),
             Rnd.nextBoolean(), // watermark
-            Rnd.nextDouble() * Math.PI * 2, // rotation
+            Rnd.nextAngle(), // rotation
             0.5 + Rnd.nextDouble(), // rel line height
             0.5 + Rnd.nextDouble(), // sx
             0.5 + Rnd.nextDouble(), // sy

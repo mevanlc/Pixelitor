@@ -42,7 +42,9 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
 
     private boolean autoNormalizable = false;
     private boolean autoNormalizationEnabled = false;
-    private boolean autoNormalizing = false;
+    private boolean normalizationInProgress = false;
+
+    private static final int NORMALIZED_SUM = 100; // 100%
 
     /**
      * Two linked children: "Horizontal" and "Vertical", with shared min/max/default values.
@@ -153,10 +155,10 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
     public GroupedRangeParam autoNormalized() {
         // auto-normalization is mutually exclusive with linking
         assert !linkedByDefault;
-        linkedModel = null;
+        notLinkable();
 
         // validate preconditions for the normalization algorithm to work correctly
-        assert calcSumOfValues() == 100;
+        assert calcSumOfValues() == NORMALIZED_SUM;
         assert checkRangesForAutoNormalization();
 
         // enable auto-normalization
@@ -177,7 +179,7 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
             sumOfMaximums += param.getMaximum();
         }
 
-        if (sumOfMaximums < 100) {
+        if (sumOfMaximums < NORMALIZED_SUM) {
             throw new AssertionError("sum of maximums = " + sumOfMaximums);
         }
 
@@ -185,22 +187,22 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
     }
 
     private void autoNormalize(RangeParam source) {
-        if (!autoNormalizationEnabled || autoNormalizing) {
+        if (!autoNormalizationEnabled || normalizationInProgress) {
             // avoid infinite recursion if change listeners call each other
             return;
         }
-        autoNormalizing = true;
+        normalizationInProgress = true;
 
         int sumOfAllValues = calcSumOfValues();
-        int diff = sumOfAllValues - 100;
+        int diff = sumOfAllValues - NORMALIZED_SUM;
         if (diff == 0) {
-            autoNormalizing = false;
+            normalizationInProgress = false;
             return; // nothing to do
         }
 
         runAutoNormalize(source, diff);
 
-        autoNormalizing = false;
+        normalizationInProgress = false;
     }
 
     // the other sliders are moved by an amount proportional to the space
@@ -243,7 +245,7 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
     // this method is much simpler than {@link #autoNormalize}, but also
     // limited: it can't be used interactively, and ignores the min/max values
     private void normalizeAll() {
-        int diff = calcSumOfValues() - 100;
+        int diff = calcSumOfValues() - NORMALIZED_SUM;
         if (diff != 0) {
             double correction = diff / (double) children.length;
             for (RangeParam child : children) {
@@ -293,10 +295,12 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
     }
 
     public int getHorizontal() {
+        assert children.length == 2;
         return getValue(0);
     }
 
     public int getVertical() {
+        assert children.length == 2;
         return getValue(1);
     }
 
@@ -313,10 +317,12 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
     }
 
     public double getHorPercentage() {
+        assert children.length == 2;
         return getPercentage(0);
     }
 
     public double getVerPercentage() {
+        assert children.length == 2;
         return getPercentage(1);
     }
 
@@ -464,22 +470,24 @@ public class GroupedRangeParam extends AbstractFilterParam implements Linkable {
         // but it has to be set first, so first collect the values
         double[] values = new double[children.length];
         for (int i = 0; i < children.length; i++) {
-            String s = st.nextToken();
-            values[i] = Double.parseDouble(s);
+            values[i] = Double.parseDouble(st.nextToken());
         }
 
-        if (isLinkable()) {
-            boolean linked = linkedByDefault;
-            if (st.hasMoreTokens()) {
-                linked = Boolean.parseBoolean(st.nextToken());
+        // withoutNormalization is necessary because setValueNoTrigger
+        // still fires change listeners, confusing auto-normalized groups
+        withoutNormalization(() -> {
+            if (isLinkable()) {
+                boolean linked = linkedByDefault;
+                if (st.hasMoreTokens()) { // preset has linked info
+                    linked = Boolean.parseBoolean(st.nextToken());
+                }
+                setLinked(linked);
             }
-            setLinked(linked);
-        }
-
-        // set the values only after the linked property was set
-        for (int i = 0; i < children.length; i++) {
-            children[i].setValueNoTrigger(values[i]);
-        }
+            // set the values only after the linked property was set
+            for (int i = 0; i < children.length; i++) {
+                children[i].setValueNoTrigger(values[i]);
+            }
+        });
     }
 
     public void setDecimalPlaces(int dp) {

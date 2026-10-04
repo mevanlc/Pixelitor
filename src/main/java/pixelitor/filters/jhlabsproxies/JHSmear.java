@@ -50,6 +50,10 @@ public class JHSmear extends ParametrizedFilter {
         new Item("Circles", SmearFilter.CIRCLES),
         new Item("Squares", SmearFilter.SQUARES),
         new Item("Diamonds", SmearFilter.DIAMONDS),
+        new Item("Hexagons", SmearFilter.HEXAGONS),
+        new Item("Triangles", SmearFilter.TRIANGLES),
+        new Item("Astroids", SmearFilter.ASTROIDS),
+        new Item("Stars", SmearFilter.STARS),
     });
 
     public JHSmear() {
@@ -68,18 +72,14 @@ public class JHSmear extends ParametrizedFilter {
         // disable the angle selector if the shape isn't "lines"
         shape.disableOtherWhen(angle,
             selected -> !selected.hasValue(SmearFilter.LINES));
+        //        selected -> !selected.hasValue(SmearFilter.LINES, SmearFilter.STARS));
     }
 
     @Override
     public BufferedImage transform(BufferedImage src, BufferedImage dest) {
-        int distanceValue = distance.getValue();
-        if (distanceValue == 0) {
-            return src;
-        }
-
         SmearFilter filter = new SmearFilter(NAME,
             shape.getValue(),
-            distanceValue,
+            distance.getValue(),
             (float) density.getPercentage(),
             (float) angle.getValueInRadians(),
             (float) mix.getPercentage(),

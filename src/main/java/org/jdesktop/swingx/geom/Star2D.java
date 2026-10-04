@@ -52,12 +52,7 @@ import java.awt.geom.*;
  */
 
 public class Star2D implements Shape {
-    private Shape starShape;
-    private double x;
-    private double y;
-    private double innerRadius;
-    private double outerRadius;
-    private int branchesCount;
+    private final Shape starShape;
 
     /**
      * <p>Creates a new star whose center is located at the specified
@@ -71,22 +66,14 @@ public class Star2D implements Shape {
      * @param outerRadius   the distance between the center of the star and the
      *                      tip of the branches
      * @param branchesCount the number of branches in this star; must be &gt;= 3
-     * @throws IllegalArgumentException if <code>branchesCount<code> is < 3 or
-     *                                  if <code>innerRadius</code> is &gt;= <code>outerRadius</code>
+     * @throws IllegalArgumentException if {@code branchesCount < 3}
      */
     public Star2D(double x, double y,
                   double innerRadius, double outerRadius,
                   int branchesCount) {
         if (branchesCount < 3) {
-            throw new IllegalArgumentException("The number of branches must" +
-                                               " be >= 3.");
+            throw new IllegalArgumentException("The number of branches must be >= 3.");
         }
-
-        this.x = x;
-        this.y = y;
-        this.innerRadius = innerRadius;
-        this.outerRadius = outerRadius;
-        this.branchesCount = branchesCount;
 
         starShape = generateStar(x, y, innerRadius, outerRadius, branchesCount);
     }
@@ -94,157 +81,28 @@ public class Star2D implements Shape {
     private static Shape generateStar(double x, double y,
                                       double innerRadius, double outerRadius,
                                       int branchesCount) {
-        GeneralPath path = new GeneralPath();
+        int pointCount = branchesCount * 2;
+        Path2D path = new Path2D.Double(Path2D.WIND_NON_ZERO, pointCount + 1);
 
-        double outerAngleIncrement = 2 * Math.PI / branchesCount;
+        double startAngle = branchesCount % 2 == 0 ? 0.0 : -(Math.PI / 2.0);
+        double angleStep = Math.PI / branchesCount;
 
-        double outerAngle = branchesCount % 2 == 0 ? 0.0 : -(Math.PI / 2.0);
-        double innerAngle = (outerAngleIncrement / 2.0) + outerAngle;
+        for (int i = 0; i < pointCount; i++) {
+            double angle = startAngle + i * angleStep;
+            double radius = (i % 2 == 0) ? outerRadius : innerRadius;
 
-        float x1 = (float) (Math.cos(outerAngle) * outerRadius + x);
-        float y1 = (float) (Math.sin(outerAngle) * outerRadius + y);
+            double px = Math.cos(angle) * radius + x;
+            double py = Math.sin(angle) * radius + y;
 
-        float x2 = (float) (Math.cos(innerAngle) * innerRadius + x);
-        float y2 = (float) (Math.sin(innerAngle) * innerRadius + y);
-
-        path.moveTo(x1, y1);
-        path.lineTo(x2, y2);
-
-        outerAngle += outerAngleIncrement;
-        innerAngle += outerAngleIncrement;
-
-        for (int i = 1; i < branchesCount; i++) {
-            x1 = (float) (Math.cos(outerAngle) * outerRadius + x);
-            y1 = (float) (Math.sin(outerAngle) * outerRadius + y);
-
-            path.lineTo(x1, y1);
-
-            x2 = (float) (Math.cos(innerAngle) * innerRadius + x);
-            y2 = (float) (Math.sin(innerAngle) * innerRadius + y);
-
-            path.lineTo(x2, y2);
-
-            outerAngle += outerAngleIncrement;
-            innerAngle += outerAngleIncrement;
+            if (i == 0) {
+                path.moveTo(px, py);
+            } else {
+                path.lineTo(px, py);
+            }
         }
 
         path.closePath();
         return path;
-    }
-
-    /**
-     * <p>Sets the inner radius of the star, that is the distance between its
-     * center and the origin of the branches.
-     *
-     * @param innerRadius the distance between the center of the star and the
-     *                    origin of the branches
-     * @throws IllegalArgumentException if the inner radius is &gt;= outer radius
-     */
-    public void setInnerRadius(double innerRadius) {
-        this.innerRadius = innerRadius;
-        starShape = generateStar(getX(), getY(), innerRadius, getOuterRadius(),
-            getBranchesCount());
-    }
-
-    /**
-     * <p>Sets location of the center of the star.</p>
-     *
-     * @param x the x location of the center of the star
-     */
-    public void setX(double x) {
-        this.x = x;
-        starShape = generateStar(x, getY(), getInnerRadius(), getOuterRadius(),
-            getBranchesCount());
-    }
-
-    /**
-     * <p>Sets the location of the center of the star.</p>
-     *
-     * @param y the x location of the center of the star
-     */
-    public void setY(double y) {
-        this.y = y;
-        starShape = generateStar(getX(), y, getInnerRadius(), getOuterRadius(),
-            getBranchesCount());
-    }
-
-    /**
-     * <p>Sets the outer radius of the star, that is the distance between its
-     * center and the tips of the branches.
-     *
-     * @param outerRadius the distance between the center of the star and the
-     *                    tips of the branches
-     * @throws IllegalArgumentException if the inner radius is &gt;= outer radius
-     */
-    public void setOuterRadius(double outerRadius) {
-        this.outerRadius = outerRadius;
-        starShape = generateStar(getX(), getY(), getInnerRadius(), outerRadius,
-            getBranchesCount());
-    }
-
-    /**
-     * <p>Sets the number branches of the star. A star must always have at least
-     * 3 branches.</p>
-     *
-     * @param branchesCount the number of branches
-     * @throws IllegalArgumentException if <code>branchesCount</code> is &lt;=2
-     */
-    public void setBranchesCount(int branchesCount) {
-        if (branchesCount <= 2) {
-            throw new IllegalArgumentException("The number of branches must" +
-                                               " be >= 3.");
-        }
-
-        this.branchesCount = branchesCount;
-        starShape = generateStar(getX(), getY(), getInnerRadius(),
-            getOuterRadius(), branchesCount);
-    }
-
-    /**
-     * <p>Returns the location of the center of star.</p>
-     *
-     * @return the x coordinate of the center of the star
-     */
-    public double getX() {
-        return x;
-    }
-
-    /**
-     * <p>Returns the location of the center of star.</p>
-     *
-     * @return the y coordinate of the center of the star
-     */
-    public double getY() {
-        return y;
-    }
-
-    /**
-     * <p>Returns the distance between the center of the star and the origin
-     * of the branches.</p>
-     *
-     * @return the inner radius of the star
-     */
-    public double getInnerRadius() {
-        return innerRadius;
-    }
-
-    /**
-     * <p>Returns the distance between the center of the star and the tips
-     * of the branches.</p>
-     *
-     * @return the outer radius of the star
-     */
-    public double getOuterRadius() {
-        return outerRadius;
-    }
-
-    /**
-     * <p>Returns the number of branches of the star.</p>
-     *
-     * @return the number of branches, always &gt;= 3
-     */
-    public int getBranchesCount() {
-        return branchesCount;
     }
 
     /**

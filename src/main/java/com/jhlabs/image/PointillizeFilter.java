@@ -16,61 +16,52 @@ limitations under the License.
 
 package com.jhlabs.image;
 
-import pixelitor.filters.jhlabsproxies.JHPointillize;
-
+/**
+ * A filter that renders an image as colored dots
+ * sampled at the feature points of a Voronoi grid.
+ */
 public class PointillizeFilter extends CellularFilter {
-    private float edgeThickness = 0.4f;
-    private boolean fadeEdges = false;
-    private int edgeColor = 0xFF_00_00_00;
-    private float fuzziness = 0.1f;
+    private final float dotRadius;
+    private final float fuzziness;
+    private final int backgroundColor;
+    private final boolean fadeEdges;
 
-    public PointillizeFilter() {
-        super(JHPointillize.NAME);
-    }
+    public PointillizeFilter(String filterName,
+                             float scale,
+                             float stretch,
+                             float angle,
+                             GridType gridType,
+                             float randomness,
+                             float dotRadius,
+                             float fuzziness,
+                             int backgroundColor,
+                             boolean fadeEdges) {
+        super(filterName, scale, stretch, angle, gridType, randomness, null, 1.0f, 0.0f, 0.0f);
 
-    public void setEdgeThickness(float edgeThickness) {
-        this.edgeThickness = edgeThickness;
-    }
-
-    public void setFadeEdges(boolean fadeEdges) {
-        this.fadeEdges = fadeEdges;
-    }
-
-    public void setEdgeColor(int edgeColor) {
-        this.edgeColor = edgeColor;
-    }
-
-    public void setFuzziness(float fuzziness) {
+        this.dotRadius = dotRadius;
         this.fuzziness = fuzziness;
+        this.backgroundColor = backgroundColor;
+        this.fadeEdges = fadeEdges;
     }
 
     @Override
     public int genPixel(int x, int y, int[] inPixels, int width, int height) {
-        float nx = m00 * x + m01 * y;
-        float ny = m10 * x + m11 * y;
-        nx /= scale;
-        ny /= scale * stretch;
-        nx += 1000;
-        ny += 1000;    // Reduce artifacts around 0,0
-        evaluate(nx, ny);
-
-        Point[] results = resultsTL.get();
+        Point[] results = findNearestPoints(x, y);
 
         float f1 = results[0].distance;
-        int srcx = ImageMath.clamp((int) ((results[0].x - 1000) * scale), 0, width - 1);
-        int srcy = ImageMath.clamp((int) ((results[0].y - 1000) * scale), 0, height - 1);
-        int v = inPixels[srcy * width + srcx];
+
+        // sample source pixel using the inverse transform
+        int color = getSourcePixel(results[0], inPixels, width, height);
 
         if (fadeEdges) {
             float f2 = results[1].distance;
-            srcx = ImageMath.clamp((int) ((results[1].x - 1000) * scale), 0, width - 1);
-            srcy = ImageMath.clamp((int) ((results[1].y - 1000) * scale), 0, height - 1);
-            int v2 = inPixels[srcy * width + srcx];
-            v = ImageMath.mixColors(0.5f * f1 / f2, v, v2);
+            // sample second nearest source pixel
+            int secondColor = getSourcePixel(results[1], inPixels, width, height);
+            color = ImageMath.mixColors(0.5f * f1 / f2, color, secondColor);
         } else {
-            float f = 1 - ImageMath.smoothStep(edgeThickness, edgeThickness + fuzziness, f1);
-            v = ImageMath.mixColors(f, edgeColor, v);
+            float dotBlend = 1 - ImageMath.smoothStep(dotRadius, dotRadius + fuzziness, f1);
+            color = ImageMath.mixColors(dotBlend, backgroundColor, color);
         }
-        return v;
+        return color;
     }
 }

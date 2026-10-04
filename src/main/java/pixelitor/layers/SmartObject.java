@@ -305,7 +305,7 @@ public class SmartObject extends CompositeLayer {
             newContent.addLayerWithoutUI(contentLayer);
         }
         newContent.setName(getName());
-        newContent.createDebugName();
+        newContent.initDebugName();
         setContent(newContent);
     }
 
@@ -476,8 +476,8 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    public void insertLayer(Layer layer, int index, boolean update) {
-        insertSmartFilter((SmartFilter) layer, index, update, true);
+    public void insertLayer(Layer newLayer, int index, boolean update) {
+        insertSmartFilter((SmartFilter) newLayer, index, update, true);
     }
 
     private void rewireFilterChain() {
@@ -561,11 +561,6 @@ public class SmartObject extends CompositeLayer {
         if (next != null) {
             next.invalidateChain();
         }
-    }
-
-    @Override
-    public void deleteInternal(Layer layer) {
-        deleteSmartFilter((SmartFilter) layer, false, false);
     }
 
     private void layerCountChanged() {
@@ -982,10 +977,7 @@ public class SmartObject extends CompositeLayer {
             // legacy field, should be null after migration
             throw new AssertionError();
         }
-        if (!content.checkInvariants()) {
-            return false;
-        }
-        return true;
+        return content.checkInvariants();
     }
 
     @Override
@@ -1033,7 +1025,7 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    public boolean listContainsLayer(Layer layer) {
+    public boolean hasDirectChild(Layer layer) {
         return filters.contains((SmartFilter) layer);
     }
 
@@ -1043,7 +1035,7 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    public void addLayerToList(Layer newLayer, int index) {
+    public void insertDirectChild(Layer newLayer, int index) {
         SmartFilter newSmartFilter = (SmartFilter) newLayer;
 
         // this is called when duplicating a smart filter.
@@ -1146,8 +1138,9 @@ public class SmartObject extends CompositeLayer {
     }
 
     @Override
-    public void removeLayerFromList(Layer layer) {
+    public void removeDirectChild(Layer layer, boolean removeUI) {
         // it's not enough to just remove it from the list; invariants must be preserved.
+        // (the removeUI argument is ignored for the same reason as in LayerGroup)
         deleteSmartFilter((SmartFilter) layer, false, false);
     }
 
@@ -1159,11 +1152,6 @@ public class SmartObject extends CompositeLayer {
 
     @Override
     public void smartObjectChanged(boolean linked) {
-        throw new IllegalStateException();
-    }
-
-    @Override
-    public String getORAStackXML() {
         throw new IllegalStateException();
     }
 

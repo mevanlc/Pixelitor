@@ -330,6 +330,11 @@ public abstract class AbstractBrushTool extends Tool {
         updateOutlinePosition(e.getX(), e.getY(), view);
     }
 
+    @Override
+    public void escPressed() {
+        // do nothing
+    }
+
     private void updateOutlinePosition(int x, int y, View view) {
         int prevX = outlineCoX;
         int prevY = outlineCoY;
@@ -347,7 +352,7 @@ public abstract class AbstractBrushTool extends Tool {
         }
 
         // calculate the rectangle encompassing both old and new positions
-        var repaintRect = Shapes.toPositiveRect(prevX, prevY, outlineCoX, outlineCoY);
+        var repaintRect = Shapes.posRectFromCorners(prevX, prevY, outlineCoX, outlineCoY);
         // include the end pixels too, because Rectangle width/height are exclusive
         repaintRect.width++;
         repaintRect.height++;
@@ -704,12 +709,12 @@ public abstract class AbstractBrushTool extends Tool {
     }
 
     @Override
-    public void paintOverCanvas(Graphics2D g2, Composition comp) {
+    public void paintOverCanvas(Graphics2D g, Composition comp) {
         if (paintBrushOutline && !Debug.isDisableBrushOutlinePainting()) {
-            brushPainter.paint(g2, outlineCoX, outlineCoY);
+            brushPainter.paint(g, outlineCoX, outlineCoY);
         }
         if (Debug.isShowBrushOutlineRepaintDebug()) {
-            paintBrushOutlineDebugOverlay(g2);
+            paintBrushOutlineDebugOverlay(g);
         }
     }
 

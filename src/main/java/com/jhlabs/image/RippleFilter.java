@@ -60,8 +60,8 @@ public class RippleFilter extends RotatingEffectFilter {
         this.invXWavelength = 1.0 / xWavelength;
         this.invYWavelength = 1.0 / yWavelength;
         this.waveType = waveType;
-        this.phaseX = phaseX * Math.PI * 2;
-        this.phaseY = phaseY * Math.PI * 2;
+        this.phaseX = phaseX * Math.TAU;
+        this.phaseY = phaseY * Math.TAU;
     }
 
     @Override
@@ -84,8 +84,8 @@ public class RippleFilter extends RotatingEffectFilter {
                 fy = ImageMath.sinLikeTriangle(ny);
             }
             case WaveType.NOISE -> {
-                fx = Noise.sinLikeNoise1((float) nx);
-                fy = Noise.sinLikeNoise1((float) ny);
+                fx = Noise.sinLikeNoise1(nx);
+                fy = Noise.sinLikeNoise1(ny);
             }
             default -> throw new IllegalStateException("waveType = " + waveType);
         }

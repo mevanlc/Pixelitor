@@ -17,8 +17,8 @@
 
 package pixelitor.filters;
 
+import com.jhlabs.image.ImageMath;
 import pixelitor.filters.gui.*;
-import pixelitor.gui.utils.SliderSpinner;
 import pixelitor.progress.ProgressTracker;
 import pixelitor.progress.StatusBarProgressTracker;
 
@@ -29,6 +29,8 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
+import static com.jhlabs.image.ImageMath.INV_TAU;
 
 /**
  * Generates a concentric Voronoi diagram with optional distortion
@@ -51,9 +53,9 @@ public class RadialMosaic extends ParametrizedFilter {
         new IntChoiceParam.Item("Offset", ARRANGEMENT_OFFSET)
     });
     private final RangeParam randomnessParam = new RangeParam("Randomness", 0, 0, 100);
-    private final RangeParam pinchBulgeParam = new RangeParam("Pinch-Bulge", -100, 0, 100, true, SliderSpinner.LabelPosition.NONE_WITH_TICKS);
-    private final RangeParam spiralParam = new RangeParam("Spiral", -100, 0, 100, true, SliderSpinner.LabelPosition.NONE_WITH_TICKS);
-    private final RangeParam edgeWidth = new RangeParam("Width", 0, 1, 10, true, SliderSpinner.LabelPosition.NONE_WITH_TICKS);
+    private final RangeParam pinchBulgeParam = new RangeParam("Pinch-Bulge", -100, 0, 100);
+    private final RangeParam twistParam = new RangeParam("Twist", -100, 0, 100);
+    private final RangeParam edgeWidth = new RangeParam("Width", 0, 1, 10);
     private final ColorParam edgeColor = new ColorParam("Color", Color.BLACK);
 
     public RadialMosaic() {
@@ -72,8 +74,12 @@ public class RadialMosaic extends ParametrizedFilter {
             size,
             arrangementParam,
             randomnessParam.withSideButton(reseedAction),
-            CompositeParam.border("Distortion", pinchBulgeParam, spiralParam),
-            CompositeParam.border("Edge", edgeWidth, edgeColor)
+            CompositeParam.bordered("Distortion",
+                pinchBulgeParam,
+                twistParam),
+            CompositeParam.bordered("Edge",
+                edgeWidth,
+                edgeColor)
         );
     }
 
@@ -107,10 +113,10 @@ public class RadialMosaic extends ParametrizedFilter {
         Random random = paramSet.getRandomWithLastSeed();
         double randomness = randomnessParam.getPercentage();
         double pinchBulge = pinchBulgeParam.getPercentage();
-        double spiral = spiralParam.getPercentage();
+        double spiral = twistParam.getPercentage();
 
         // calculate how many rings are needed to fully cover the canvas
-        double maxDist = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy));
+        double maxDist = ImageMath.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy));
         int numRings = (int) Math.ceil(maxDist / ringSpacing) + 1;
 
         int totalPoints = 1 + 3 * numRings * (numRings + 1);
@@ -130,8 +136,8 @@ public class RadialMosaic extends ParametrizedFilter {
         return seeds;
     }
 
-    private static double calcWarpedRadius(int r, int ringSpacing, double maxDist, double pinchBulge) {
-        double radius = (r + 1) * ringSpacing;
+    private static double calcWarpedRadius(int ring, int ringSpacing, double maxDist, double pinchBulge) {
+        double radius = (ring + 1) * ringSpacing;
         if (pinchBulge == 0) {
             return radius;
         }
@@ -142,12 +148,12 @@ public class RadialMosaic extends ParametrizedFilter {
         return Math.pow(t, exponent) * maxDist;
     }
 
-    private static double calcSpiralAngle(int r, int numRings, double spiral) {
+    private static double calcSpiralAngle(int ring, int numRings, double spiral) {
         if (spiral == 0) {
             return 0;
         }
         // at ±1.0, the outermost ring completes a full 360-degree rotation
-        return spiral * Math.PI * 2.0 * ((r + 1.0) / numRings);
+        return spiral * Math.TAU * ((ring + 1.0) / numRings);
     }
 
     private static SeedPoint genCenterPoint(double cx, double cy, Random random, double maxOffset) {
@@ -160,15 +166,15 @@ public class RadialMosaic extends ParametrizedFilter {
                                       Random random, double randomness, double cx, double cy,
                                       List<SeedPoint> seeds, double maxDist, double pinchBulge,
                                       double spiral, int numRings) {
-        for (int r = 0; r < rings.length; r++) {
-            int pointsInRing = 6 * (r + 1);
-            rings[r] = new SeedPoint[pointsInRing];
+        for (int ringIndex = 0; ringIndex < rings.length; ringIndex++) {
+            int pointsInRing = 6 * (ringIndex + 1);
+            rings[ringIndex] = new SeedPoint[pointsInRing];
 
-            double radius = calcWarpedRadius(r, ringSpacing, maxDist, pinchBulge);
+            double radius = calcWarpedRadius(ringIndex, ringSpacing, maxDist, pinchBulge);
 
             // compute local distances to prevent randomness from crossing inner/outer ring bounds
-            double prevRadius = r == 0 ? 0 : calcWarpedRadius(r - 1, ringSpacing, maxDist, pinchBulge);
-            double nextRadius = calcWarpedRadius(r + 1, ringSpacing, maxDist, pinchBulge);
+            double prevRadius = ringIndex == 0 ? 0 : calcWarpedRadius(ringIndex - 1, ringSpacing, maxDist, pinchBulge);
+            double nextRadius = calcWarpedRadius(ringIndex + 1, ringSpacing, maxDist, pinchBulge);
 
             double distIn = radius - prevRadius;
             double distOut = nextRadius - radius;
@@ -176,12 +182,12 @@ public class RadialMosaic extends ParametrizedFilter {
             double localMaxOffset = safeLocalDist * 0.4 * randomness;
 
             // offsets every second ring by half the angular step if requested
-            double ringOffset = (arrangement == ARRANGEMENT_OFFSET && r % 2 != 0) ? Math.PI / pointsInRing : 0;
-            double spiralAngle = calcSpiralAngle(r, numRings, spiral);
+            double ringOffset = (arrangement == ARRANGEMENT_OFFSET && ringIndex % 2 != 0) ? Math.PI / pointsInRing : 0;
+            double spiralAngle = calcSpiralAngle(ringIndex, numRings, spiral);
             double angleBase = ringOffset + spiralAngle;
 
             for (int i = 0; i < pointsInRing; i++) {
-                double angle = 2 * Math.PI * i / pointsInRing + angleBase;
+                double angle = Math.TAU * i / pointsInRing + angleBase;
 
                 // add random displacement bounded to local distances
                 double offsetX = (random.nextDouble() * 2 - 1) * localMaxOffset;
@@ -191,7 +197,7 @@ public class RadialMosaic extends ParametrizedFilter {
                 double py = cy + radius * Math.sin(angle) + offsetY;
 
                 SeedPoint p = new SeedPoint(px, py);
-                rings[r][i] = p;
+                rings[ringIndex][i] = p;
                 seeds.add(p);
             }
         }
@@ -234,7 +240,7 @@ public class RadialMosaic extends ParametrizedFilter {
 
             for (int i = 0; i < pointsInRing; i++) {
                 SeedPoint current = rings[ringIndex][i];
-                double currentAngle = 2 * Math.PI * i / pointsInRing + currentAngleBase;
+                double currentAngle = Math.TAU * i / pointsInRing + currentAngleBase;
 
                 // left and right on the same ring
                 int leftIndex = Math.floorMod(i - 1, pointsInRing);
@@ -243,12 +249,12 @@ public class RadialMosaic extends ParametrizedFilter {
                 current.neighbors.add(rings[ringIndex][leftIndex]);
                 current.neighbors.add(rings[ringIndex][rightIndex]);
 
-                // ring above (outer)
+                // outer ring (larger radius)
                 if (hasOuter) {
                     addNeighborsFromRing(current, rings[ringIndex + 1], currentAngle, outerPoints, outerTotalOffset);
                 }
 
-                // ring below (inner)
+                // inner ring (smaller radius)
                 if (hasInner) {
                     addNeighborsFromRing(current, rings[ringIndex - 1], currentAngle, innerPoints, innerTotalOffset);
                 }
@@ -264,15 +270,13 @@ public class RadialMosaic extends ParametrizedFilter {
                                              double currentAngle, int targetPoints, double targetOffset) {
         // Assumes angular ordering between rings is preserved despite distortion.
         // Large distortions reduce neighbor accuracy.
-        double exactIndex = (currentAngle - targetOffset) * targetPoints / (2 * Math.PI);
-        int baseIdx = Math.floorMod(Math.round(exactIndex), targetPoints);
+        double exactIdx = (currentAngle - targetOffset) * targetPoints * INV_TAU;
+        int baseIdx = Math.floorMod(Math.round(exactIdx), targetPoints);
+        int prevIdx = Math.floorMod(baseIdx - 1, targetPoints);
+        int nextIdx = Math.floorMod(baseIdx + 1, targetPoints);
 
-        int n1 = Math.floorMod(baseIdx - 1, targetPoints);
-        int n2 = baseIdx;
-        int n3 = Math.floorMod(baseIdx + 1, targetPoints);
-
-        current.neighbors.add(targetRing[n1]);
-        current.neighbors.add(targetRing[n2]);
-        current.neighbors.add(targetRing[n3]);
+        current.neighbors.add(targetRing[prevIdx]);
+        current.neighbors.add(targetRing[baseIdx]);
+        current.neighbors.add(targetRing[nextIdx]);
     }
 }

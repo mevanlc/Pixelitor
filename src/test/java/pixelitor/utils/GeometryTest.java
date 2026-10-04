@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 
+import static com.jhlabs.image.ImageMath.SQRT_2;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
@@ -33,10 +34,9 @@ class GeometryTest {
     void testingPerpendicularCalculation() {
         var C = new Point2D.Float();
         var R = new Point2D.Float(2, 2);
-        float distance = (float) Math.sqrt(2);
         var A = new Point2D.Float();
         var B = new Point2D.Float();
-        Geometry.calcPerpendicularPoints(C, R, distance, A, B);
+        Geometry.calcPerpendicularPoints(C, R, SQRT_2, A, B);
 //                   |
 //                   |
 //                   |       R

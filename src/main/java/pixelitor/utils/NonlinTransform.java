@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -17,6 +17,7 @@
 
 package pixelitor.utils;
 
+import com.jhlabs.image.ImageMath;
 import pixelitor.filters.gui.EnumParam;
 import pixelitor.filters.gui.RangeParam;
 
@@ -25,15 +26,9 @@ import java.awt.geom.Path2D;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
 
-import static java.awt.geom.PathIterator.SEG_CLOSE;
-import static java.awt.geom.PathIterator.SEG_CUBICTO;
-import static java.awt.geom.PathIterator.SEG_LINETO;
-import static java.awt.geom.PathIterator.SEG_MOVETO;
-import static java.awt.geom.PathIterator.SEG_QUADTO;
-import static java.lang.Math.PI;
-import static net.jafama.FastMath.atan2;
-import static net.jafama.FastMath.cos;
-import static net.jafama.FastMath.sin;
+import static java.awt.geom.PathIterator.*;
+import static java.lang.Math.TAU;
+import static net.jafama.FastMath.*;
 
 /**
  * Nonlinear transformations that can be applied to points.
@@ -89,7 +84,7 @@ public enum NonlinTransform {
     }, BULGE("Pinch-Bulge", true) {
         @Override
         public PointMapper createMapper(Point2D center, double amount, int width, int height) {
-            double maxR = Math.sqrt(width * width + height * height) / 2.0;
+            double maxR = ImageMath.hypot(width, height) / 2.0;
             double cx = center.getX();
             double cy = center.getY();
             return (x, y) -> {
@@ -108,7 +103,7 @@ public enum NonlinTransform {
             double maxR = Math.min(width, height) / 2.0;
             return (x, y) -> {
                 double r = x * maxR / width;
-                double angle = y * 2 * PI / height;
+                double angle = y * TAU / height;
 
                 double newX = center.getX() + r * cos(angle);
                 double newY = center.getY() + r * sin(angle);
@@ -122,7 +117,7 @@ public enum NonlinTransform {
             double cy = center.getY();
 
             // make the effect size-independent
-            double diagonal = Math.sqrt(width * width + height * height);
+            double diagonal = ImageMath.hypot(width, height);
             double waveConstant = diagonal / 10.0;
             double adjustedAmount = amount * diagonal / 800;
 
@@ -144,7 +139,7 @@ public enum NonlinTransform {
             int numBranches = 5;
 
             // make the effect size-independent
-            double diagonal = Math.sqrt(width * width + height * height);
+            double diagonal = ImageMath.hypot(width, height);
             double divisor = diagonal / 30.0;
             double adjustedAmount = amount * diagonal / 2000;
 

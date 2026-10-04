@@ -133,6 +133,6 @@ public abstract class Transition2DInstruction {
             }
         }
 
-        return v.toArray(new Transition2DInstruction[v.size()]);
+        return v.toArray(new Transition2DInstruction[0]);
     }
 }

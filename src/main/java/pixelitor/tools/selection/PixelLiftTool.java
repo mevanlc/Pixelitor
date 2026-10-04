@@ -216,7 +216,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
 
         if (isLifting()) {
             e.getComp().moveActiveContent(
-                MoveMode.MOVE_BOTH, drag.getDX(), drag.getDY());
+                MoveMode.MOVE_BOTH, drag.getDx(), drag.getDy());
             return;
         }
 

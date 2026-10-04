@@ -78,7 +78,7 @@ public class BlindsTransition2D extends Transition2D {
             };
             v.add(new ImageInstruction(type == UP || type == LEFT, null, r));
         }
-        return v.toArray(new Transition2DInstruction[v.size()]);
+        return v.toArray(new Transition2DInstruction[0]);
     }
 
     @Override

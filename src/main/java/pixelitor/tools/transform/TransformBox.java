@@ -360,7 +360,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Upates everything else after the corner handles have been moved/updated.
+     * Updates everything else after the corner handles have been moved/updated.
      */
     public void cornerHandlesMoved() {
         updateEdgePositions();
@@ -463,7 +463,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Returns true if the transform box handles the given mouse pressed event
+     * Returns true if the transform box handles the given mouse pressed event.
      */
     public boolean processMousePressed(PMouseEvent e) {
         dragModifiers = TransformModifiers.from(e);
@@ -529,7 +529,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Returns true if the transform box handles the given mouse dragged event
+     * Returns true if the transform box handles the given mouse dragged event.
      */
     public boolean processMouseDragged(PMouseEvent e) {
         dragModifiers = TransformModifiers.from(e);
@@ -564,7 +564,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Returns true if the transform box handles the given mouse released event
+     * Returns true if the transform box handles the given mouse released event.
      */
     public boolean processMouseReleased(PMouseEvent e) {
         dragModifiers = TransformModifiers.from(e);
@@ -671,8 +671,8 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     void rotate(QuadrantAngle rotAngle) {
         double delta = Math.toRadians(rotAngle.getAngleDegree());
         double newAngle = angle + delta;
-        if (newAngle >= Math.PI * 2) {
-            newAngle -= Math.PI * 2;
+        if (newAngle >= Math.TAU) {
+            newAngle -= Math.TAU;
         }
         rotateTo(newAngle, RADIANS);
 
@@ -681,7 +681,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Used when there can be only one transform box
+     * Used when there can be only one transform box.
      */
     public void mouseMoved(MouseEvent e) {
         int x = e.getX();
@@ -704,7 +704,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Used when there can be more than one transform boxes.
+     * Used when there can be more than one transform box.
      * Returns true if this particular transform box handles
      * the given mouse moved event.
      */
@@ -746,10 +746,10 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     private void moveWholeBox(double coDX, double coDY) {
-        nw.relTranslate(beforeMovement.nw, coDX, coDY);
-        ne.relTranslate(beforeMovement.ne, coDX, coDY);
-        se.relTranslate(beforeMovement.se, coDX, coDY);
-        sw.relTranslate(beforeMovement.sw, coDX, coDY);
+        nw.translateFrom(beforeMovement.nw, coDX, coDY);
+        ne.translateFrom(beforeMovement.ne, coDX, coDY);
+        se.translateFrom(beforeMovement.se, coDX, coDY);
+        sw.translateFrom(beforeMovement.sw, coDX, coDY);
 
         cornerHandlesMoved();
 
@@ -1328,7 +1328,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     @Override
     public void coCoordsChanged(View view) {
         for (CornerHandle corner : corners) {
-            corner.restoreCoordsFromImSpace(view);
+            corner.syncCoCoordsFromImSpace(view);
         }
         updateEdgePositions();
         updateRotHandleLocation();
@@ -1354,7 +1354,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     /**
-     * Transforms the box geometry with the given component-space transformation
+     * Transforms the box geometry with the given component-space transformation.
      */
     public void coTransform(AffineTransform at) {
         nw.coTransformOnlyThis(at, beforeMovement.nw);
@@ -1416,6 +1416,8 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         if (angleDeg > 338) { // 360 - (45/2) = 338
             return 0;
         }
+        // adding 22∘ (approx. 45∘/2) shifts the intervals so that
+        // each 45∘ sector is centered directly around its direction
         return (angleDeg + 22) / 45;
     }
 
@@ -1489,7 +1491,7 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
     }
 
     private void saveState() {
-        beforeMovement = copyState();
+        beforeMovement = createMemento();
     }
 
     public Memento getBeforeMovementMemento() {
@@ -1500,10 +1502,6 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
         for (CornerHandle corner : corners) {
             corner.saveImTransformRefPoint();
         }
-    }
-
-    private Memento copyState() {
-        return new Memento(this);
     }
 
     public void restoreFrom(Memento m) {
@@ -1566,24 +1564,13 @@ public class TransformBox implements ToolWidget, Debuggable, Serializable {
             comp.pathChanged();
         }
 
-        Memento afterMovement = copyState();
+        Memento afterMovement = createMemento();
         return new TransformBoxChangedEdit(editName, comp,
             this, beforeMovement, afterMovement);
     }
 
-    public Rectangle2D getOrigImRect() {
-        return origImRect;
-    }
-
     public Memento createMemento() {
         return new Memento(this);
-    }
-
-    public static TransformBox fromMemento(Memento memento, View view, Transformable target) {
-        TransformBox box = new TransformBox(memento.origImRect, view, target);
-        box.restoreFrom(memento);
-
-        return box;
     }
 
     /**

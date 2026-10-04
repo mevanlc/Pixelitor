@@ -62,7 +62,7 @@ public class MicroscopeTransition2D extends Transition2D {
             }
         }
 
-        Rectangle2D[] r = v.toArray(new Rectangle2D[v.size()]);
+        Rectangle2D[] r = v.toArray(new Rectangle2D[0]);
         Transition2DInstruction[] instr = new Transition2DInstruction[1 + r.length];
 
         Rectangle2D bigRect = new Rectangle2D.Double(0, 0, tileWidth * size.width, tileHeight * size.height);

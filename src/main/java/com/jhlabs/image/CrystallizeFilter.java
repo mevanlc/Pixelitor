@@ -17,58 +17,56 @@ limitations under the License.
 package com.jhlabs.image;
 
 /**
- * A filter which applies a crystallizing effect to an image, by producing Voronoi cells filled with colours from the image.
+ * A filter which applies a crystallizing effect to an image, by producing Voronoi cells filled with colors from the image.
  */
 public class CrystallizeFilter extends CellularFilter {
-    private float edgeThickness = 0.4f;
-    private boolean fadeEdges = false;
-    private int edgeColor = 0xFF_00_00_00;
+    private final float edgeThickness;
+    private final int edgeColor;
+    private final boolean fadeEdges;
 
-    public CrystallizeFilter(String filterName) {
-        super(filterName);
-    }
-
-    public void setEdgeThickness(float edgeThickness) {
+    public CrystallizeFilter(String filterName,
+                             float scale,
+                             float stretch,
+                             float angle,
+                             GridType gridType,
+                             float randomness,
+                             float edgeThickness,
+                             int edgeColor,
+                             boolean fadeEdges) {
+        super(filterName, scale, stretch, angle, gridType, randomness, null, 1.0f, 0.0f, 0.0f);
         this.edgeThickness = edgeThickness;
-    }
-
-    public void setFadeEdges(boolean fadeEdges) {
-        this.fadeEdges = fadeEdges;
-    }
-
-    public void setEdgeColor(int edgeColor) {
         this.edgeColor = edgeColor;
+        this.fadeEdges = fadeEdges;
     }
 
     @Override
     public int genPixel(int x, int y, int[] inPixels, int width, int height) {
-        float nx = m00 * x + m01 * y;
-        float ny = m10 * x + m11 * y;
-        nx /= scale;
-        ny /= scale * stretch;
-        nx += 1000;
-        ny += 1000;    // Reduce artifacts around 0,0
-
-        evaluate(nx, ny);
-
-        Point[] results = resultsTL.get();
+        Point[] results = findNearestPoints(x, y);
 
         float f1 = results[0].distance;
         float f2 = results[1].distance;
-        int srcx = ImageMath.clamp((int) ((results[0].x - 1000) * scale), 0, width - 1);
-        int srcy = ImageMath.clamp((int) ((results[0].y - 1000) * scale), 0, height - 1);
-        int v = inPixels[srcy * width + srcx];
-        float f = (f2 - f1) / edgeThickness;
-        f = ImageMath.smoothStep(0, edgeThickness, f);
-        if (fadeEdges) {
-            srcx = ImageMath.clamp((int) ((results[1].x - 1000) * scale), 0, width - 1);
-            srcy = ImageMath.clamp((int) ((results[1].y - 1000) * scale), 0, height - 1);
-            int v2 = inPixels[srcy * width + srcx];
-            v2 = ImageMath.mixColors(0.5f, v2, v);
-            v = ImageMath.mixColors(f, v2, v);
-        } else {
-            v = ImageMath.mixColors(f, edgeColor, v);
+
+        // sample source pixel using the inverse transform
+        int color = getSourcePixel(results[0], inPixels, width, height);
+
+        float edgeBlend = (f2 - f1) / edgeThickness;
+        edgeBlend = ImageMath.smoothStep(0, edgeThickness, edgeBlend);
+        // TODO instead of the 2 lines above, we should have
+        // float edgeBlend = ImageMath.smoothStep(0, edgeThickness, f2 - f1);
+        // (leaving the old way for now for compatibility)
+
+        if (edgeBlend >= 1.0f) {
+            return color; // interior: the blend would return this color anyway
         }
-        return v;
+
+        if (fadeEdges) {
+            // sample second nearest source pixel
+            int secondColor = getSourcePixel(results[1], inPixels, width, height);
+            secondColor = ImageMath.mixColors(0.5f, secondColor, color);
+            color = ImageMath.mixColors(edgeBlend, secondColor, color);
+        } else {
+            color = ImageMath.mixColors(edgeBlend, edgeColor, color);
+        }
+        return color;
     }
 }

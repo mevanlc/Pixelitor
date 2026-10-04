@@ -157,7 +157,7 @@ public class RailwayStrokeTester extends JFrame {
         }
     }
 
-    public static void main(String[] args) {
+    static void main() {
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel("com.formdev.flatlaf.FlatDarculaLaf");

@@ -149,7 +149,7 @@ public class Rnd {
      * Returns a random angle in the range [-π, π].
      */
     public static double nextAngle() {
-        return nextDouble() * 2 * Math.PI - Math.PI;
+        return nextDouble() * Math.TAU - Math.PI;
     }
 
     public static Color createRandomColor() {

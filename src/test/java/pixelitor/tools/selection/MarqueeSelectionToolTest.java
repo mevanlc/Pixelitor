@@ -26,6 +26,7 @@ import pixelitor.Composition;
 import pixelitor.TestHelper;
 import pixelitor.Views;
 import pixelitor.filters.gui.UserPreset;
+import pixelitor.gui.AppPanel;
 import pixelitor.gui.View;
 import pixelitor.history.History;
 import pixelitor.tools.Tools;
@@ -95,7 +96,7 @@ class MarqueeSelectionToolTest {
     @MethodSource("marqueeTools")
     void controlTemporarilySelectsMoveAndItsOptions(MarqueeSelectionTool primaryTool) {
         activate(primaryTool);
-        ToolSettingsPanelContainer settings = ToolSettingsPanelContainer.get();
+        ToolSettingsPanelContainer settings = AppPanel.TOOL_SETTINGS.getComponent();
         clearInvocations(settings);
 
         primaryTool.controlPressed();

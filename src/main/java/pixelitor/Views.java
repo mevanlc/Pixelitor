@@ -32,7 +32,7 @@ import pixelitor.tools.pen.Path;
 import pixelitor.utils.Messages;
 import pixelitor.utils.Rnd;
 import pixelitor.utils.ViewActivationListener;
-import pixelitor.utils.test.RandomGUITest;
+import pixelitor.utils.test.RandomGuiTest;
 
 import javax.swing.*;
 import java.awt.Cursor;
@@ -47,11 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toList;
-import static javax.swing.JOptionPane.CANCEL_OPTION;
-import static javax.swing.JOptionPane.CLOSED_OPTION;
-import static javax.swing.JOptionPane.NO_OPTION;
-import static javax.swing.JOptionPane.WARNING_MESSAGE;
-import static javax.swing.JOptionPane.YES_OPTION;
+import static javax.swing.JOptionPane.*;
 import static pixelitor.gui.ImageArea.Mode.FRAMES;
 import static pixelitor.utils.Texts.i18n;
 
@@ -247,7 +243,7 @@ public class Views {
      * Returns true if batch closing should continue.
      */
     public static boolean warnAndClose(View view) {
-        if (RandomGUITest.isRunning()) {
+        if (RandomGuiTest.isRunning()) {
             return true; // continue batch operations in tests
         }
 
@@ -263,7 +259,7 @@ public class Views {
                             view.close();
                             return true;
                         }
-                        // the user cancelled the save dialog or save failed
+                        // the user canceled the save dialog or save failed
                         return false;
                     case NO_OPTION:  // "Don't Save"
                         view.close();

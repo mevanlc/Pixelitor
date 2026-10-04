@@ -74,7 +74,7 @@ import pixelitor.tools.brushes.CopyBrush;
 import pixelitor.tools.transform.FreeTransformAction;
 import pixelitor.utils.*;
 import pixelitor.utils.debug.Debug;
-import pixelitor.utils.test.RandomGUITest;
+import pixelitor.utils.test.RandomGuiTest;
 import pixelitor.utils.test.SplashImageCreator;
 
 import javax.swing.*;
@@ -212,7 +212,7 @@ public class MenuBar extends JMenuBar {
         // exit
         String exitText = JVM.isMac ?
             i18n.getString("exit_mac") : i18n.getString("exit");
-        fileMenu.add(new TaskAction(exitText, () -> Pixelitor.exitApp(pw)));
+        fileMenu.add(new TaskAction(exitText, () -> Pixelitor.requestExit(pw)));
 
         return fileMenu;
     }
@@ -357,11 +357,11 @@ public class MenuBar extends JMenuBar {
 
         // raise layer selection
         sub.addViewEnabled(RAISE_LAYER_SELECTION, i18n.getString("raise_layer_selection_tt"),
-            comp -> comp.getActiveHolder().raiseLayerSelection(), PAGE_UP);
+            comp -> comp.getActiveHolder().activateLayerAbove(), PAGE_UP);
 
         // lower layer selection
         sub.addViewEnabled(LOWER_LAYER_SELECTION, i18n.getString("lower_layer_selection_tt"),
-            comp -> comp.getActiveHolder().lowerLayerSelection(), PAGE_DOWN);
+            comp -> comp.getActiveHolder().activateLayerBelow(), PAGE_DOWN);
 
         sub.addSeparator();
 
@@ -1032,6 +1032,7 @@ public class MenuBar extends JMenuBar {
         sub.addFilter(FractalTree.NAME, FractalTree::new);
         sub.addFilter(JuliaSet.NAME, JuliaSet::new);
         sub.addFilter(MandelbrotSet.NAME, MandelbrotSet::new);
+        sub.addFilter(NewtonFractal.NAME, NewtonFractal::new);
 
         return sub;
     }
@@ -1097,10 +1098,10 @@ public class MenuBar extends JMenuBar {
         viewMenu.addSeparator();
 
         WorkSpace workSpace = pw.getWorkSpace();
-        viewMenu.add(workSpace.getStatusBarAction());
-        viewMenu.add(workSpace.getHistogramsAction(), F6);
-        viewMenu.add(workSpace.getLayersAction(), F7);
-        viewMenu.add(workSpace.getToolsAction());
+        viewMenu.add(workSpace.getAction(AppPanel.STATUS_BAR));
+        viewMenu.add(workSpace.getAction(AppPanel.HISTOGRAMS), F6);
+        viewMenu.add(workSpace.getAction(AppPanel.LAYERS), F7);
+        viewMenu.add(workSpace.getAction(AppPanel.TOOLS), F5);
         viewMenu.add(workSpace.getAllAction(), F8);
 
         // reset workspace
@@ -1354,7 +1355,7 @@ public class MenuBar extends JMenuBar {
         sub.addFilter(ParamTestFilter.NAME, ParamTestFilter::new);
 
         sub.add(new TaskAction("Random GUI Test", () ->
-            RandomGUITest.get().start()), CTRL_R);
+            RandomGuiTest.get().start()), CTRL_R);
 
         sub.addViewEnabled("Save in All Formats...", FileIO::saveInAllFormats);
 

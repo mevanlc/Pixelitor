@@ -179,7 +179,7 @@ public class SquareRainTransition2D extends AbstractClippedTransition2D {
             }
         }
 
-        Shape[] shapes = v.toArray(new Shape[v.size()]);
+        Shape[] shapes = v.toArray(new Shape[0]);
 
         //make sure the stroke doesn't show:
         float k = getStrokeWidth(progress, size) + 1;

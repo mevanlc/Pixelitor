@@ -18,7 +18,6 @@
 package pixelitor.filters.jhlabsproxies;
 
 import com.jhlabs.image.CheckFilter;
-import com.jhlabs.image.ImageMath;
 import pixelitor.colors.Colors;
 import pixelitor.filters.ParametrizedFilter;
 import pixelitor.filters.gui.*;
@@ -72,7 +71,7 @@ public class JHCheckerFilter extends ParametrizedFilter {
             fuzziness.getValue(),
             (float) angle.getValueInRadians(),
             distortion.getPercentage(0), // wave amount
-            distortion.getPercentage(1) * ImageMath.TWO_PI // wave phase
+            distortion.getPercentage(1) * Math.TAU // wave phase
         );
 
         dest = filter.filter(src, dest);

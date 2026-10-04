@@ -17,6 +17,7 @@
 
 package pixelitor.filters;
 
+import com.jhlabs.image.ImageMath;
 import net.jafama.FastMath;
 import pixelitor.filters.gui.AngleParam;
 import pixelitor.filters.gui.Help;
@@ -62,9 +63,9 @@ public class Lissajous extends CurveFilter {
 
         double w = width / 2.0;
         double h = height / 2.0;
-        double dt = 2 * Math.PI / NUM_STEPS;
+        double dt = Math.TAU / NUM_STEPS;
 
-        double distThreshold = Math.sqrt(width * width + height * height) / 50;
+        double distThreshold = ImageMath.hypot(width, height) / 50;
         double angleThreshold = calcAngleThreshold(aVal, bVal);
 
         PathConnector connector = new PathConnector(NUM_STEPS + 1, distThreshold, angleThreshold);

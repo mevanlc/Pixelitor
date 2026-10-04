@@ -57,7 +57,7 @@ public record AutoPaintSettings(
     public PPoint genRandomEndPoint(PPoint start, Composition comp, SplittableRandom rand) {
         Canvas canvas = comp.getCanvas();
         double angle = switch (strokeDirection) {
-            case RANDOM -> rand.nextDouble() * 2 * Math.PI;
+            case RANDOM -> rand.nextDouble() * Math.TAU;
             case RADIAL -> getRadialAngle(start, canvas);
             case CIRCULAR -> getRadialAngle(start, canvas) + Math.PI / 2.0;
             case NOISE -> {

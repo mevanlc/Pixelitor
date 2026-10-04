@@ -23,12 +23,9 @@ import net.jafama.FastMath;
 
 import java.awt.geom.AffineTransform;
 
-import static java.awt.geom.PathIterator.SEG_CLOSE;
-import static java.awt.geom.PathIterator.SEG_CUBICTO;
-import static java.awt.geom.PathIterator.SEG_LINETO;
-import static java.awt.geom.PathIterator.SEG_MOVETO;
-import static java.awt.geom.PathIterator.SEG_QUADTO;
+import static java.awt.geom.PathIterator.*;
 import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
 
 public abstract class PathSegment {
     public int type;
@@ -369,7 +366,7 @@ public abstract class PathSegment {
         private static float difference(float angle1, float angle2) {
             float diff = Math.abs(angle1 - angle2);
             if (diff > PI) {
-                diff = (float) (2 * PI - diff);
+                diff = (float) (TAU - diff);
             }
             return diff;
         }

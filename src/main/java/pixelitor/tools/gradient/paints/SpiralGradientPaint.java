@@ -27,9 +27,7 @@ import java.awt.image.ColorModel;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 
-import static java.awt.MultipleGradientPaint.CycleMethod.NO_CYCLE;
-import static java.awt.MultipleGradientPaint.CycleMethod.REFLECT;
-import static java.awt.MultipleGradientPaint.CycleMethod.REPEAT;
+import static java.awt.MultipleGradientPaint.CycleMethod.*;
 
 /**
  * A Paint that creates a "spiral gradient"
@@ -194,9 +192,9 @@ public record SpiralGradientPaint(boolean clockwise, Drag drag,
                 relativeAngle = drawAngle - renderAngle;
             }
             if (relativeAngle < 0) {
-                relativeAngle += 2 * Math.PI;
+                relativeAngle += Math.TAU;
             }
-            relativeAngle /= 2.0 * Math.PI;
+            relativeAngle /= Math.TAU;
 
             double renderDist = drag.calcDistFromStart(x, y);
 

@@ -48,7 +48,7 @@ public class MainGuiTest {
     /**
      * The entry point for this GUI test.
      */
-    public static void main(String[] args) {
+    static void main(String[] args) {
         Texts.init();
         Utils.ensureAssertionsEnabled();
         FailOnThreadViolationRepaintManager.install();

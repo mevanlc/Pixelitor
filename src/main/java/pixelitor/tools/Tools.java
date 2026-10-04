@@ -21,6 +21,7 @@ import pixelitor.AppMode;
 import pixelitor.Composition;
 import pixelitor.Views;
 import pixelitor.filters.gui.UserPreset;
+import pixelitor.gui.AppPanel;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.gui.View;
 import pixelitor.layers.Layer;
@@ -122,7 +123,7 @@ public class Tools {
         }
 
         // Presets depend on controls created by the settings panel initialization.
-        ToolSettingsPanelContainer.get();
+        AppPanel.TOOL_SETTINGS.getComponent();
 
         // Load the startup tool last so that shared settings, such as colors,
         // come from its Default preset rather than another tool's preset.
@@ -216,7 +217,7 @@ public class Tools {
             }
         }
 
-        ToolSettingsPanelContainer.get().showSettingsOf(activeTool);
+        AppPanel.TOOL_SETTINGS.<ToolSettingsPanelContainer>getComponent().showSettingsOf(activeTool);
     }
 
     /**

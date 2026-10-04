@@ -34,7 +34,6 @@ public class ColorParamGUI extends JPanel implements ParamGUI {
     public static final int BUTTON_SIZE = 30;
 
     private final ColorParam model;
-    private final FilterButtonModel sideButtonModel;
     private final ColorSwatch colorSwatch;
     private ResetButton resetButton;
 
@@ -42,7 +41,6 @@ public class ColorParamGUI extends JPanel implements ParamGUI {
         super(new FlowLayout(LEFT));
 
         this.model = model;
-        this.sideButtonModel = sideButtonModel;
 
         Color color = model.getColor();
         colorSwatch = new ColorSwatch(color, BUTTON_SIZE);

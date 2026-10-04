@@ -16,33 +16,22 @@ limitations under the License.
 
 package com.jhlabs.image;
 
+import static java.lang.Math.PI;
+import static java.lang.Math.TAU;
+
 /**
  * A class containing static math methods useful for image processing.
  */
 public class ImageMath {
-    /**
-     * The value of pi as a float.
-     */
-    public static final float PI = (float) Math.PI;
+    public static final float PI_F = (float) PI; // π as a float
+    public static final float TAU_F = (float) TAU; // 2π as a float
 
-    /**
-     * The value of half pi as a float.
-     */
-    public static final float HALF_PI = (float) Math.PI / 2.0f;
+    public static final double INV_PI = 1.0 / PI;   // 1/π
+    public static final double INV_TAU = 1.0 / TAU; // 1/2π
 
-    /**
-     * The value of quarter pi as a float.
-     */
-    public static final float QUARTER_PI = (float) Math.PI / 4.0f;
-
-    /**
-     * The value of two pi as a float.
-     */
-    public static final float TWO_PI = (float) Math.PI * 2.0f;
-
-    public static final double SQRT_3 = 1.7320508075688772;
-    public static final double HALF_SQRT_3 = SQRT_3 / 2.0;
     public static final double SQRT_2 = 1.4142135623730951;
+    public static final double SQRT_3 = 1.7320508075688772;
+    public static final double COS_30 = 0.8660254037844386; // = sqrt(3) / 2
 
     private ImageMath() {
     }
@@ -191,8 +180,8 @@ public class ImageMath {
      * @return the output value
      */
     public static float circleUp(float x) {
-        x = 1 - x;
-        return (float) Math.sqrt(1 - x * x);
+        assert x >= 0.0f && x <= 1.0f : "x must be in [0, 1], got: " + x;
+        return (float) Math.sqrt(x * (2.0f - x));
     }
 
     /**
@@ -202,7 +191,8 @@ public class ImageMath {
      * @return the output value
      */
     public static float circleDown(float x) {
-        return 1.0f - (float) Math.sqrt(1 - x * x);
+        assert x >= 0.0f && x <= 1.0f : "x must be in [0, 1], got: " + x;
+        return 1.0f - (float) Math.sqrt(Math.max(0.0f, 1.0f - x * x));
     }
 
     /**
@@ -273,18 +263,18 @@ public class ImageMath {
      */
     public static float triangle(float x) {
         float r = mod(x, 1.0f);
-        return 2.0f * (r < 0.5 ? r : 1 - r);
+        return 2.0f * (r < 0.5f ? r : 1.0f - r);
     }
 
     // triangle for doubles
     public static double triangle(double x) {
         double r = mod(x, 1.0);
-        return 2.0 * (r < 0.5 ? r : 1 - r);
+        return 2.0 * (r < 0.5 ? r : 1.0 - r);
     }
 
     /**
      * Returns a repeating triangle with range 0..width and with wavelength 2*width
-     * Intended to be used as the "reflect" edge action in transform filters
+     * Intended to be used as the "reflect" edge action in transform filters.
      */
     public static int reflectTriangle(int x, int width) {
         int doubleWidth = 2 * width;
@@ -294,25 +284,17 @@ public class ImageMath {
     }
 
     /**
-     * A triangle function with a period of 2 PI and values between -1 and 1
+     * A triangle function with a period of 2π and values between -1 and 1.
      */
-    public static float sinLikeTriangle(float x) {
-        return 2 * triangle(x / (2 * ImageMath.PI)) - 1;
-    }
-
     public static double sinLikeTriangle(double x) {
-        return 2 * triangle(x / (2 * Math.PI)) - 1;
+        return 2 * triangle(x * INV_TAU) - 1;
     }
 
     /**
-     * A sawtooth function with a period of 2 PI and values between -1 and 1
+     * A sawtooth function with a period of 2π and values between -1 and 1.
      */
-    public static float sinLikeSawtooth(float x) {
-        return 2 * mod(x / (2 * PI), 1) - 1;
-    }
-
     public static double sinLikeSawtooth(double x) {
-        return 2 * mod(x / (2 * Math.PI), 1) - 1;
+        return 2 * mod(x * INV_TAU, 1) - 1;
     }
 
     /**
@@ -396,21 +378,10 @@ public class ImageMath {
         return (a1 << 24) | (r1 << 16) | (g1 << 8) | b1;
     }
 
-    // mix colors with double precision
+    // mix colors with a double t
     public static int mixColors(double t, int rgb1, int rgb2) {
-        int a1 = rgb1 >>> 24;
-        int r1 = (rgb1 >> 16) & 0xFF;
-        int g1 = (rgb1 >> 8) & 0xFF;
-        int b1 = rgb1 & 0xFF;
-        int a2 = rgb2 >>> 24;
-        int r2 = (rgb2 >> 16) & 0xFF;
-        int g2 = (rgb2 >> 8) & 0xFF;
-        int b2 = rgb2 & 0xFF;
-        a1 = lerp(t, a1, a2);
-        r1 = lerp(t, r1, r2);
-        g1 = lerp(t, g1, g2);
-        b1 = lerp(t, b1, b2);
-        return (a1 << 24) | (r1 << 16) | (g1 << 8) | b1;
+        // 8-bit channels do not benefit from double precision over float precision
+        return mixColors((float) t, rgb1, rgb2);
     }
 
     // a performance-optimized version, usable if one of the colors and the mix ratio is always the same
@@ -447,6 +418,17 @@ public class ImageMath {
     }
 
     /**
+     * Evaluates a 1D Catmull-Rom spline segment given 4 control points and t in [0, 1].
+     */
+    private static float catmullRom(float p0, float p1, float p2, float p3, float t) {
+        float c3 = -0.5f * p0 + 1.5f * p1 - 1.5f * p2 + 0.5f * p3;
+        float c2 = p0 - 2.5f * p1 + 2.0f * p2 - 0.5f * p3;
+        float c1 = -0.5f * p0 + 0.5f * p2;
+        float c0 = p1;
+        return ((c3 * t + c2) * t + c1) * t + c0;
+    }
+
+    /**
      * Performs a 1D cubic interpolation between 4 points for each color channel.
      * This is based on the Catmull-Rom spline.
      *
@@ -466,18 +448,7 @@ public class ImageMath {
             float k2 = (p2 >> shift) & 0xFF;
             float k3 = (p3 >> shift) & 0xFF;
 
-            float c3 = m00 * k0 + m01 * k1 + m02 * k2 + m03 * k3;
-            float c2 = m10 * k0 + m11 * k1 + m12 * k2 + m13 * k3;
-            float c1 = m20 * k0 + m21 * k1 + m22 * k2 + m23 * k3;
-            float c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
-            float result = ((c3 * t + c2) * t + c1) * t + c0;
-
-            int n = (int) result;
-            if (n < 0) {
-                n = 0;
-            } else if (n > 255) {
-                n = 255;
-            }
+            int n = Math.clamp((int) catmullRom(k0, k1, k2, k3, t), 0, 255);
             v |= n << shift;
         }
         return v;
@@ -492,12 +463,11 @@ public class ImageMath {
      * @return the interpolated value
      */
     public static int bicubicInterpolate(float x, float y, int[][] p) {
-        int[] a = new int[4];
-        a[0] = cubicInterpolate(p[0][0], p[0][1], p[0][2], p[0][3], x);
-        a[1] = cubicInterpolate(p[1][0], p[1][1], p[1][2], p[1][3], x);
-        a[2] = cubicInterpolate(p[2][0], p[2][1], p[2][2], p[2][3], x);
-        a[3] = cubicInterpolate(p[3][0], p[3][1], p[3][2], p[3][3], x);
-        return cubicInterpolate(a[0], a[1], a[2], a[3], y);
+        int a0 = cubicInterpolate(p[0][0], p[0][1], p[0][2], p[0][3], x);
+        int a1 = cubicInterpolate(p[1][0], p[1][1], p[1][2], p[1][3], x);
+        int a2 = cubicInterpolate(p[2][0], p[2][1], p[2][2], p[2][3], x);
+        int a3 = cubicInterpolate(p[3][0], p[3][1], p[3][2], p[3][3], x);
+        return cubicInterpolate(a0, a1, a2, a3, y);
     }
 
     /**
@@ -531,23 +501,13 @@ public class ImageMath {
         return (77 * r + 150 * g + 29 * b) >> 8;
     }
 
-    // Catmull-Rom splines
-    private static final float m00 = -0.5f;
-    private static final float m01 = 1.5f;
-    private static final float m02 = -1.5f;
-    private static final float m03 = 0.5f;
-    private static final float m10 = 1.0f;
-    private static final float m11 = -2.5f;
-    private static final float m12 = 2.0f;
-    private static final float m13 = -0.5f;
-    private static final float m20 = -0.5f;
-    private static final float m21 = 0.0f;
-    private static final float m22 = 0.5f;
-    private static final float m23 = 0.0f;
-    private static final float m30 = 0.0f;
-    private static final float m31 = 1.0f;
-    private static final float m32 = 0.0f;
-    private static final float m33 = 0.0f;
+    public static int[] calcLuminanceInt(int[] inPixels) {
+        int[] luma = new int[inPixels.length];
+        for (int i = 0; i < inPixels.length; i++) {
+            luma[i] = calcLuminanceInt(inPixels[i]);
+        }
+        return luma;
+    }
 
     /**
      * Compute a Catmull-Rom spline.
@@ -560,35 +520,23 @@ public class ImageMath {
      * @return the spline value
      */
     public static float spline(float x, int numKnots, float[] knots, boolean clamp) {
-        int span;
         int numSpans = numKnots - 3;
-        float k0, k1, k2, k3;
-        float c0, c1, c2, c3;
-
         if (numSpans < 1) {
             throw new IllegalArgumentException("Too few knots in spline");
         }
 
         x = clamp01(x) * numSpans;
-        span = (int) x;
+        int span = (int) x;
         if (span > numKnots - 4) {
             span = numKnots - 4;
         }
         x -= span;
 
-        k0 = knots[span];
-        k1 = knots[span + 1];
-        k2 = knots[span + 2];
-        k3 = knots[span + 3];
-
-        c3 = m00 * k0 + m01 * k1 + m02 * k2 + m03 * k3;
-        c2 = m10 * k0 + m11 * k1 + m12 * k2 + m13 * k3;
-        c1 = m20 * k0 + m21 * k1 + m22 * k2 + m23 * k3;
-        c0 = m30 * k0 + m31 * k1 + m32 * k2 + m33 * k3;
-
-        float result = ((c3 * x + c2) * x + c1) * x + c0;
+        float result = catmullRom(knots[span], knots[span + 1], knots[span + 2], knots[span + 3], x);
 
         if (clamp) {
+            float k1 = knots[span + 1];
+            float k2 = knots[span + 2];
             return clamp(result, Math.min(k1, k2), Math.max(k1, k2));
         }
 
@@ -664,6 +612,7 @@ public class ImageMath {
      * Returns the base-2 logarithm of the given positive number, rounded up.
      */
     public static int ceilLog2(int n) {
+        assert n > 0 : "n must be positive, got: " + n;
         return Integer.SIZE - Integer.numberOfLeadingZeros(n - 1);
     }
 
@@ -671,6 +620,17 @@ public class ImageMath {
      * Returns the base-2 logarithm of the given positive number, rounded down.
      */
     public static int floorLog2(int n) {
+        assert n > 0 : "n must be positive, got: " + n;
         return (Integer.SIZE - 1) - Integer.numberOfLeadingZeros(n);
+    }
+
+    // FastMath.hypot is faster than Math.hypot, but this is
+    // the fastest (but it doesn't prevent overflow/underflow)
+    public static double hypot(double dx, double dy) {
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    public static float hypot(float dx, float dy) {
+        return (float) Math.sqrt(dx * dx + dy * dy);
     }
 }

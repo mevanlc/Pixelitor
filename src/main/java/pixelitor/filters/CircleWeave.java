@@ -107,7 +107,7 @@ public class CircleWeave extends CurveFilter {
 
         Path2D path = new Path2D.Double();
         for (int i = 0; i < vertices.length; i++) {
-            double angle = 2 * Math.PI * i / vertices.length;
+            double angle = Math.TAU * i / vertices.length;
             double radiusVariation = 1.0 + radiusTuning * sin(angle);
             double radius = baseRadius * radiusVariation;
 
@@ -219,7 +219,7 @@ public class CircleWeave extends CurveFilter {
     private Point2D[] calcVertexPoints(int numPoints, double radius) {
         Point2D[] points = new Point2D[numPoints];
 
-        double angleIncrement = 2 * Math.PI / numPoints;
+        double angleIncrement = Math.TAU / numPoints;
         for (int i = 0; i < numPoints; i++) {
             double angle = i * angleIncrement - Math.PI / 2.0;
             points[i] = new Point2D.Double(

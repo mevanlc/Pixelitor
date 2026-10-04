@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Laszlo Balazs-Csiki and Contributors
+ * Copyright 2026 Laszlo Balazs-Csiki and Contributors
  *
  * This file is part of Pixelitor. Pixelitor is free software: you
  * can redistribute it and/or modify it under the terms of the GNU
@@ -39,9 +39,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.EnumSet;
 
-import static java.awt.event.MouseEvent.MOUSE_DRAGGED;
-import static java.awt.event.MouseEvent.MOUSE_PRESSED;
-import static java.awt.event.MouseEvent.MOUSE_RELEASED;
+import static java.awt.event.MouseEvent.*;
 import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.utils.AngleUnit.INTUITIVE_DEGREES;
 
@@ -246,7 +244,7 @@ class TransformBoxTest {
         assertThat(box.getNE()).isAt(600, 100).isAtIm(600, 100);
 
         var at = box.calcImTransform();
-        Assertions.assertEquals(at.getType(), AffineTransform.TYPE_GENERAL_SCALE | AffineTransform.TYPE_TRANSLATION);
+        Assertions.assertEquals(AffineTransform.TYPE_GENERAL_SCALE | AffineTransform.TYPE_TRANSLATION, at.getType());
         // check that a point at NW does not move...
         checkTransform(at, 200, 100, 200, 100);
         // ...and that a point at SE transforms like SE

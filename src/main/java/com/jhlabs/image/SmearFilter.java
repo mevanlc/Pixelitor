@@ -18,7 +18,10 @@ package com.jhlabs.image;
 
 import pixelitor.ThreadPool;
 
+import java.awt.Shape;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Future;
@@ -28,9 +31,9 @@ import java.util.concurrent.Future;
  * by drawing numerous small, randomly placed shapes over the image.
  * <p>
  * The filter works by sampling a pixel's color from the original image
- * and drawing a shape (such as a line, cross, circle, square, or diamond)
- * of that color over the neighboring pixels. The density, maximum
- * distance (size), and blending mix of these shapes can be customized.
+ * and drawing a shape (such as a line, cross, circle, square, diamond, hexagon,
+ * triangle, 4-point star, or 5-point star) of that color over the neighboring pixels. The density,
+ * maximum distance (size), and blending mix of these shapes can be customized.
  */
 public class SmearFilter extends WholeImageFilter {
     public static final int CROSSES = 0;
@@ -38,13 +41,18 @@ public class SmearFilter extends WholeImageFilter {
     public static final int CIRCLES = 2;
     public static final int SQUARES = 3;
     public static final int DIAMONDS = 4;
+    public static final int HEXAGONS = 5;
+    public static final int TRIANGLES = 6;
+    public static final int ASTROIDS = 7;
+    public static final int STARS = 8;
 
     private final float angle;
     private final float density;
     private final int distance;
     private final Random random;
     private final int shape;
-    private final float mix;
+    private final int mixInt;
+    private final int invMixInt;
 
     /**
      * Constructs a new {@link SmearFilter}.
@@ -52,7 +60,8 @@ public class SmearFilter extends WholeImageFilter {
      * @param filterName the name of the filter
      * @param shape      the shape used to smear pixels; one of
      *                   {@link #LINES}, {@link #CROSSES}, {@link #CIRCLES},
-     *                   {@link #SQUARES}, or {@link #DIAMONDS}
+     *                   {@link #SQUARES}, {@link #DIAMONDS}, {@link #HEXAGONS},
+     *                   {@link #TRIANGLES}, {@link #ASTROIDS}, or {@link #STARS}
      * @param distance   the maximum size (radius or half-length) of each
      *                   drawn shape, in pixels; must be positive
      * @param density    the relative number of shapes drawn per unit area, in the range [0, 1]
@@ -65,11 +74,17 @@ public class SmearFilter extends WholeImageFilter {
     public SmearFilter(String filterName, int shape, int distance,
                        float density, float angle, float mix, Random random) {
         super(filterName);
+
+        assert distance >= 0;
+        assert density >= 0 && density <= 1;
+        assert mix >= 0 && mix <= 1;
+
         this.shape = shape;
         this.distance = distance;
         this.density = density;
         this.angle = angle;
-        this.mix = mix;
+        this.mixInt = (int) (mix * 256);
+        this.invMixInt = 256 - mixInt;
         this.random = random;
     }
 
@@ -77,11 +92,15 @@ public class SmearFilter extends WholeImageFilter {
     protected int[] filterPixels(int width, int height, int[] inPixels) {
         int[] outPixels = new int[width * height];
         System.arraycopy(inPixels, 0, outPixels, 0, width * height);
+        if (distance == 0 || density == 0.0f || mixInt == 0) {
+            return outPixels;
+        }
 
         switch (shape) {
             case CROSSES -> renderCrosses(width, height, inPixels, outPixels);
             case LINES -> renderLines(width, height, inPixels, outPixels);
-            case SQUARES, CIRCLES, DIAMONDS -> renderShapes(width, height, inPixels, outPixels);
+            case SQUARES, CIRCLES, DIAMONDS, HEXAGONS, TRIANGLES,
+                 ASTROIDS, STARS -> renderShapes(width, height, inPixels, outPixels);
         }
 
         finishProgressTracker();
@@ -98,8 +117,6 @@ public class SmearFilter extends WholeImageFilter {
 
         List<Future<?>> futures = new ArrayList<>(workUnits);
 
-        int maxDistance = Math.max(1, distance);
-
         for (int i = 0; i < numShapes; i += stride) {
             int currentStride = Math.min(stride, numShapes - i);
             int[] xs = new int[currentStride];
@@ -109,7 +126,7 @@ public class SmearFilter extends WholeImageFilter {
             for (int j = 0; j < currentStride; j++) {
                 xs[j] = random.nextInt(width);
                 ys[j] = random.nextInt(height);
-                lengths[j] = random.nextInt(maxDistance) + 1;
+                lengths[j] = random.nextInt(distance) + 1;
             }
 
             Runnable r = () -> {
@@ -129,9 +146,6 @@ public class SmearFilter extends WholeImageFilter {
         int r2 = (rgb >> 16) & 0xFF;
         int g2 = (rgb >> 8) & 0xFF;
         int b2 = rgb & 0xFF;
-
-        int mixInt = (int) (mix * 256);
-        int invMixInt = 256 - mixInt;
 
         int startX = Math.max(0, x - length);
         int endX = Math.min(width - 1, x + length);
@@ -161,8 +175,6 @@ public class SmearFilter extends WholeImageFilter {
 
         List<Future<?>> futures = new ArrayList<>(workUnits);
 
-        int maxDistance = Math.max(1, distance);
-
         for (int i = 0; i < numShapes; i += stride) {
             int currentStride = Math.min(stride, numShapes - i);
             int[] sxs = new int[currentStride];
@@ -172,7 +184,7 @@ public class SmearFilter extends WholeImageFilter {
             for (int j = 0; j < currentStride; j++) {
                 sxs[j] = random.nextInt(width);
                 sys[j] = random.nextInt(height);
-                lengths[j] = random.nextInt(maxDistance);
+                lengths[j] = random.nextInt(distance);
             }
 
             Runnable r = () -> {
@@ -187,26 +199,24 @@ public class SmearFilter extends WholeImageFilter {
 
     private void renderOneLine(int width, int height, int[] inPixels, int[] outPixels, float sin, float cos, int sx, int sy, int length) {
         int rgb = inPixels[sy * width + sx];
-        int dx = (int) (length * cos);
-        int dy = (int) (length * sin);
+        int offsetX = (int) (length * cos);
+        int offsetY = (int) (length * sin);
 
         int a2 = rgb >>> 24;
         int r2 = (rgb >> 16) & 0xFF;
         int g2 = (rgb >> 8) & 0xFF;
         int b2 = rgb & 0xFF;
 
-        int mixInt = (int) (mix * 256);
-        int invMixInt = 256 - mixInt;
+        int x0 = sx - offsetX;
+        int y0 = sy - offsetY;
+        int x1 = sx + offsetX;
+        int y1 = sy + offsetY;
 
-        int x0 = sx - dx;
-        int y0 = sy - dy;
-        int x1 = sx + dx;
-        int y1 = sy + dy;
-
-        int ddx = x1 < x0 ? -1 : 1;
-        int ddy = y1 < y0 ? -1 : 1;
-        dx = Math.abs(x1 - x0);
-        dy = Math.abs(y1 - y0);
+        // Bresenham's line algorithm from (x0, y0) to (x1, y1)
+        int stepX = x1 < x0 ? -1 : 1;
+        int stepY = y1 < y0 ? -1 : 1;
+        int absDx = Math.abs(x1 - x0);
+        int absDy = Math.abs(y1 - y0);
         int x = x0;
         int y = y0;
 
@@ -215,37 +225,37 @@ public class SmearFilter extends WholeImageFilter {
             outPixels[offset] = ImageMath.mixColors(outPixels[offset], a2, r2, g2, b2, mixInt, invMixInt);
         }
 
-        if (dx > dy) {
-            int d = 2 * dy - dx;
-            int incrE = 2 * dy;
-            int incrNE = 2 * (dy - dx);
+        if (absDx > absDy) { // the line is more horizontal, so the X-axis is the driving axis
+            int d = 2 * absDy - absDx;
+            int incrE = 2 * absDy;
+            int incrNE = 2 * (absDy - absDx);
 
             while (x != x1) {
                 if (d <= 0) {
                     d += incrE;
                 } else {
                     d += incrNE;
-                    y += ddy;
+                    y += stepY;
                 }
-                x += ddx;
+                x += stepX;
                 if (x >= 0 && x < width && y >= 0 && y < height) {
                     int offset = y * width + x;
                     outPixels[offset] = ImageMath.mixColors(outPixels[offset], a2, r2, g2, b2, mixInt, invMixInt);
                 }
             }
-        } else {
-            int d = 2 * dx - dy;
-            int incrE = 2 * dx;
-            int incrNE = 2 * (dx - dy);
+        } else { // the line is more vertical, making the Y-axis the driving axis
+            int d = 2 * absDx - absDy;
+            int incrE = 2 * absDx;
+            int incrNE = 2 * (absDx - absDy);
 
             while (y != y1) {
                 if (d <= 0) {
                     d += incrE;
                 } else {
                     d += incrNE;
-                    x += ddx;
+                    x += stepX;
                 }
-                y += ddy;
+                y += stepY;
                 if (x >= 0 && x < width && y >= 0 && y < height) {
                     int offset = y * width + x;
                     outPixels[offset] = ImageMath.mixColors(outPixels[offset], a2, r2, g2, b2, mixInt, invMixInt);
@@ -256,7 +266,17 @@ public class SmearFilter extends WholeImageFilter {
 
     private void renderShapes(int width, int height, int[] inPixels, int[] outPixels) {
         int radius = distance + 1;
-        int radius2 = radius * radius;
+
+        ShapeMask shapeMask = switch (shape) {
+            case SQUARES -> createSquareMask(radius);
+            case CIRCLES -> createCircleMask(radius);
+            case DIAMONDS -> createDiamondMask(radius);
+            case HEXAGONS -> createHexagonMask(radius);
+            case TRIANGLES -> createTriangleMask(radius);
+            case ASTROIDS -> createAstroidMask(radius);
+            case STARS -> createStarMask(radius, angle);
+            default -> throw new IllegalArgumentException("Unknown shape: " + shape);
+        };
 
         int numShapes = (int) (2 * density * width * height / radius);
 
@@ -278,7 +298,7 @@ public class SmearFilter extends WholeImageFilter {
 
             Runnable r = () -> {
                 for (int j = 0; j < currentStride; j++) {
-                    renderOneShape(width, height, inPixels, outPixels, radius, radius2, sxs[j], sys[j]);
+                    renderOneShape(width, height, inPixels, outPixels, shapeMask, sxs[j], sys[j]);
                 }
             };
             futures.add(ThreadPool.submit(r));
@@ -286,7 +306,7 @@ public class SmearFilter extends WholeImageFilter {
         ThreadPool.waitFor(futures, pt);
     }
 
-    private void renderOneShape(int width, int height, int[] inPixels, int[] outPixels, int radius, int radius2, int sx, int sy) {
+    private void renderOneShape(int width, int height, int[] inPixels, int[] outPixels, ShapeMask shapeMask, int sx, int sy) {
         int rgb = inPixels[sy * width + sx];
 
         int a2 = rgb >>> 24;
@@ -294,31 +314,21 @@ public class SmearFilter extends WholeImageFilter {
         int g2 = (rgb >> 8) & 0xFF;
         int b2 = rgb & 0xFF;
 
-        int mixInt = (int) (mix * 256);
-        int invMixInt = 256 - mixInt;
+        int startX = sx - shapeMask.originX();
+        int startY = sy - shapeMask.originY();
+        int minX = Math.max(0, startX);
+        int maxX = Math.min(width, startX + shapeMask.width());
+        int minY = Math.max(0, startY);
+        int maxY = Math.min(height, startY + shapeMask.height());
 
-        int minSx = Math.max(0, sx - radius);
-        int maxSx = Math.min(width, sx + radius + 1);
-        int minSy = Math.max(0, sy - radius);
-        int maxSy = Math.min(height, sy + radius + 1);
-
-        switch (shape) {
-            case CIRCLES ->
-                makeCircle(width, outPixels, radius2, sx, sy, a2, r2, g2, b2, mixInt, invMixInt, minSx, maxSx, minSy, maxSy);
-            case SQUARES -> makeSquare(width, outPixels, a2, r2, g2, b2, mixInt, invMixInt, minSx, maxSx, minSy, maxSy);
-            case DIAMONDS ->
-                makeDiamond(width, outPixels, radius, sx, sy, a2, r2, g2, b2, mixInt, invMixInt, minSx, maxSx, minSy, maxSy);
-        }
-    }
-
-    private static void makeCircle(int width, int[] outPixels, int radius2, int sx, int sy, int a2, int r2, int g2, int b2, int mixInt, int invMixInt, int minSx, int maxSx, int minSy, int maxSy) {
-        for (int y = minSy; y < maxSy; y++) {
-            int dsy = y - sy;
-            int dsy2 = dsy * dsy;
+        boolean[][] mask = shapeMask.mask();
+        for (int y = minY; y < maxY; y++) {
+            int maskY = y - startY;
+            boolean[] maskRow = mask[maskY];
             int yOffset = y * width;
-            for (int x = minSx; x < maxSx; x++) {
-                int dsx = x - sx;
-                if (dsx * dsx + dsy2 <= radius2) {
+            for (int x = minX; x < maxX; x++) {
+                int maskX = x - startX;
+                if (maskRow[maskX]) {
                     int offset = yOffset + x;
                     outPixels[offset] = ImageMath.mixColors(outPixels[offset], a2, r2, g2, b2, mixInt, invMixInt);
                 }
@@ -326,27 +336,140 @@ public class SmearFilter extends WholeImageFilter {
         }
     }
 
-    private static void makeSquare(int width, int[] outPixels, int a2, int r2, int g2, int b2, int mixInt, int invMixInt, int minSx, int maxSx, int minSy, int maxSy) {
-        for (int y = minSy; y < maxSy; y++) {
-            int offset = y * width + minSx;
-            for (int x = minSx; x < maxSx; x++) {
-                outPixels[offset] = ImageMath.mixColors(outPixels[offset], a2, r2, g2, b2, mixInt, invMixInt);
-                offset++;
-            }
+    private static ShapeMask createSquareMask(int radius) {
+        int size = 2 * radius + 1;
+        boolean[][] mask = new boolean[size][size];
+        for (int y = 0; y < size; y++) {
+            Arrays.fill(mask[y], true);
         }
+        return new ShapeMask(size, size, radius, radius, mask);
     }
 
-    private static void makeDiamond(int width, int[] outPixels, int radius, int sx, int sy, int a2, int r2, int g2, int b2, int mixInt, int invMixInt, int minSx, int maxSx, int minSy, int maxSy) {
-        for (int y = minSy; y < maxSy; y++) {
-            int dy = Math.abs(y - sy);
-            int yOffset = y * width;
-            for (int x = minSx; x < maxSx; x++) {
-                int dx = Math.abs(x - sx);
+    private static ShapeMask createCircleMask(int radius) {
+        int size = 2 * radius + 1;
+        int radius2 = radius * radius;
+        boolean[][] mask = new boolean[size][size];
+
+        for (int y = 0; y < size; y++) {
+            int dy = y - radius;
+            int dy2 = dy * dy;
+            for (int x = 0; x < size; x++) {
+                int dx = x - radius;
+                if (dx * dx + dy2 <= radius2) {
+                    mask[y][x] = true;
+                }
+            }
+        }
+
+        return new ShapeMask(size, size, radius, radius, mask);
+    }
+
+    private static ShapeMask createDiamondMask(int radius) {
+        int size = 2 * radius + 1;
+        boolean[][] mask = new boolean[size][size];
+
+        for (int y = 0; y < size; y++) {
+            int dy = Math.abs(y - radius);
+            for (int x = 0; x < size; x++) {
+                int dx = Math.abs(x - radius);
                 if (dx + dy <= radius) {
-                    int offset = yOffset + x;
-                    outPixels[offset] = ImageMath.mixColors(outPixels[offset], a2, r2, g2, b2, mixInt, invMixInt);
+                    mask[y][x] = true;
                 }
             }
+        }
+
+        return new ShapeMask(size, size, radius, radius, mask);
+    }
+
+    private static ShapeMask createHexagonMask(int radius) {
+        int size = 2 * radius + 1;
+        boolean[][] mask = new boolean[size][size];
+        double h = radius * ImageMath.COS_30;
+
+        for (int y = 0; y < size; y++) {
+            int dy = Math.abs(y - radius);
+            for (int x = 0; x < size; x++) {
+                int dx = Math.abs(x - radius);
+                if (dy <= h && (dx * ImageMath.COS_30 + dy * 0.5) <= h) {
+                    mask[y][x] = true;
+                }
+            }
+        }
+
+        return new ShapeMask(size, size, radius, radius, mask);
+    }
+
+    private static ShapeMask createTriangleMask(int radius) {
+        int size = 2 * radius + 1;
+        boolean[][] mask = new boolean[size][size];
+
+        for (int y = 0; y < size; y++) {
+            int dy = y - radius;
+            for (int x = 0; x < size; x++) {
+                int dx = Math.abs(x - radius);
+                if (dy >= -radius && dy <= radius / 2 && (dx * ImageMath.SQRT_3 - dy <= radius)) {
+                    mask[y][x] = true;
+                }
+            }
+        }
+
+        // TODO the triangle should be rotated around its centroid
+        return new ShapeMask(size, size, radius, radius, mask);
+    }
+
+    private static ShapeMask createAstroidMask(int radius) {
+        int size = 2 * radius + 1;
+        boolean[][] mask = new boolean[size][size];
+        double sqrtRadius = Math.sqrt(radius);
+
+        for (int y = 0; y < size; y++) {
+            int dy = Math.abs(y - radius);
+            double sqrtDy = Math.sqrt(dy);
+            for (int x = 0; x < size; x++) {
+                int dx = Math.abs(x - radius);
+                if (dx + dy <= radius && Math.sqrt(dx) + sqrtDy <= sqrtRadius) {
+                    mask[y][x] = true;
+                }
+            }
+        }
+
+        return new ShapeMask(size, size, radius, radius, mask);
+    }
+
+    private static ShapeMask createStarMask(int radius, double startAngle) {
+        // regular pentagram inner radius ratio: (3 - sqrt(5)) / 2 ≈ 0.381966
+        double innerRadius = radius * ((3.0 - Math.sqrt(5.0)) / 2.0);
+
+        Path2D.Double star = new Path2D.Double();
+        for (int i = 0; i < 10; i++) {
+            double angleOffset = -Math.PI / 2.0 + i * (Math.PI / 5.0);
+            double r = (i % 2 == 0) ? radius : innerRadius;
+            double angle = startAngle + angleOffset;
+            double x = radius + r * Math.cos(angle);
+            double y = radius + r * Math.sin(angle);
+            if (i == 0) {
+                star.moveTo(x, y);
+            } else {
+                star.lineTo(x, y);
+            }
+        }
+        star.closePath();
+
+        return ShapeMask.fromShape(star, radius);
+    }
+
+    public record ShapeMask(int width, int height, int originX, int originY, boolean[][] mask) {
+        public static ShapeMask fromShape(Shape shape, int radius) {
+            int size = 2 * radius + 1;
+            boolean[][] mask = new boolean[size][size];
+
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    mask[y][x] = shape.contains(x, y);
+                }
+            }
+
+            return new ShapeMask(size, size, radius, radius, mask);
         }
     }
 }
