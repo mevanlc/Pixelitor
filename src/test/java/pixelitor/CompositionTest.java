@@ -25,13 +25,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
+import pixelitor.layers.LayerGroup;
 import pixelitor.layers.LayerMoveDirection;
+import pixelitor.layers.SmartFilter;
 import pixelitor.selection.SelectionActions;
 import pixelitor.selection.SelectionData;
 import pixelitor.selection.SelectionMask;
 
 import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
+import java.util.List;
 
 import static pixelitor.TestHelper.assertHistoryEditsAre;
 import static pixelitor.TestHelper.createEmptyImageLayer;
@@ -68,6 +71,112 @@ class CompositionTest {
     @AfterEach
     void afterEachTest() {
         TestHelper.verifyAndClearHistory();
+    }
+
+    @Test
+    void toggleAllLayersVisibilityCyclesAndSupportsUndo() {
+        Layer first = comp.getLayer(0);
+        Layer second = comp.getLayer(1);
+        Layer third = createEmptyImageLayer(comp, "layer 3");
+        comp.addLayerWithoutUI(third);
+        first.setVisible(false);
+        second.setVisible(false);
+
+        comp.toggleAllLayersVisibility();
+        assertLayerVisibility(first, true);
+        assertLayerVisibility(second, true);
+        assertLayerVisibility(third, true);
+        History.assertNumEditsIs(1);
+
+        History.undo("Show All Layers");
+        assertLayerVisibility(first, false);
+        assertLayerVisibility(second, false);
+        assertLayerVisibility(third, true);
+        History.redo("Show All Layers");
+        assertLayerVisibility(first, true);
+        assertLayerVisibility(second, true);
+
+        comp.toggleAllLayersVisibility();
+        assertLayerVisibility(first, false);
+        assertLayerVisibility(second, false);
+        assertLayerVisibility(third, false);
+        History.assertNumEditsIs(2);
+        History.undo("Hide All Layers");
+        assertLayerVisibility(first, true);
+        assertLayerVisibility(second, true);
+        assertLayerVisibility(third, true);
+        History.redo("Hide All Layers");
+        assertLayerVisibility(third, false);
+
+        comp.toggleAllLayersVisibility();
+        assertLayerVisibility(first, true);
+        assertLayerVisibility(second, true);
+        assertLayerVisibility(third, true);
+        History.assertNumEditsIs(3);
+        History.undoRedo("Show All Layers");
+    }
+
+    @Test
+    void toggleAllLayersVisibilityShowsOneHiddenLayer() {
+        Layer first = comp.getLayer(0);
+        Layer second = comp.getLayer(1);
+        first.setVisible(false);
+
+        comp.toggleAllLayersVisibility();
+        assertLayerVisibility(first, true);
+        assertLayerVisibility(second, true);
+        History.assertNumEditsIs(1);
+        History.undo("Show All Layers");
+        assertLayerVisibility(first, false);
+        assertLayerVisibility(second, true);
+        History.redo("Show All Layers");
+        assertLayerVisibility(first, true);
+    }
+
+    @Test
+    void toggleAllLayersVisibilityIncludesNestedLayersAndSmartFilters() {
+        Layer child = createEmptyImageLayer(comp, "child");
+        LayerGroup group = new LayerGroup(comp, "group", List.of(child));
+        comp.addLayerWithoutUI(group);
+        Layer filter = TestHelper.createLayer(SmartFilter.class, comp);
+        comp.addLayerWithoutUI(filter.getTopLevelLayer());
+        comp.forEachNestedLayer(Layer::createUI, false);
+        child.setVisible(false);
+        filter.setVisible(false);
+
+        comp.toggleAllLayersVisibility();
+        comp.forEachNestedLayer(layer -> assertLayerVisibility(layer, true), false);
+        History.assertNumEditsIs(1);
+        History.undo("Show All Layers");
+        assertLayerVisibility(child, false);
+        assertLayerVisibility(group, true);
+        assertLayerVisibility(filter, false);
+        History.redo("Show All Layers");
+        comp.forEachNestedLayer(layer -> assertLayerVisibility(layer, true), false);
+
+        comp.toggleAllLayersVisibility();
+        comp.forEachNestedLayer(layer -> assertLayerVisibility(layer, false), false);
+        History.assertNumEditsIs(2);
+        History.undoRedo("Hide All Layers");
+    }
+
+    @Test
+    void toggleAllLayersVisibilityWorksWithOneLayer() {
+        comp = TestHelper.createComp("Single Layer", 1, false);
+        Layer only = comp.getLayer(0);
+
+        comp.toggleAllLayersVisibility();
+        assertLayerVisibility(only, false);
+        History.undoRedo("Hide All Layers");
+
+        comp.toggleAllLayersVisibility();
+        assertLayerVisibility(only, true);
+        History.assertNumEditsIs(2);
+        History.undoRedo("Show All Layers");
+    }
+
+    private static void assertLayerVisibility(Layer layer, boolean visible) {
+        assertThat(layer).isVisible(visible).uiIsVisible(visible);
     }
 
     @Test

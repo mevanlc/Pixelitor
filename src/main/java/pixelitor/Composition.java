@@ -1148,6 +1148,28 @@ public class Composition implements Serializable, ImageSource, LayerHolder {
         update();
     }
 
+    /**
+     * Shows all layers if any are hidden; otherwise hides all layers.
+     * Includes grouped layers and smart filters in one undoable change.
+     */
+    public void toggleAllLayersVisibility() {
+        List<Layer> layers = new ArrayList<>();
+        forEachNestedLayer(layers::add, false);
+        boolean newVisibility = layers.stream().anyMatch(layer -> !layer.isVisible());
+        MultiEdit edit = new MultiEdit(newVisibility ? "Show All Layers" : "Hide All Layers", this);
+        for (Layer layer : layers) {
+            if (layer.isVisible() != newVisibility) {
+                var layerEdit = new LayerVisibilityChangeEdit(this, layer, newVisibility);
+                layerEdit.setEmbedded(true);
+                edit.add(layerEdit);
+                layer.setVisible(newVisibility, false, true);
+            }
+        }
+        if (!edit.isEmpty()) {
+            History.add(edit);
+        }
+    }
+
     public void forEachTopLevelLayer(Consumer<Layer> action) {
         layerList.forEach(action);
     }

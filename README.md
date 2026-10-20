@@ -16,6 +16,8 @@ The built-in color picker includes **Eyedropper** to sample a pixel from the act
 
 The **Text History** dropdown reuses the 20 most recent accepted texts, newest first. Each entry has a preview of up to 60 characters; selecting it restores the complete text, including line breaks. History also persists across app restarts.
 
+Layer visibility eye controls accept clicks with slight pointer movement between pressing and releasing. **Alt-click** isolates a layer. **Ctrl-click** on any eye shows all layers if any are hidden, or hides all layers if all are visible; each click is one undoable change. This includes grouped layers and smart filters. Right-click leaves visibility unchanged.
+
 Contributions are welcome! See [Contributing](CONTRIBUTING.md). 
 
 ## Starting Pixelitor in an IDE

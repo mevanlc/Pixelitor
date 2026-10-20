@@ -34,6 +34,7 @@ import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -270,12 +271,13 @@ public class LayerGUI extends JToggleButton implements LayerUI {
         visibilityCB = createVisibilityCheckBox();
 
         visibilityCB.setSelected(layer.isVisible());
-        visibilityCB.setToolTipText("<html><b>Click</b> to hide/show this layer.<br><b>Alt-click</b> to isolate this layer.");
+        visibilityCB.setToolTipText("<html><b>Click</b> to hide/show this layer."
+            + "<br><b>Alt-click</b> to isolate this layer."
+            + "<br><b>Ctrl-click</b> to show/hide all layers.");
         add(visibilityCB, LayerGUILayout.CHECKBOX);
     }
 
     private JCheckBox createVisibilityCheckBox() {
-        boolean smartFilter = layer instanceof SmartFilter;
         JCheckBox cb = new JCheckBox(CLOSED_EYE_ICON) {
             @Override
             public void setUI(ButtonUI ui) {
@@ -283,22 +285,22 @@ public class LayerGUI extends JToggleButton implements LayerUI {
                 // after an LF change, it's necessary to reset the border to null
                 setBorder(null);
             }
-
-            @Override
-            protected void processMouseEvent(MouseEvent e) {
-                // isolating works after a theme-change only if the
-                // mouse event processing is overridden at this level
-                if (e.getID() == MouseEvent.MOUSE_CLICKED) {
-                    if (e.isAltDown() && !smartFilter) { // smart filters shouldn't be isolated
-                        layer.isolate();
-                    } else {
-                        // normal behavior
-                        boolean newVisibility = !visibilityCB.isSelected();
-                        layer.setVisible(newVisibility, true, true);
-                    }
-                }
-            }
         };
+        // Use the normal button action so slight pointer movement between
+        // press and release doesn't prevent a visibility change.
+        cb.addActionListener(e -> {
+            if ((e.getModifiers() & ActionEvent.CTRL_MASK) != 0) {
+                layer.getComp().toggleAllLayersVisibility();
+                cb.setSelected(layer.isVisible());
+            } else if ((e.getModifiers() & ActionEvent.ALT_MASK) != 0 && !(layer instanceof SmartFilter)) {
+                layer.isolate();
+                // Isolation may leave this layer's visibility unchanged, so
+                // undo the checkbox's automatic toggle in that case.
+                cb.setSelected(layer.isVisible());
+            } else {
+                layer.setVisible(cb.isSelected(), true, true);
+            }
+        });
         cb.setRolloverIcon(CLOSED_EYE_ICON);
         cb.setSelectedIcon(OPEN_EYE_ICON);
         cb.setFocusPainted(false);
