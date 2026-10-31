@@ -50,8 +50,8 @@ public class BatchResize {
         int maxWidth = panel.getNewWidth();
         int maxHeight = panel.getNewHeight();
 
-        var resizeAction = new Resize(maxWidth, maxHeight, true);
-        new BatchProcessor(resizeAction, "Batch Resize...").processFiles();
+        var resizeAction = new Resize(maxWidth, maxHeight, Resize.Mode.ASPECT_RATIO);
+        new BatchProcessor(resizeAction, "Batch Resize...").processFilesAsync();
     }
 
     /**

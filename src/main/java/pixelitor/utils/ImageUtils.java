@@ -29,7 +29,6 @@ import org.jdesktop.swingx.painter.CheckerboardPainter;
 import pixelitor.Canvas;
 import pixelitor.colors.Colors;
 import pixelitor.filters.Invert;
-import pixelitor.gui.utils.Dialogs;
 import pixelitor.layers.ContentLayer;
 import pixelitor.layers.ImageLayer;
 import pixelitor.layers.Layer;
@@ -71,6 +70,10 @@ import static pixelitor.utils.Threads.onPool;
 public class ImageUtils {
     private static final double DEG_315_IN_RADIANS = Math.PI / 4;
     private static final Color CHECKERBOARD_GRAY = new Color(200, 200, 200);
+
+    private static final boolean X_RENDER_WORKAROUND = Toolkit.getDefaultToolkit().getClass().getName()
+        .equals("sun.awt.X11.XToolkit");
+    private static final double MAX_SAFE_SCALED_SIZE = 16_384;
 
     private static final GraphicsConfiguration graphicsConfig = GraphicsEnvironment
         .getLocalGraphicsEnvironment()
@@ -347,7 +350,19 @@ public class ImageUtils {
         assert image != null;
 
         int type = image.getType();
-        return (type == TYPE_INT_ARGB_PRE || type == TYPE_INT_ARGB || type == TYPE_INT_RGB);
+        if (type != TYPE_INT_ARGB_PRE && type != TYPE_INT_ARGB && type != TYPE_INT_RGB) {
+            return false;
+        }
+
+        // For sub-images the underlying DataBufferInt is the entire parent
+        // image's buffer with non-zero offsets and scanline strides.
+        // Iterating over the raw array would process incorrect pixels.
+        // TODO FilterHistoryTest.filterHistory fails if this is not commented out
+//        if (isSubImage(image)) {
+//            return false;
+//        }
+
+        return (long) image.getRaster().getDataBuffer().getSize() == (long) image.getWidth() * image.getHeight();
     }
 
     /**
@@ -541,19 +556,15 @@ public class ImageUtils {
     public static BufferedImage copyImage(BufferedImage src) {
         assert src != null;
 
-        BufferedImage copy = null;
-        try {
-            WritableRaster raster = src.copyData(null);
-            copy = new BufferedImage(src.getColorModel(), raster, src.isAlphaPremultiplied(), null);
-        } catch (OutOfMemoryError e) {
-            Dialogs.showOutOfMemoryError(e);
-        }
-        return copy;
+        WritableRaster raster = src.copyData(null);
+        return new BufferedImage(src.getColorModel(), raster, src.isAlphaPremultiplied(), null);
     }
 
-    public static boolean isSubImage(BufferedImage src) {
-        WritableRaster raster = src.getRaster();
-        return raster.getSampleModelTranslateX() != 0
+    // whether the given image was created via BufferedImage.getSubimage()
+    public static boolean isSubImage(BufferedImage img) {
+        WritableRaster raster = img.getRaster();
+        return raster.getParent() != null
+            || raster.getSampleModelTranslateX() != 0
             || raster.getSampleModelTranslateY() != 0;
     }
 
@@ -590,6 +601,17 @@ public class ImageUtils {
         return new BufferedImage(src.getColorModel(),
             (WritableRaster) startingFrom00,
             src.isAlphaPremultiplied(), null);
+    }
+
+    /**
+     * Copies the source image into the destination buffer.
+     */
+    public static BufferedImage copy(BufferedImage src, BufferedImage dest) {
+        Graphics2D g = dest.createGraphics();
+        g.setComposite(AlphaComposite.Src);
+        g.drawImage(src, 0, 0, null);
+        g.dispose();
+        return dest;
     }
 
     /**
@@ -852,7 +874,7 @@ public class ImageUtils {
                                         float azimuth, float bumpHeight,
                                         String filterName, boolean tile) {
         var emboss = new EmbossFilter(filterName, azimuth,
-            (float) (Math.PI / 6.0), bumpHeight, false);
+            (float) (Math.PI / 6.0), bumpHeight, false, EmbossFilter.LightingMode.MATTE);
 
         BufferedImage bumpMap = emboss.filter(bumpImage, null);
 
@@ -1427,5 +1449,40 @@ public class ImageUtils {
                 pixels[i] = a | (r << 16) | (g << 8) | b;
             }
         }
+    }
+
+    /**
+     * Like g.drawImage(img, x, y, null), but if the image would be scaled to a
+     * huge size on the device, only the part inside the clip is drawn.
+     */
+    public static void drawImageVisiblePart(Graphics2D g, BufferedImage img, int x, int y) {
+        if (!X_RENDER_WORKAROUND) {
+            g.drawImage(img, x, y, null);
+            return;
+        }
+
+        AffineTransform at = g.getTransform();
+        double devW = img.getWidth() * Math.abs(at.getScaleX());
+        double devH = img.getHeight() * Math.abs(at.getScaleY());
+        Rectangle clip = g.getClipBounds();
+
+        if (clip == null || (devW <= MAX_SAFE_SCALED_SIZE && devH <= MAX_SAFE_SCALED_SIZE)) {
+            g.drawImage(img, x, y, null);
+            return;
+        }
+
+        int dx1 = Math.max(x, clip.x);
+        int dy1 = Math.max(y, clip.y);
+        int dx2 = Math.min(x + img.getWidth(), clip.x + clip.width);
+        int dy2 = Math.min(y + img.getHeight(), clip.y + clip.height);
+        if (dx1 >= dx2 || dy1 >= dy2) {
+            return; // nothing visible
+        }
+
+        // the sub-image shares the raster (no pixel copy) but is a different
+        // BufferedImage, so XRender sees source coordinates starting at 0
+        BufferedImage visible = img.getSubimage(dx1 - x, dy1 - y, dx2 - dx1, dy2 - dy1);
+        g.drawImage(visible, dx1, dy1, null);
+        visible.flush(); // drop any cached pixmap for this throwaway image
     }
 }

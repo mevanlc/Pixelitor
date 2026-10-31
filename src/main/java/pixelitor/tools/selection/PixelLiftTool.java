@@ -20,6 +20,7 @@ package pixelitor.tools.selection;
 import pixelitor.Composition;
 import pixelitor.Views;
 import pixelitor.filters.gui.UserPreset;
+import pixelitor.gui.CompositionReplacedContext;
 import pixelitor.gui.View;
 import pixelitor.history.History;
 import pixelitor.layers.ImageLayer;
@@ -188,7 +189,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
     @Override
     protected void dragStarted(PMouseEvent e) {
         if (canLift(e)) {
-            // Don't create a SelectionBuilder: its constructor hides or
+            // Don't create a SelectionSession: its constructor hides or
             // freezes the existing selection, which would have to be undone.
             liftState = LiftState.CANDIDATE;
             liftComp = e.getComp();
@@ -215,8 +216,8 @@ public class PixelLiftTool extends MarqueeSelectionTool {
         }
 
         if (isLifting()) {
-            e.getComp().moveActiveContent(
-                MoveMode.MOVE_BOTH, drag.getDx(), drag.getDy());
+            MoveMode.MOVE_BOTH.moveActiveContent(
+                e.getComp(), drag.getDx(), drag.getDy());
             return;
         }
 
@@ -266,7 +267,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
 
             liftedLayer = extracted;
             liftComp = comp;
-            comp.prepareMovement(MoveMode.MOVE_BOTH, false);
+            MoveMode.MOVE_BOTH.prepareMovement(comp, false);
             liftState = LiftState.LIFTING;
 
             // Space must not reposition the drag origin while lifting:
@@ -289,7 +290,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
     private void finishLift() {
         try {
             if (liftComp != null) {
-                liftComp.finalizeMovement(MoveMode.MOVE_BOTH);
+                MoveMode.MOVE_BOTH.finalizeMovement(liftComp);
 
                 if (isAutoMerge() && liftedLayer != null) {
                     LayerHolder holder = liftedLayer.getHolder();
@@ -315,7 +316,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
             if (isLifting() && liftComp != null) {
                 // convert the drag offset into a real (and undoable)
                 // translation, so that aborting can undo all of it
-                liftComp.finalizeMovement(MoveMode.MOVE_BOTH);
+                MoveMode.MOVE_BOTH.finalizeMovement(liftComp);
             }
         } finally {
             resetLiftState();
@@ -343,7 +344,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
     @Override
     public void paintOverCanvas(Graphics2D g2, Composition comp) {
         if (isLifting()) {
-            comp.drawMovementContours(g2, MoveMode.MOVE_BOTH);
+            MoveMode.MOVE_BOTH.drawMovementContours(g2, comp);
             if (drag != null && drag.isDragging()) {
                 OverlayType.REL_MOUSE_POS.draw(g2, drag);
             }
@@ -366,7 +367,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
 
         view.setCursor(isOverLiftArea(e, view)
             ? Cursors.MOVE
-            : getStartingCursor());
+            : getDefaultCursor());
     }
 
     private boolean isOverLiftArea(MouseEvent e, View view) {
@@ -393,24 +394,29 @@ public class PixelLiftTool extends MarqueeSelectionTool {
         return !isLifting();
     }
 
+    @Override
+    protected boolean isSelectionDrag() {
+        return liftState == LiftState.NONE;
+    }
+
     // -------------------------------------------------------------------
     // keyboard and lifecycle
     // -------------------------------------------------------------------
 
     @Override
-    public void altPressed() {
+    public void altPressed(boolean shiftDown) {
         if (isLifting()) {
             return; // expand-from-center is meaningless while moving pixels
         }
-        super.altPressed();
+        super.altPressed(shiftDown);
     }
 
     @Override
-    public void altReleased() {
+    public void altReleased(boolean shiftDown) {
         if (isLifting()) {
             return;
         }
-        super.altReleased();
+        super.altReleased(shiftDown);
     }
 
     @Override
@@ -473,7 +479,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
     }
 
     @Override
-    public void compReplaced(Composition newComp, boolean reloaded) {
+    public void compReplaced(Composition newComp, CompositionReplacedContext context) {
         cancelLift();
     }
 

@@ -35,32 +35,32 @@ import java.awt.geom.Rectangle2D;
 public enum SelectionType {
     RECTANGLE("Rectangle") {
         @Override
-        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
-            // ignores oldData, always creates a new rectangle from the drag
+        public SelectionData createFromDrag(Drag drag, SelectionData currentData) {
+            // ignores currentData, always creates a new rectangle from the drag
             return SelectionData.forShape(drag.toPosImRect());
         }
 
         @Override
-        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData currentData) {
             throw new UnsupportedOperationException("Rectangle selection uses Drag info");
         }
     }, ELLIPSE("Ellipse") {
         @Override
-        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
-            // ignores oldData, always creates a new ellipse from the drag
+        public SelectionData createFromDrag(Drag drag, SelectionData currentData) {
+            // ignores currentData, always creates a new ellipse from the drag
             Rectangle2D r = drag.toPosImRect();
             return SelectionData.forShape(new Ellipse2D.Double(
                 r.getX(), r.getY(), r.getWidth(), r.getHeight()));
         }
 
         @Override
-        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData currentData) {
             throw new UnsupportedOperationException("Ellipse selection uses Drag info");
         }
-    }, LASSO("Freehand") {
+    }, FREEHAND("Freehand") {
         @Override
-        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
-            if (getOutline(oldData) instanceof Path2D path) {
+        public SelectionData createFromDrag(Drag drag, SelectionData currentData) {
+            if (getOutline(currentData) instanceof Path2D path) {
                 // extend the existing path
                 path.lineTo(drag.getEndX(), drag.getEndY());
                 return SelectionData.forShape(path);
@@ -74,18 +74,18 @@ public enum SelectionType {
         }
 
         @Override
-        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
-            throw new UnsupportedOperationException("Lasso selection uses Drag info");
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData currentData) {
+            throw new UnsupportedOperationException("Freehand uses Drag info");
         }
-    }, POLYGONAL_LASSO("Polygonal") {
+    }, POLYGONAL("Polygonal") {
         @Override
-        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
-            throw new UnsupportedOperationException("Polygonal Lasso uses PMouseEvent info");
+        public SelectionData createFromDrag(Drag drag, SelectionData currentData) {
+            throw new UnsupportedOperationException("Polygonal uses PMouseEvent info");
         }
 
         @Override
-        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
-            if (getOutline(oldData) instanceof Path2D path) {
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData currentData) {
+            if (getOutline(currentData) instanceof Path2D path) {
                 // extend the existing path
                 path.lineTo(e.getImX(), e.getImY());
                 return SelectionData.forShape(path);
@@ -99,13 +99,13 @@ public enum SelectionType {
         }
     }, MAGIC_WAND("Magic Wand") {
         @Override
-        public SelectionData createFromDrag(Drag drag, SelectionData oldData) {
+        public SelectionData createFromDrag(Drag drag, SelectionData currentData) {
             throw new UnsupportedOperationException("Magic Wand uses PMouseEvent info");
         }
 
         @Override
-        public SelectionData createFromEvent(PMouseEvent e, SelectionData oldData) {
-            // ignores oldData; the flood-filled pixels are kept
+        public SelectionData createFromEvent(PMouseEvent e, SelectionData currentData) {
+            // ignores currentData; the flood-filled pixels are kept
             // as hard coverage instead of being traced into a path
             SelectionMask mask = MagicWandSelectionTool.createSelectionMask(e);
             return mask == null
@@ -122,25 +122,25 @@ public enum SelectionType {
 
     /**
      * Creates or updates selection data based on drag input.
-     * Some tools (like Marquee and Lasso) primarily provide drag
+     * Some tools (like Marquee and Freehand) primarily provide drag
      * information (start/end points) encapsulated in a `Drag` object.
      */
-    public abstract SelectionData createFromDrag(Drag drag, SelectionData oldData);
+    public abstract SelectionData createFromDrag(Drag drag, SelectionData currentData);
 
     /**
      * Creates or updates selection data based on mouse event input.
-     * Some tools (like Polygonal Lasso and Magic Wand) primarily operate
+     * Some tools (like Polygonal and Magic Wand) primarily operate
      * based on individual mouse events.
      */
-    public abstract SelectionData createFromEvent(PMouseEvent e, SelectionData oldData);
+    public abstract SelectionData createFromEvent(PMouseEvent e, SelectionData currentData);
 
     /**
      * Returns the outline of the draft selection being built, or null
      * if there is none yet. The freehand selection types extend the
      * returned path in place while the drag is in progress.
      */
-    private static Shape getOutline(SelectionData oldData) {
-        return oldData == null ? null : oldData.getOutline();
+    private static Shape getOutline(SelectionData currentData) {
+        return currentData == null ? null : currentData.getOutline();
     }
 
     @Override

@@ -30,6 +30,7 @@ import pixelitor.tools.util.OverlayType;
 import pixelitor.tools.util.PMouseEvent;
 import pixelitor.utils.Cursors;
 import pixelitor.utils.ImageUtils;
+import pixelitor.utils.Messages;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -84,16 +85,16 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
         Composition comp = e.getComp();
 
         if (e.isRight()) {
-            // right-click always cancels
-            cancelSelection(comp);
-        } else if (e.getClickCount() == 1) { // ignore the second click of a double click
-            initCombinatorAndBuilder(e, SelectionType.MAGIC_WAND);
+            // right-click always deselects
+            cancelAndDeselect(comp);
+        } else if (e.getClickCount() == 1) { // ignore the later clicks of a multi-click
+            initSession(e, SelectionType.MAGIC_WAND);
 
             try {
                 // calculate the selection shape based on the click event
-                selectionBuilder.updateDraftSelection(e);
+                selectionSession.updateFromEvent(e);
                 // combine the new shape with any existing selection
-                selectionBuilder.combineShapes();
+                selectionSession.commit();
 
                 // show the final selection
                 View view = comp.getView();
@@ -101,12 +102,11 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
                     view.repaint();
                 }
             } catch (Exception ex) {
-                ex.printStackTrace();
-                cancelSelection(comp);
+                Messages.showException(ex);
+                cancelAndDeselect(comp);
             } finally {
-                // clean up the builder and combinator
-                cancelSelectionBuilder();
-                resetCombinator();
+                // clean up the session and combinator
+                discardSelectionSession();
             }
         }
     }
@@ -143,17 +143,17 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
         // this implementation is based on the algorithm described at
         // https://losingfight.com/blog/2007/08/28/how-to-implement-a-magic-wand-tool/
         Composition comp = e.getComp();
-        // the magic wand operates on the composite image
+        // the magic wand operates on the canvas-sized composite image
         BufferedImage image = comp.getCompositeImage();
 
         int width = image.getWidth();
         int height = image.getHeight();
 
-        int x = (int) e.getImX();
-        int y = (int) e.getImY();
+        int seedX = (int) e.getImX();
+        int seedY = (int) e.getImY();
 
-        // select nothing if the click is outside the image bounds
-        if (x < 0 || x >= width || y < 0 || y >= height) {
+        // select nothing if the click is outside the canvas bounds
+        if (seedX < 0 || seedX >= width || seedY < 0 || seedY >= height) {
             return null;
         }
 
@@ -162,7 +162,7 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
 
         // select pixels using flood-fill
         boolean[] mask = new boolean[width * height];
-        ImageUtils.floodFill(pixels, width, height, x, y, tolerance,
+        ImageUtils.floodFill(pixels, width, height, seedX, seedY, tolerance,
             // mark the pixels in the segment as true in the mask
             (segY, segX1, segX2) -> {
                 int offset = segY * width;
@@ -177,5 +177,16 @@ public class MagicWandSelectionTool extends AbstractSelectionTool {
     @Override
     public Consumer<Graphics2D> createIconPainter() {
         return ToolIcons::paintMagicWandSelectionIcon;
+    }
+
+    @Override
+    public boolean checkInvariants() {
+        super.checkInvariants();
+
+        if (selectionSession != null) {
+            throw new AssertionError("selectionSession must be null outside of mouseClicked");
+        }
+
+        return true;
     }
 }

@@ -41,6 +41,9 @@ import static pixelitor.gui.utils.SliderSpinner.LabelPosition.BORDER;
  * can also be used as a model of a JSlider.
  */
 public class RangeParam extends AbstractFilterParam implements BoundedRangeModel {
+    // there are max 2 decimal places in the GUI
+    public static final double EPSILON = 0.001;
+
     private int minValue;
     private int maxValue;
     private double defaultValue;
@@ -61,6 +64,7 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
     // image-size dependent range adjustment
     private boolean adjustRangeToCanvasSize = false;
     private double maxToCanvasSizeRatio;
+    private double defaultToMaxRatio;
 
     public RangeParam(String name, int min, double def, int max) {
         this(name, min, def, max, true, BORDER);
@@ -87,11 +91,7 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
 
     @Override
     public JComponent createGUI() {
-        var sliderSpinner = new SliderSpinner(this, labelPosition, hasResetButton);
-        paramGUI = sliderSpinner;
-        syncWithGui();
-
-        return sliderSpinner;
+        return installGUI(new SliderSpinner(this, labelPosition, hasResetButton));
     }
 
     /**
@@ -101,9 +101,9 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
      * is a "reseed randomness" button.
      */
     public void enableOtherWhenNotZero(FilterSetting other) {
-        other.setEnabled(getValue() != 0);
+        other.setEnabled(isNotZero());
         addChangeListener(_ ->
-            other.setEnabled(getValue() != 0));
+            other.setEnabled(isNotZero()));
     }
 
     /**
@@ -111,16 +111,16 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
      * when this parameter's value matches a condition.
      */
     public void disableOtherWhen(FilterSetting other, IntPredicate condition) {
-        other.setEnabled(true);
-        addChangeListener(_ ->
-            other.setEnabled(!condition.test(getValue())));
+        Runnable update = () -> other.setEnabled(!condition.test(getValue()));
+        update.run();
+        addChangeListener(_ -> update.run());
     }
 
     /**
      * Ensures that this {@link RangeParam}'s value stays
      * greater than or equal to another {@link RangeParam}'s value.
      */
-    public void ensureHigherValueThan(RangeParam other) {
+    public void ensureNotLowerThan(RangeParam other) {
         // if the value is not higher, then make it equal
         linkWith(other, () -> other.getValue() > getValue());
     }
@@ -154,6 +154,18 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
             getValueAsDouble() * multiplier));
         other.addChangeListener(_ -> setValueNoTrigger(
             other.getValueAsDouble() / multiplier));
+    }
+
+    /**
+     * Binds the enabled state of the target {@link FilterSetting} to a
+     * boolean condition that depends on multiple {@link RangeParam} dependencies.
+     */
+    public static void bindEnabled(FilterSetting target, BooleanSupplier condition, RangeParam... dependencies) {
+        Runnable update = () -> target.setEnabled(condition.getAsBoolean());
+        for (RangeParam param : dependencies) {
+            param.addChangeListener(_ -> update.run());
+        }
+        update.run();
     }
 
     public void updateGUIAppearance(boolean revalidate) {
@@ -259,11 +271,11 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
     }
 
     public boolean isZero() {
-        return getValue() == 0;
+        return Math.abs(value) < EPSILON;
     }
 
     public boolean isNotZero() {
-        return getValue() != 0;
+        return !isZero();
     }
 
     @Override
@@ -300,39 +312,38 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
             // to the canvas size, but this adjustment didn't happen yet).
             // The trigger condition is important, because when used outside
             // the filters paramGUI could be null even if a GUI was created.
+            // TODO should always clamp, smart filters should adjust before this
             v = Math.clamp(v, minValue, maxValue);
         }
 
-        if (Math.abs(v - value) > 0.001) { // there are max 2 decimal places in the GUI
+        if (Math.abs(v - value) > EPSILON) {
             value = v;
 
             if (updateGUI) {
                 fireStateChanged(); // updates the GUI, as this is the model of the slider
-                if (paramGUI != null) {
-                    // ensures fractional values are also updated in
-                    // the spinner (since the slider is integer-based)
-                    paramGUI.updateGUI();
-                }
+
+                // ensures fractional values are also updated in
+                // the spinner (since the slider is integer-based)
+                updateGUI();
             }
 
-            if (!adjusting && trigger && adjustmentListener != null) {
-                adjustmentListener.paramAdjusted(); // run the filter
+            if (!adjusting && trigger) {
+                triggerFilter();
             }
         }
     }
 
     /**
-     * This is only used while tweening, therefore
-     * it never has to notify the filter or the GUI.
+     * Sets the value without notifying the filter or the GUI.
      */
-    public void setValueProgrammatically(double d) {
+    public void setValueSilently(double d) {
         value = d;
     }
 
     @Override
     public void setValueIsAdjusting(boolean b) {
-        if (!b && adjusting && adjustmentListener != null) {
-            adjustmentListener.paramAdjusted();
+        if (!b && adjusting) {
+            triggerFilter();
         }
         if (adjusting != b) {
             adjusting = b;
@@ -387,8 +398,10 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
     }
 
     @Override
-    public void setEmbedded() {
-        labelPosition = SliderSpinner.LabelPosition.NONE_WITH_TICKS;
+    public void setEmbedded(FilterParam.Layout layout) {
+        if (layout == Layout.VERTICAL) {
+            labelPosition = SliderSpinner.LabelPosition.NONE_WITH_TICKS;
+        }
     }
 
     /**
@@ -402,7 +415,6 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
         }
 
         Dimension size = layer.getComp().getCanvas().getSize();
-        double defaultToMaxRatio = defaultValue / maxValue;
 
         // the maximum value is calculated proportionally to the
         // largest dimension of the canvas while preserving
@@ -419,7 +431,7 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
             maxValue += (4 - remainder);
         }
 
-        setDefaultValue((int) (defaultToMaxRatio * maxValue));
+        setDefaultValueInternal((int) (defaultToMaxRatio * maxValue));
         if (applyNewDefault) {
             value = defaultValue;
         } else {
@@ -439,10 +451,16 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
     public RangeParam withAdjustedRange(double ratio) {
         maxToCanvasSizeRatio = ratio;
         adjustRangeToCanvasSize = true;
+        defaultToMaxRatio = maxValue != 0 ? defaultValue / maxValue : 0;
         return this;
     }
 
     public void setDefaultValue(double newDefault) {
+        setDefaultValueInternal(newDefault);
+        defaultToMaxRatio = maxValue != 0 ? defaultValue / maxValue : 0;
+    }
+
+    private void setDefaultValueInternal(double newDefault) {
         defaultValue = Math.clamp(newDefault, minValue, maxValue);
     }
 
@@ -466,7 +484,7 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
 
     @Override
     public void loadStateFrom(ParamState<?> state, boolean updateGUI) {
-        double newValue = ((RangeParamState) state).getValue();
+        double newValue = ((RangeParamState) state).value();
         if (updateGUI) {
             setValueNoTrigger(newValue);
         } else {
@@ -476,9 +494,6 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
 
     @Override
     public void loadStateFrom(String savedValue) {
-        if (savedValue == null) {
-            throw new IllegalArgumentException("null saved value for the key \"" + getPresetKey() + "\"");
-        }
         try {
             double v = Double.parseDouble(savedValue);
             setValueNoTrigger(v);
@@ -521,7 +536,7 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
 
     @Override
     public String toString() {
-        return String.format("%s[name = '%s', value = %.2f]",
+        return String.format(Locale.ROOT, "%s[name = '%s', value = %.2f]",
             getClass().getSimpleName(), getName(), value);
     }
 
@@ -586,20 +601,12 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
      * The state of a {@link RangeParam} (with double precision) that
      * can be saved, restored, and interpolated.
      */
-    public static class RangeParamState implements ParamState<RangeParamState> {
+    public record RangeParamState(double value, int decimalPlaces) implements ParamState<RangeParamState> {
         @Serial
         private static final long serialVersionUID = 1L;
 
-        final double value;
-        final int decimalPlaces;
-
         public RangeParamState(double value) {
             this(value, 0);
-        }
-
-        public RangeParamState(double value, int decimalPlaces) {
-            this.value = value;
-            this.decimalPlaces = decimalPlaces;
         }
 
         @Override
@@ -608,19 +615,9 @@ public class RangeParam extends AbstractFilterParam implements BoundedRangeModel
             return new RangeParamState(interpolated, decimalPlaces);
         }
 
-        public double getValue() {
-            return value;
-        }
-
         @Override
         public String toPresetString() {
             return formatDecimal(value, decimalPlaces);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("%s[value=%.2f]",
-                getClass().getSimpleName(), value);
         }
     }
 }

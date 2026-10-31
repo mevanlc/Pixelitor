@@ -18,87 +18,38 @@
 package pixelitor.filters.levels;
 
 import pixelitor.filters.Filter;
-import pixelitor.filters.gui.ChannelSelectorPanel;
+import pixelitor.filters.gui.ChannelAdjustmentGUI;
 import pixelitor.filters.gui.FilterGUI;
-import pixelitor.filters.util.Channel;
-import pixelitor.filters.util.ColorSpace;
-import pixelitor.gui.utils.GUIUtils;
 import pixelitor.layers.Filterable;
 
 import javax.swing.*;
-import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.FlowLayout;
-
-import static java.awt.BorderLayout.*;
 
 /**
  * The {@link FilterGUI} for the {@link Levels} filter.
  */
-public class LevelsGUI extends FilterGUI {
-    private final JPanel cardPanel;
-    private final ChannelSelectorPanel channelSelectorPanel;
-    private JCheckBox showOriginalCB;
-
-    public LevelsGUI(Filter filter, Filterable layer, LevelsModel model) {
-        super(filter, layer);
-        model.setLevelsGUI(this);
-
-        setLayout(new BorderLayout());
-
-        // create center panel first, so it exists when the callback
-        // is fired from ChannelSelectorPanel's constructor
-        cardPanel = createCenterPanel(model);
-        add(cardPanel, CENTER);
-
-        channelSelectorPanel = new ChannelSelectorPanel(this::showChannelPanel);
-        channelSelectorPanel.addResetButton(_ ->
-            model.resetChannelToDefault(channelSelectorPanel.getSelectedChannel()));
-        channelSelectorPanel.addColorSpaceChangedListener(colorSpace ->
-            model.setColorSpace(colorSpace, true));
-
-        add(channelSelectorPanel, NORTH);
-        add(createSouthPanel(model, layer), SOUTH);
-
-        // ensure the lookup is initialized for the preview
-        model.updateFilterLookup();
+public class LevelsGUI extends ChannelAdjustmentGUI<LevelsModel> {
+    public LevelsGUI(Levels filter, Filterable layer) {
+        this(filter, layer, filter.getModel());
     }
 
-    private void showChannelPanel(Channel channel) {
-        if (cardPanel != null) {
-            var cl = (CardLayout) cardPanel.getLayout();
-            cl.show(cardPanel, channel.getName());
-        }
+    public LevelsGUI(Filter filter, Filterable layer, LevelsModel model) {
+        super(filter, layer, model, createCenterPanel(model));
+    }
+
+    @Override
+    protected void refreshEditor() {
+        var cl = (CardLayout) editorComponent.getLayout();
+        cl.show(editorComponent, model.getActiveChannel().getDisplayName());
     }
 
     private static JPanel createCenterPanel(LevelsModel model) {
         var panel = new JPanel(new CardLayout());
-        for (ChannelLevelsModel subModel : model.getSubModels()) {
+        for (ChannelLevelsModel subModel : model.getAllAdjustments()) {
             JPanel channelPanel = subModel.createPanel();
-            String channelName = subModel.getChannel().getName();
+            String channelName = subModel.getChannel().getDisplayName();
             panel.add(channelPanel, channelName);
         }
         return panel;
-    }
-
-    private JPanel createSouthPanel(LevelsModel model, Filterable layer) {
-        var southPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-
-        showOriginalCB = new JCheckBox("Show Original");
-        showOriginalCB.setName("show original");
-        showOriginalCB.addActionListener(_ -> layer.setShowOriginal(showOriginalCB.isSelected()));
-        southPanel.add(showOriginalCB);
-
-        southPanel.add(GUIUtils.createRandomizeSettingsButton(_ ->
-            model.randomizeAndRun()));
-
-        southPanel.add(GUIUtils.createResetAllButton(_ ->
-            model.resetAllAndRun()));
-
-        return southPanel;
-    }
-
-    public void setColorSpaceUI(ColorSpace colorSpace) {
-        channelSelectorPanel.setColorSpaceUI(colorSpace);
     }
 }

@@ -17,7 +17,10 @@
 
 package pixelitor.filters.impl;
 
-import pixelitor.filters.JuliaSet;
+import pixelitor.filters.util.Complex;
+import pixelitor.filters.util.ComplexBounds;
+
+import java.awt.geom.Point2D;
 
 /**
  * Renders a Julia-type set, where z is varied across pixels and the constant c is fixed.
@@ -25,50 +28,33 @@ import pixelitor.filters.JuliaSet;
 public class JuliaSetFilter extends EscapeTimeFilter {
     private final double cx;
     private final double cy;
-    private final boolean insideOut;
 
     /**
      * Constructs a new JuliaSetFilter.
      *
+     * @param filterName    The name of the filter.
      * @param iterator      The iteration strategy for the fractal.
      * @param zoom          The zoom level for the fractal.
-     * @param zoomCenterX   The x-coordinate of the center point for zooming.
-     * @param zoomCenterY   The y-coordinate of the center point for zooming.
+     * @param zoomCenter    The relative coordinates of the center point for
+     *                      zooming (in the unit square [0, 1] x [0, 1]).
      * @param maxIterations The maximum number of iterations for the escape time algorithm.
-     * @param colors        The color palette used for rendering.
-     * @param cx            The real part of the fixed complex constant c.
-     * @param cy            The imaginary part of the fixed complex constant c.
+     * @param palette       The color palette used for rendering.
+     * @param c             The fixed complex constant c.
      * @param insideOut     True to invert the initial z value using f(z) = 1/z, false otherwise.
      */
-    public JuliaSetFilter(IterationStrategy iterator, double zoom, double zoomCenterX,
-                          double zoomCenterY, int maxIterations, int[] colors,
-                          double cx, double cy, boolean insideOut) {
+    public JuliaSetFilter(String filterName, IterationStrategy iterator,
+                          double zoom, Point2D zoomCenter,
+                          int maxIterations, int[] palette,
+                          Complex c, boolean insideOut) {
         // the Julia view doesn't depend on the chosen iteration strategy
-        super(JuliaSet.NAME, -2.0f, 2.0f, -1.2f, 1.2f,
-            iterator, zoom, zoomCenterX, zoomCenterY, maxIterations, colors);
-        this.cx = cx;
-        this.cy = cy;
-        this.insideOut = insideOut;
+        super(filterName, new ComplexBounds(-2.0, 2.0, -1.2, 1.2),
+            iterator, zoom, zoomCenter, maxIterations, palette, insideOut);
+        this.cx = c.re();
+        this.cy = c.im();
     }
 
     @Override
-    public int processPixel(int x, int y, int rgb) {
-        // for Julia-type sets, the initial z is mapped from the pixel's image coordinates
-        double zx = xStart + x * xMultiplier;
-        double zy = yStart + y * yMultiplier;
-
-        if (insideOut) {
-            // invert the initial z value using f(z) = 1/z
-            double d = zx * zx + zy * zy;
-            if (d == 0) {
-                // z0 is at the origin, so 1/z0 is at infinity => escape immediately
-                return colors[colors.length - 1];
-            }
-            // use the inverted z0' as z0
-            zx = zx / d;
-            zy = -zy / d;
-        }
-
+    protected int calcColor(double zx, double zy) {
         // the complex constant c is fixed for the entire image
         return calcIteratedColor(zx, zy, cx, cy);
     }

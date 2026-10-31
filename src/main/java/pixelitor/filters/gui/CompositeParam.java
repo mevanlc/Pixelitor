@@ -29,50 +29,61 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * A composite {@link FilterParam} that groups child parameters
- * and displays them in a modal dialog.
+ * A composite {@link FilterParam} that groups child parameters.
  */
 public class CompositeParam extends AbstractFilterParam {
     private final FilterParam[] children;
-    private ResetButton resetButton;
-    private final boolean useDialog;
+
+    private final Layout layout;
+    private JPanel dialogContentPanel;
 
     public CompositeParam(String name, FilterParam... children) {
-        this(name, true, children);
+        this(name, Layout.DIALOG, children);
     }
 
-    private CompositeParam(String name, boolean useDialog, FilterParam... children) {
+    private CompositeParam(String name, Layout layout, FilterParam... children) {
         super(name, RandomizeMode.ALLOW);
-        this.useDialog = useDialog;
+        this.layout = layout;
         this.children = children;
     }
 
     /**
      * Creates a {@link CompositeParam} that groups the given params
-     * using a common border (and not with a dialog).
+     * vertically using a common border.
      */
     public static CompositeParam bordered(String name, FilterParam... children) {
         for (FilterParam child : children) {
-            child.setEmbedded();
+            child.setEmbedded(Layout.VERTICAL);
         }
-        return new CompositeParam(name, false, children);
+        return new CompositeParam(name, Layout.VERTICAL, children);
+    }
+
+    /**
+     * Creates a {@link CompositeParam} that groups the given params horizontally.
+     */
+    public static CompositeParam horizontal(String name, FilterParam... children) {
+        for (FilterParam child : children) {
+            child.setEmbedded(Layout.HORIZONTAL);
+        }
+        return new CompositeParam(name, Layout.HORIZONTAL, children);
     }
 
     @Override
     public JComponent createGUI() {
-        if (useDialog) {
-            resetButton = new ResetButton(this);
-            paramGUI = new DialogLauncherGUI(this::configureDialog, resetButton);
-        } else {
-            paramGUI = new BorderGroupedParamGUI(this, children);
-        }
-        syncWithGui();
-        return (JComponent) paramGUI;
+        var gui = switch (layout) {
+            case DIALOG -> new DialogLauncherGUI(this::configureDialog, new ResetButton(this));
+            case VERTICAL -> new VerGroupedParamGUI(this);
+            case HORIZONTAL -> new HorGroupedParamGUI(this);
+        };
+        return installGUI(gui);
     }
 
     private void configureDialog(DialogBuilder builder) {
+        if (dialogContentPanel == null) {
+            dialogContentPanel = GUIUtils.createVerticalPanel(List.of(children));
+        }
         builder
-            .content(GUIUtils.createVerticalPanel(List.of(children)))
+            .content(dialogContentPanel)
             .title(getName())
             .withScrollbars()
             .okText(GUIText.CLOSE_DIALOG)
@@ -119,17 +130,14 @@ public class CompositeParam extends AbstractFilterParam {
     @Override
     public void saveStateTo(UserPreset preset) {
         for (FilterParam child : children) {
-            preset.put(child.getPresetKey(), child.copyState().toPresetString());
+            child.saveStateTo(preset);
         }
     }
 
     @Override
     public void loadStateFrom(UserPreset preset) {
         for (FilterParam child : children) {
-            String savedString = preset.get(child.getPresetKey());
-            if (savedString != null) { // presets don't have to include everything
-                child.loadStateFrom(savedString);
-            }
+            child.loadStateFrom(preset);
         }
         updateResetButtonState();
     }
@@ -146,12 +154,16 @@ public class CompositeParam extends AbstractFilterParam {
 
     @Override
     public void setEnabled(boolean enabled, EnabledReason reason) {
-        // call super to set the enabled state of the launching button
+        // call super to update this parameter's own state (and launcher button GUI)
         super.setEnabled(enabled, reason);
 
+        // children inherit this composite's overall enabled state as PARENT_PARAM,
+        // while ANIMATION_ENDING_STATE is forwarded so each child can check if it is animatable
         for (FilterParam child : children) {
-            // doesn't overwrite their internal FILTER_LOGIC state
-            child.setEnabled(enabled, EnabledReason.PARENT_PARAM);
+            child.setEnabled(isEnabled(), EnabledReason.PARENT_PARAM);
+            if (reason == EnabledReason.ANIMATION_ENDING_STATE) {
+                child.setEnabled(enabled, reason); // each child applies its own animatable check
+            }
         }
     }
 
@@ -171,7 +183,7 @@ public class CompositeParam extends AbstractFilterParam {
             param.reset(false);
         }
         if (trigger) {
-            adjustmentListener.paramAdjusted();
+            triggerFilter();
         } else {
             // this class updates the reset button state
             // by putting a decorator on the adjustment
@@ -181,9 +193,13 @@ public class CompositeParam extends AbstractFilterParam {
     }
 
     private void updateResetButtonState() {
-        if (resetButton != null) {
-            resetButton.updateState();
+        if (paramGUI != null) {
+            paramGUI.updateGUI();
         }
+    }
+
+    public FilterParam[] getChildren() {
+        return children;
     }
 
     @Override
@@ -198,6 +214,21 @@ public class CompositeParam extends AbstractFilterParam {
         for (FilterParam child : children) {
             child.setAdjustmentListener(decoratedListener);
         }
+    }
+
+    @Override
+    public void guiDisposed() {
+        super.guiDisposed();
+        if (layout == Layout.DIALOG && dialogContentPanel == null) {
+            // the dialog was never opened, the children GUIs
+            // were never created, so no cleanup is necessary
+            return;
+        }
+
+        for (FilterParam child : children) {
+            child.guiDisposed();
+        }
+        dialogContentPanel = null;
     }
 
     @Override

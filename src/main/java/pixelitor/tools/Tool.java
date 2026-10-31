@@ -21,6 +21,7 @@ import pixelitor.AppMode;
 import pixelitor.Composition;
 import pixelitor.Views;
 import pixelitor.filters.gui.PresetOwner;
+import pixelitor.gui.CompositionReplacedContext;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.gui.View;
 import pixelitor.gui.utils.GUIUtils;
@@ -140,7 +141,7 @@ public abstract class Tool implements PresetOwner, Debuggable {
      * after all layers have been painted. Useful for visual feedback
      * that is not directly part of the edited image.
      * This method can paint outside the canvas bounds.
-     * The transform of the given Graphics2D is in component space.
+     * The given Graphics2D uses component-space coordinates.
      */
     public void paintOverCanvas(Graphics2D g, Composition comp) {
         // empty by default
@@ -198,13 +199,13 @@ public abstract class Tool implements PresetOwner, Debuggable {
 
     public abstract void escPressed();
 
-    public void altPressed() {
+    public void altPressed(boolean shiftDown) {
         if (hasColorPickerForwarding()) {
-            Views.setCursorForAll(Tools.COLOR_PICKER.getStartingCursor());
+            Views.setCursorForAll(Tools.COLOR_PICKER.getDefaultCursor());
         }
     }
 
-    public void altReleased() {
+    public void altReleased(boolean shiftDown) {
         if (hasColorPickerForwarding()) {
             Views.setCursorForAll(cursor);
         }
@@ -259,7 +260,7 @@ public abstract class Tool implements PresetOwner, Debuggable {
      * Called when the active view's composition is replaced,
      * but not when switching to a different view.
      */
-    public void compReplaced(Composition newComp, boolean reloaded) {
+    public void compReplaced(Composition newComp, CompositionReplacedContext context) {
         // empty by default
     }
 
@@ -319,10 +320,10 @@ public abstract class Tool implements PresetOwner, Debuggable {
     }
 
     /**
-     * Called when the image space coordinates of the pixels change
-     * (image resizing, cropping, canvas enlargement, flipping, etc.),
-     * and this change is described by the given {@link AffineTransform}.
-     *
+     * Called when the image-space coordinates of the pixels change
+     * (image resizing, cropping, canvas enlargement, flipping, etc.).
+     * The given {@link AffineTransform} is in image space (relative to the canvas).
+     * <p>
      * The change in image coordinates implies a change in component coordinates,
      * therefore the component space coordinates also have to be recalculated.
      */
@@ -373,11 +374,11 @@ public abstract class Tool implements PresetOwner, Debuggable {
         return hotkey;
     }
 
-    public boolean hasPixelSnapping() {
+    public boolean usesPixelSnapping() {
         return pixelSnapping;
     }
 
-    public Cursor getStartingCursor() {
+    public Cursor getDefaultCursor() {
         return cursor;
     }
 
@@ -390,9 +391,8 @@ public abstract class Tool implements PresetOwner, Debuggable {
     }
 
     /**
-     * Returns true if this tool is not currently affecting the
-     * composite image in ways other than directly drawing
-     * into the pixels of the actual image layer.
+     * Returns true if the tool currently draws only directly into
+     * the layer's pixels (no temporary layer or other effects).
      */
     public boolean isDirectDrawing() {
         return true;

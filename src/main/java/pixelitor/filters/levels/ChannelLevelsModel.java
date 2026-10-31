@@ -18,12 +18,13 @@
 package pixelitor.filters.levels;
 
 import org.jdesktop.swingx.VerticalLayout;
-import pixelitor.filters.gui.ParamAdjustmentListener;
+import pixelitor.filters.channels.ChannelAdjustment;
 import pixelitor.filters.gui.RangeParam;
 import pixelitor.filters.gui.UserPreset;
-import pixelitor.filters.lookup.GrayScaleLookup;
+import pixelitor.filters.lookup.ChannelLookup;
 import pixelitor.filters.util.Channel;
 import pixelitor.gui.utils.SliderSpinner;
+import pixelitor.utils.Rnd;
 
 import javax.swing.*;
 
@@ -32,25 +33,21 @@ import static java.awt.Color.GRAY;
 /**
  * The model for the settings of a single channel in the Levels filter.
  */
-public class ChannelLevelsModel implements ParamAdjustmentListener {
+public class ChannelLevelsModel implements ChannelAdjustment {
     private static final int MAX_VALUE = 255;
     private static final int MIN_VALUE = 0;
     private static final int DARK_DEFAULT = MIN_VALUE;
     private static final int LIGHT_DEFAULT = MAX_VALUE;
-
-    private GrayScaleLookup lookup = GrayScaleLookup.getIdentity();
 
     private final RangeParam inputDark;
     private final RangeParam inputLight;
     private final RangeParam outputDark;
     private final RangeParam outputLight;
     private final Channel channel;
-    private final LevelsModel mainModel;
     private final RangeParam[] params;
 
-    public ChannelLevelsModel(Channel channel, LevelsModel mainModel) {
+    public ChannelLevelsModel(Channel channel, Runnable adjustmentListener) {
         this.channel = channel;
-        this.mainModel = mainModel;
 
         inputDark = new RangeParam("Input Dark", MIN_VALUE, DARK_DEFAULT, MAX_VALUE);
         inputLight = new RangeParam("Input Light", MIN_VALUE, LIGHT_DEFAULT, MAX_VALUE);
@@ -59,99 +56,87 @@ public class ChannelLevelsModel implements ParamAdjustmentListener {
         params = new RangeParam[]{inputDark, inputLight, outputDark, outputLight};
 
         // ensure input dark and light levels don't cross
-        inputLight.ensureHigherValueThan(inputDark);
+        inputLight.ensureNotLowerThan(inputDark);
 
-        for (RangeParam param : params) {
-            param.setAdjustmentListener(this);
+        if (adjustmentListener != null) {
+            for (RangeParam param : params) {
+                param.setAdjustmentListener(adjustmentListener::run);
+            }
         }
     }
 
-    /**
-     * Returns the parameter for the input shadow level.
-     */
     public RangeParam getInputDark() {
         return inputDark;
     }
 
-    /**
-     * Returns the parameter for the input highlight level.
-     */
     public RangeParam getInputLight() {
         return inputLight;
     }
 
-    /**
-     * Returns the parameter for the output shadow level.
-     */
     public RangeParam getOutputDark() {
         return outputDark;
     }
 
-    /**
-     * Returns the parameter for the output highlight level.
-     */
     public RangeParam getOutputLight() {
         return outputLight;
     }
 
-    /**
-     * Returns the lookup table for this channel's level adjustments.
-     */
-    public GrayScaleLookup getLookup() {
-        return lookup;
-    }
-
     @Override
-    public void paramAdjusted() {
-        updateLookup();
-        mainModel.settingsChanged();
-    }
-
-    private void updateLookup() {
-        lookup = new GrayScaleLookup(
+    public ChannelLookup toLookup() {
+        return ChannelLookup.ofLevels(
             inputDark.getValue(),
             inputLight.getValue(),
             outputDark.getValue(),
             outputLight.getValue());
     }
 
-    public void resetToDefaults() {
+    @Override
+    public void reset() {
         for (RangeParam param : params) {
             param.reset(false);
         }
-        // the channel-level lookup has to be updated first, even if
-        // the combined lookup is always updated after calling this
-        updateLookup();
     }
 
-    public void saveToUserPreset(UserPreset preset) {
+    @Override
+    public void randomize() {
+        // randomize the input levels of this channel for a simple, common adjustment
+        int dark = Rnd.nextInt(128);
+        int light = Rnd.nextInt(128) + 128;
+
+        inputDark.setValueNoTrigger(dark);
+        inputLight.setValueNoTrigger(light);
+    }
+
+    @Override
+    public void saveTo(UserPreset preset) {
         for (RangeParam param : params) {
             String key = uniqueKey(param);
             preset.put(key, param.copyState().toPresetString());
         }
     }
 
-    public void loadUserPreset(UserPreset preset) {
+    @Override
+    public void loadFrom(UserPreset preset) {
         for (RangeParam param : params) {
             String key = uniqueKey(param);
-            param.loadStateFrom(preset.get(key));
+            String value = preset.get(key);
+            if (value != null) {
+                param.loadStateFrom(value);
+            }
         }
-        updateLookup();
     }
 
     private String uniqueKey(RangeParam param) {
         return channel.getPresetKey() + " " + param.getName();
     }
 
-    /**
-     * Returns the channel represented by this model.
-     */
+    @Override
     public Channel getChannel() {
         return channel;
     }
 
     /**
-     * Returns the UI panel that can configure this model.
+     * Creates the UI panel that can configure this model.
      */
     JPanel createPanel() {
         var inputDarkSlider = new SliderSpinner(getInputDark(), GRAY, channel.getDarkColor());

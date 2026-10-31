@@ -94,7 +94,7 @@ public class ShapesLayer extends ContentLayer {
             if (transformBox != null) {
                 View view = comp.getView();
                 if (view != null) {
-                    transformBox.reInitialize(view, styledShape);
+                    transformBox.reinitialize(view, styledShape);
                 }
 
                 duplicate.transformBox = transformBox.copy(duplicate.styledShape);
@@ -148,7 +148,7 @@ public class ShapesLayer extends ContentLayer {
         try {
             // translate graphics to paint the shape relative to the tight image's origin
             tightG.translate(-shapeBounds.x, -shapeBounds.y);
-            styledShape.paint(tightG); // styledShape.paint expects g in image-space
+            styledShape.paint(tightG); // styledShape.paint expects g in image space
         } finally {
             tightG.dispose();
         }
@@ -183,12 +183,12 @@ public class ShapesLayer extends ContentLayer {
 
     @Override
     public void flip(FlipDirection direction, boolean layerTransform) {
-        transform(direction.createCanvasTransform(comp.getCanvas()));
+        transform(direction.createImTransform(comp.getCanvas()));
     }
 
     @Override
     public void rotate(QuadrantAngle angle, boolean layerTransform) {
-        transform(angle.createCanvasTransform(comp.getCanvas()));
+        transform(angle.createImTransform(comp.getCanvas()));
     }
 
     @Override
@@ -200,7 +200,7 @@ public class ShapesLayer extends ContentLayer {
 
     @Override
     public void enlargeCanvas(Outsets out) {
-        transform(out.getTopLeftTranslation());
+        transform(out.createTopLeftTranslation());
     }
 
     /**
@@ -277,7 +277,7 @@ public class ShapesLayer extends ContentLayer {
         super.prepareMovement();
         if (hasShape() && transformBox != null) {
             View view = Views.getActive();
-            transformBox.reInitialize(view, styledShape);
+            transformBox.reinitialize(view, styledShape);
             transformBox.prepareMovement();
         }
     }

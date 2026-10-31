@@ -21,6 +21,7 @@ import net.jafama.FastMath;
 import pixelitor.colors.Colors;
 import pixelitor.filters.gui.*;
 import pixelitor.progress.StatusBarProgressTracker;
+import pixelitor.utils.EnumChoice;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -52,7 +53,7 @@ public class AbstractLights extends ParametrizedFilter {
 
     private static final int DEFAULT_NUM_ITERATIONS = 1000;
 
-    public enum Type {
+    public enum Type implements EnumChoice {
         // random particles connected in a closed chain
         CHAOS("Chaos"),
 
@@ -104,12 +105,14 @@ public class AbstractLights extends ParametrizedFilter {
     public AbstractLights() {
         super(false);
 
-        // disable hue variation when complexity is 1 (two particles)
-        complexityParam.disableOtherWhen(hueRandomnessParam, value -> value == 1);
-
-        // disable hue controls when fully white blend is selected
+        // disable the hue chooser when fully white blend is selected
         whiteBlendParam.disableOtherWhen(hueParam, value -> value == 100);
-        whiteBlendParam.disableOtherWhen(hueRandomnessParam, value -> value == 100);
+
+        // disable hue randomness when complexity is 1  (two particles)
+        // OR fully white blend is selected
+        RangeParam.bindEnabled(hueRandomnessParam,
+            () -> complexityParam.getValue() > 1 && whiteBlendParam.getValue() < 100,
+            complexityParam, whiteBlendParam);
 
         CompositeParam advancedParam = new CompositeParam("Advanced",
             hueRandomnessParam, whiteBlendParam, blurParam, speedParam, bounceParam);
@@ -142,13 +145,13 @@ public class AbstractLights extends ParametrizedFilter {
         int height = dest.getHeight();
 
         var pt = new StatusBarProgressTracker(NAME, iterations);
-        Graphics2D g2 = dest.createGraphics();
+        Graphics2D g = dest.createGraphics();
 
         double lineWidth = blurParam.getValueAsDouble() + 1.0;
-        g2.setStroke(new BasicStroke((float) lineWidth));
+        g.setStroke(new BasicStroke((float) lineWidth));
 
-        g2.setColor(Color.BLACK);
-        g2.fillRect(0, 0, width, height);
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, width, height);
 
         float darkening = 1.0f;
         double brightness = brightnessParam.getValueAsDouble();
@@ -161,8 +164,8 @@ public class AbstractLights extends ParametrizedFilter {
             alpha = MIN_VISIBLE_ALPHA;
         }
 
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        g2.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_ON);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_ON);
 
         // if we increased alpha, we must compensate by reducing the color's brightness
         float colorBri = 1.0f / darkening;
@@ -176,12 +179,12 @@ public class AbstractLights extends ParametrizedFilter {
                 particle.update(width, height);
             }
             for (Particle particle : particles) {
-                particle.draw(g2, reusableLine);
+                particle.draw(g, reusableLine);
             }
             pt.unitDone();
         }
 
-        g2.dispose();
+        g.dispose();
         pt.finished();
 
         return dest;

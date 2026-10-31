@@ -131,9 +131,9 @@ public class Pixelitor {
 
         // schedule IO-intensive font preloading to run after opening files
         openCommandLineFilesAsync(args)
-            .exceptionally(throwable -> null) // recover
-            .thenAcceptAsync(v -> postStartupDevActions(), onEDT)
-            .thenRunAsync(Utils::preloadFontNames, onIOThread)
+            .exceptionally(_ -> null) // recover
+            .thenAcceptAsync(_ -> postStartupDevActions(), onEDT)
+            .thenRunAsync(FontNames::preloadFontNames, onIOThread)
             .exceptionally(Messages::showExceptionOnEDT);
     }
 

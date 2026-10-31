@@ -21,6 +21,7 @@ import com.bric.util.JVM;
 import pixelitor.Composition;
 import pixelitor.Views;
 import pixelitor.filters.gui.UserPreset;
+import pixelitor.gui.CompositionReplacedContext;
 import pixelitor.gui.View;
 import pixelitor.history.History;
 import pixelitor.history.PixelitorEdit;
@@ -182,7 +183,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
                 }
             }
 
-            comp.prepareMovement(dragMode, e.isAltDown() || e.isRight());
+            dragMode.prepareMovement(comp, e.isAltDown() || e.isRight());
         }
     }
 
@@ -191,7 +192,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         if (isFreeTransforming()) {
             getTransformBox().processMouseDragged(e);
         } else {
-            e.getComp().moveActiveContent(dragMode, drag.getDx(), drag.getDy());
+            dragMode.moveActiveContent(e.getComp(), drag.getDx(), drag.getDy());
         }
     }
 
@@ -203,7 +204,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             // a drag is a discrete, undoable action
             addTransformStep("Free Transform Step", box.getBeforeMovementMemento());
         } else {
-            e.getComp().finalizeMovement(dragMode);
+            dragMode.finalizeMovement(e.getComp());
         }
     }
 
@@ -238,9 +239,9 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
      * Programmatically moves the active layer and/or the selection.
      */
     public static void move(Composition comp, MoveMode mode, int imDx, int imDy) {
-        comp.prepareMovement(mode, false);
-        comp.moveActiveContent(mode, imDx, imDy);
-        comp.finalizeMovement(mode);
+        mode.prepareMovement(comp, false);
+        mode.moveActiveContent(comp, imDx, imDy);
+        mode.finalizeMovement(comp);
     }
 
     @Override
@@ -254,7 +255,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             return;
         }
 
-        comp.drawMovementContours(g, dragMode);
+        dragMode.drawMovementContours(g, comp);
         OverlayType.REL_MOUSE_POS.draw(g, drag);
     }
 
@@ -423,7 +424,7 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     }
 
     @Override
-    public void compReplaced(Composition newComp, boolean reloaded) {
+    public void compReplaced(Composition newComp, CompositionReplacedContext context) {
         cancelTransform(false);
     }
 

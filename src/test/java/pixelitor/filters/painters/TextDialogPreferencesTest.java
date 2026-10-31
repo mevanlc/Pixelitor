@@ -24,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import pixelitor.Composition;
 import pixelitor.TestHelper;
 import pixelitor.gui.utils.BoxAlignment;
 import pixelitor.gui.utils.MlpAlignmentSelector;
@@ -35,6 +36,8 @@ import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class TextDialogPreferencesTest {
     private Preferences prefs;
@@ -57,13 +60,26 @@ class TextDialogPreferencesTest {
 
     @Test
     void startsWithDefaultFormattingAndEmptyHistory() {
-        TextSettings settings = TextDialogPreferences.loadSettings(prefs);
+        TextSettings settings = TextDialogPreferences.loadSettings(prefs, null);
 
         assertThat(settings.getText()).isEqualTo(TextSettings.DEFAULT_TEXT);
         assertThat(settings.getColor()).isEqualTo(Color.WHITE);
         assertThat(settings.getAlignment()).isEqualTo(BoxAlignment.CENTER_CENTER);
         assertThat(settings.getScaleX()).isEqualTo(1.0);
         assertThat(TextDialogPreferences.loadHistory(prefs)).isEmpty();
+    }
+
+    @Test
+    void usesSuppliedCanvasForDefaultsAndPreservesRememberedFontSize() {
+        Composition comp = mock(Composition.class);
+        when(comp.getCanvasHeight()).thenReturn(600);
+        TextSettings defaults = TextDialogPreferences.loadSettings(prefs, comp);
+        assertThat(defaults.getFont().getSize()).isEqualTo(120);
+
+        TextDialogPreferences.remember(defaults, prefs);
+        when(comp.getCanvasHeight()).thenReturn(200);
+        assertThat(TextDialogPreferences.loadSettings(prefs, comp).getFont().getSize())
+            .isEqualTo(120);
     }
 
     @Test
@@ -85,7 +101,7 @@ class TextDialogPreferencesTest {
         prefs.flush();
         Preferences reloadedPrefs = Preferences.userRoot().node(prefs.absolutePath());
         reloadedPrefs.sync();
-        TextSettings restored = TextDialogPreferences.loadSettings(reloadedPrefs);
+        TextSettings restored = TextDialogPreferences.loadSettings(reloadedPrefs, null);
 
         assertThat(restored.getText()).isEqualTo(TextSettings.DEFAULT_TEXT);
         assertThat(restored.getFont()).isEqualTo(original.getFont());
@@ -106,16 +122,16 @@ class TextDialogPreferencesTest {
 
     @Test
     void fallsBackToCanvasAlignmentWhenNoPathIsAvailable() {
-        TextSettings settings = new TextSettings().withAlignment(BoxAlignment.PATH);
+        TextSettings settings = new TextSettings(null).withAlignment(BoxAlignment.PATH);
         TextDialogPreferences.remember(settings, prefs);
 
-        assertThat(TextDialogPreferences.loadSettings(prefs).getAlignment())
+        assertThat(TextDialogPreferences.loadSettings(prefs, null).getAlignment())
             .isEqualTo(BoxAlignment.CENTER_CENTER);
     }
 
     @Test
     void keepsTwentyRecentDistinctTextsAndMovesReusedTextToFront() {
-        TextSettings settings = new TextSettings();
+        TextSettings settings = new TextSettings(null);
         for (int i = 0; i < 25; i++) {
             TextDialogPreferences.remember(settings.withText("Text " + i), prefs);
         }
@@ -133,7 +149,7 @@ class TextDialogPreferencesTest {
     void preservesFullLongTextIncludingWhitespaceAndEmoji() {
         String text = " " + "x".repeat(Preferences.MAX_VALUE_LENGTH - 2) + "\uD83D\uDE80\n"
             + "second line = value\t".repeat(1000) + " ";
-        TextSettings settings = new TextSettings();
+        TextSettings settings = new TextSettings(null);
         TextDialogPreferences.remember(settings.withText(text), prefs);
         TextDialogPreferences.remember(settings.withText("short"), prefs);
 
@@ -151,9 +167,9 @@ class TextDialogPreferencesTest {
             BoxAlignment.CENTER_CENTER.getVertical(), MlpAlignmentSelector.LEFT,
             false, 0, 1, 1, 1, 0, 0, null);
         TextDialogPreferences.remember(first, prefs);
-        TextDialogPreferences.remember(new TextSettings().withText(" \n\t "), prefs);
+        TextDialogPreferences.remember(new TextSettings(null).withText(" \n\t "), prefs);
 
         assertThat(TextDialogPreferences.loadHistory(prefs)).containsExactly("remember me");
-        assertThat(TextDialogPreferences.loadSettings(prefs).getEffects().getEnabledEffects()).isEmpty();
+        assertThat(TextDialogPreferences.loadSettings(prefs, null).getEffects().getEnabledEffects()).isEmpty();
     }
 }

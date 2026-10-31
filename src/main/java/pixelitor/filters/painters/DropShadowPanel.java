@@ -57,10 +57,10 @@ public class DropShadowPanel extends EffectPanel {
         var spreadSlider = SliderSpinner.from(spreadParam);
         gbh.addLabelAndControl("Spread:", spreadSlider);
 
-        ChangeListener changeListener = e -> updateResetButtonIcon();
+        ChangeListener changeListener = _ -> updateResetButtonIcon();
         distanceParam.addChangeListener(changeListener);
-        angleParam.addChangeListener(changeListener);
         spreadParam.addChangeListener(changeListener);
+        angleParam.addUIChangeListener(this::updateResetButtonIcon);
     }
 
     @Override

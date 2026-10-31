@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,10 +50,10 @@ class TextSettingsPanelTest {
     void fontSizePreviewFollowsPreference(boolean liveResize, boolean useFilter) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             var comp = TestHelper.createEmptyComp("Font Size Preview");
-            TextSettings defaults = new TextSettings();
+            TextSettings defaults = new TextSettings(null);
             try (var textPreferences = mockStatic(TextDialogPreferences.class);
                  var appPreferences = mockStatic(AppPreferences.class)) {
-                textPreferences.when(TextDialogPreferences::loadSettings).thenReturn(defaults);
+                textPreferences.when(() -> TextDialogPreferences.loadSettings(any())).thenReturn(defaults);
                 textPreferences.when(TextDialogPreferences::loadHistory).thenReturn(List.of());
                 appPreferences.when(AppPreferences::isLiveTextResizeEnabled).thenReturn(liveResize);
 
@@ -107,14 +108,14 @@ class TextSettingsPanelTest {
 
     @Test
     void newFilterUsesRememberedSettingsWhileExistingFilterKeepsItsSettings() {
-        TextSettings remembered = new TextSettings().withText(TextSettings.DEFAULT_TEXT);
+        TextSettings remembered = new TextSettings(null).withText(TextSettings.DEFAULT_TEXT);
         TextSettings existing = remembered.withText("existing smart filter text");
         var comp = TestHelper.createEmptyComp("Text Filter");
         Filterable layer = mock(Filterable.class);
         when(layer.getComp()).thenReturn(comp);
 
         try (var preferences = mockStatic(TextDialogPreferences.class)) {
-            preferences.when(TextDialogPreferences::loadSettings).thenReturn(remembered);
+            preferences.when(() -> TextDialogPreferences.loadSettings(any())).thenReturn(remembered);
             preferences.when(TextDialogPreferences::loadHistory).thenReturn(List.of());
             TextFilter filter = new TextFilter();
             filter.setSettings(existing);

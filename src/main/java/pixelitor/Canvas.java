@@ -19,9 +19,8 @@ package pixelitor;
 
 import pixelitor.gui.View;
 import pixelitor.tools.Symmetry;
-import pixelitor.tools.util.PPoint;
 import pixelitor.utils.ImageUtils;
-import pixelitor.utils.Rnd;
+import pixelitor.utils.RectClip;
 import pixelitor.utils.Thumbnails;
 import pixelitor.utils.debug.DebugNode;
 import pixelitor.utils.debug.Debuggable;
@@ -31,12 +30,12 @@ import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.random.RandomGenerator;
 
 /**
  * The canvas represents the size of a composition.
@@ -51,10 +50,6 @@ public class Canvas implements Serializable, Debuggable {
     // size in image space
     private int width;
     private int height;
-
-    // size in component space (the size in image space * zooming)
-    private transient int coWidth;
-    private transient int coHeight;
 
     // cached thumbnail dimensions (calculated lazily)
     private transient Dimension thumbSize;
@@ -71,8 +66,6 @@ public class Canvas implements Serializable, Debuggable {
     private Canvas(Canvas orig) {
         width = orig.width;
         height = orig.height;
-        coWidth = orig.coWidth;
-        coHeight = orig.coHeight;
     }
 
     public Canvas copy() {
@@ -96,27 +89,12 @@ public class Canvas implements Serializable, Debuggable {
         height = newHeight;
 
         thumbSize = null; // invalidate cache
-        recalcCoSize(view, updateView);
+        if (updateView) {
+            view.canvasCoSizeChanged();
+        }
 
         if (view.isActive()) {
             activeCanvasSizeChanged(this);
-        }
-    }
-
-    /**
-     * Recalculates the component-space size.
-     */
-    public void recalcCoSize(View view, boolean updateView) {
-        double zoomScale = view.getZoomScale();
-
-        int prevCoWidth = coWidth;
-        int prevCoHeight = coHeight;
-
-        coWidth = (int) (zoomScale * width);
-        coHeight = (int) (zoomScale * height);
-
-        if (updateView && (coWidth != prevCoWidth || coHeight != prevCoHeight)) {
-            view.canvasCoSizeChanged();
         }
     }
 
@@ -138,26 +116,10 @@ public class Canvas implements Serializable, Debuggable {
     }
 
     /**
-     * Returns the bounds in component space.
-     */
-    public Rectangle getCoBounds(View view) {
-        // assumes that the canvas and view are fully initialized
-        return new Rectangle(
-            view.getCanvasStartX(), view.getCanvasStartY(), coWidth, coHeight);
-    }
-
-    /**
      * Returns the size in image space (image pixels).
      */
     public Dimension getSize() {
         return new Dimension(width, height);
-    }
-
-    /**
-     * Returns the size in component space (screen pixels).
-     */
-    public Dimension getCoSize() {
-        return new Dimension(coWidth, coHeight);
     }
 
     public String getSizeString() {
@@ -176,20 +138,6 @@ public class Canvas implements Serializable, Debuggable {
      */
     public int getHeight() {
         return height;
-    }
-
-    /**
-     * Returns the width in component space.
-     */
-    public int getCoWidth() {
-        return coWidth;
-    }
-
-    /**
-     * Returns the height in component space.
-     */
-    public int getCoHeight() {
-        return coHeight;
     }
 
     /**
@@ -221,10 +169,11 @@ public class Canvas implements Serializable, Debuggable {
      * Inverts the given shape with respect to the canvas bounds.
      */
     public Shape invertShape(Shape shape) {
-        Area shapeArea = new Area(shape);
-        Area fullArea = new Area(getBounds());
-        fullArea.subtract(shapeArea);
-        return fullArea;
+        return RectClip.subtract(getBounds(), shape);
+//        Area shapeArea = new Area(shape);
+//        Area fullArea = new Area(getBounds());
+//        fullArea.subtract(shapeArea);
+//        return fullArea;
     }
 
     /**
@@ -242,11 +191,13 @@ public class Canvas implements Serializable, Debuggable {
             return rect.createIntersection(canvasBounds);
         }
 
-        Area canvasArea = new Area(canvasBounds);
-        Area shapeArea = new Area(shape);
-        shapeArea.intersect(canvasArea);
+        return RectClip.intersect(shape, getBounds());
 
-        return shapeArea;
+//        Area canvasArea = new Area(canvasBounds);
+//        Area shapeArea = new Area(shape);
+//        shapeArea.intersect(canvasArea);
+//
+//        return shapeArea;
     }
 
     /**
@@ -285,10 +236,10 @@ public class Canvas implements Serializable, Debuggable {
     }
 
     /**
-     * Generates a random {@link PPoint} within the canvas boundaries.
+     * Generates a random image-space point within the canvas boundaries.
      */
-    public PPoint genRandomPoint(View view) {
-        return PPoint.lazyFromIm(Rnd.nextInt(width), Rnd.nextInt(height), view);
+    public Point2D genRandomPoint(RandomGenerator rng) {
+        return new Point2D.Double(rng.nextInt(width), rng.nextInt(height));
     }
 
     public Dimension getThumbSize() {
@@ -312,8 +263,6 @@ public class Canvas implements Serializable, Debuggable {
 
         node.addInt("im width", width);
         node.addInt("im height", height);
-        node.addInt("co width", coWidth);
-        node.addInt("co height", coHeight);
 
         return node;
     }

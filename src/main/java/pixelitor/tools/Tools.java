@@ -22,6 +22,7 @@ import pixelitor.Composition;
 import pixelitor.Views;
 import pixelitor.filters.gui.UserPreset;
 import pixelitor.gui.AppPanel;
+import pixelitor.gui.CompositionReplacedContext;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.gui.View;
 import pixelitor.layers.Layer;
@@ -60,7 +61,7 @@ public class Tools {
     public static final MarqueeSelectionTool RECTANGLE_SELECTION = new MarqueeSelectionTool(SelectionType.RECTANGLE);
     public static final MarqueeSelectionTool ELLIPSE_SELECTION = new MarqueeSelectionTool(SelectionType.ELLIPSE);
     public static final PixelLiftTool PIXEL_LIFT = new PixelLiftTool();
-    public static final LassoSelectionTool LASSO_SELECTION = new LassoSelectionTool();
+    public static final FreehandSelectionTool FREEHAND_SELECTION = new FreehandSelectionTool();
     public static final PolygonalSelectionTool POLY_SELECTION = new PolygonalSelectionTool();
     public static final MagicWandSelectionTool MAGIC_WAND = new MagicWandSelectionTool();
 
@@ -83,7 +84,7 @@ public class Tools {
     private static final Tool[] allTools = {
         MOVE, CROP,
         RECTANGLE_SELECTION, ELLIPSE_SELECTION, PIXEL_LIFT,
-        LASSO_SELECTION, POLY_SELECTION, MAGIC_WAND,
+        FREEHAND_SELECTION, POLY_SELECTION, MAGIC_WAND,
         BRUSH, CLONE, ERASER,
         SMUDGE, GRADIENT, PAINT_BUCKET, COLOR_PICKER,
         PEN, NODE, TRANSFORM_PATH,
@@ -175,7 +176,7 @@ public class Tools {
         if (prevTool != null) {
             // release stuck modifier keys for the previous tool before it is deactivated
             if (GlobalEvents.isAltDown()) {
-                prevTool.altReleased();
+                prevTool.altReleased(false);
             }
             if (GlobalEvents.isControlDown()) {
                 prevTool.controlReleased();
@@ -197,7 +198,7 @@ public class Tools {
 
         // apply global modifier states to the new tool immediately
         if (GlobalEvents.isAltDown()) {
-            newTool.altPressed();
+            newTool.altPressed(GlobalEvents.isShiftDown());
             if (activeTool != newTool) {
                 return; // the modifier callback activated another tool
             }
@@ -319,15 +320,15 @@ public class Tools {
         return activeTool == SHAPES && SHAPES.shouldDrawOverLayer();
     }
 
-    public static void increaseBrushSize() {
+    public static void increaseBrushRadius() {
         if (activeTool instanceof AbstractBrushTool abt) {
-            abt.increaseBrushSize();
+            abt.increaseBrushRadius();
         }
     }
 
-    public static void decreaseBrushSize() {
+    public static void decreaseBrushRadius() {
         if (activeTool instanceof AbstractBrushTool abt) {
-            abt.decreaseBrushSize();
+            abt.decreaseBrushRadius();
         }
     }
 
@@ -351,10 +352,10 @@ public class Tools {
         activeTool.imCoordsChanged(at, view);
     }
 
-    public static void compReplaced(Composition newComp, boolean reloaded) {
+    public static void compReplaced(Composition newComp, CompositionReplacedContext context) {
         assert newComp.isActive();
 
-        activeTool.compReplaced(newComp, reloaded);
+        activeTool.compReplaced(newComp, context);
     }
 
     public static void editingTargetChanged(Layer activeLayer) {
@@ -402,7 +403,7 @@ public class Tools {
     public static List<Tool[]> getSharedHotkeyGroups() {
         return List.of(
             new Tool[]{RECTANGLE_SELECTION, ELLIPSE_SELECTION}, // M
-            new Tool[]{LASSO_SELECTION, POLY_SELECTION}, // L
+            new Tool[]{FREEHAND_SELECTION, POLY_SELECTION}, // L
             new Tool[]{PEN, NODE, TRANSFORM_PATH} // P
         );
     }

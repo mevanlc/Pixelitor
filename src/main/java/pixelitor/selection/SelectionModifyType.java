@@ -20,6 +20,7 @@ package pixelitor.selection;
 import pixelitor.Canvas;
 import pixelitor.filters.gui.EnumParam;
 import pixelitor.gui.GUIText;
+import pixelitor.utils.EnumChoice;
 
 import java.awt.BasicStroke;
 import java.awt.Rectangle;
@@ -29,7 +30,7 @@ import java.awt.geom.Area;
 /**
  * The modification type for a selection, used in the "Modify Selection" dialog.
  */
-public enum SelectionModifyType {
+public enum SelectionModifyType implements EnumChoice {
     EXPAND("Expand") {
         @Override
         protected Shape modifyArea(Area previousSelection, Area borderArea) {

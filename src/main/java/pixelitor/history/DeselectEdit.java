@@ -27,14 +27,14 @@ import java.util.Objects;
  * Represents a deselection operation.
  */
 public class DeselectEdit extends PixelitorEdit {
-    private final SelectionData backupData;
+    private final SelectionData deselectedData;
 
-    public DeselectEdit(Composition comp, SelectionData backupData) {
-        super("Deselect", comp, backupData.isMaskBacked());
+    public DeselectEdit(Composition comp, SelectionData deselectedData) {
+        super("Deselect", comp, deselectedData.isMaskBacked());
 
         assert !comp.hasSelection();
 
-        this.backupData = Objects.requireNonNull(backupData);
+        this.deselectedData = Objects.requireNonNull(deselectedData);
     }
 
     @Override
@@ -43,7 +43,7 @@ public class DeselectEdit extends PixelitorEdit {
 
         assert !comp.hasSelection();
 
-        comp.createSelectionFrom(backupData);
+        comp.createSelectionFrom(deselectedData);
     }
 
     @Override

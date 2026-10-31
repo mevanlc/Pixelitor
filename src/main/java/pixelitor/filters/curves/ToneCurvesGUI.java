@@ -17,76 +17,27 @@
 
 package pixelitor.filters.curves;
 
-import pixelitor.filters.gui.ChannelSelectorPanel;
+import pixelitor.filters.Filter;
+import pixelitor.filters.gui.ChannelAdjustmentGUI;
 import pixelitor.filters.gui.FilterGUI;
-import pixelitor.gui.utils.GUIUtils;
 import pixelitor.layers.Filterable;
-
-import javax.swing.*;
-import java.awt.BorderLayout;
-import java.awt.FlowLayout;
-
-import static java.awt.BorderLayout.*;
 
 /**
  * The {@link FilterGUI} for the {@link ToneCurvesFilter}.
  *
  * @author Łukasz Kurzaj lukaszkurzaj@gmail.com
  */
-public class ToneCurvesGUI extends FilterGUI {
-    private final ToneCurvesPanel curvesPanel;
-    private final ToneCurves curves;
-    private final ChannelSelectorPanel channelSelectorPanel;
-
+public class ToneCurvesGUI extends ChannelAdjustmentGUI<ToneCurves> {
     public ToneCurvesGUI(ToneCurvesFilter filter, Filterable layer) {
-        super(filter, layer);
-        setLayout(new BorderLayout());
-        this.curves = filter.getCurves();
-
-        curvesPanel = new ToneCurvesPanel(curves);
-        curvesPanel.addActionListener(_ -> startPreview(false));
-
-        channelSelectorPanel = new ChannelSelectorPanel(curvesPanel::setActiveCurve);
-        channelSelectorPanel.addResetButton(_ -> curvesPanel.resetActiveCurve());
-        channelSelectorPanel.addColorSpaceChangedListener(colorSpace -> {
-            curves.setColorSpace(colorSpace);
-            curvesPanel.stateChanged();
-        });
-
-        add(channelSelectorPanel, NORTH);
-        add(curvesPanel, CENTER);
-        add(createButtonsPanel(layer), SOUTH);
+        this(filter, layer, filter.getModel());
     }
 
-    private JPanel createButtonsPanel(Filterable layer) {
-        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-
-        buttonsPanel.add(createShowOriginalCB(layer));
-        buttonsPanel.add(GUIUtils.createRandomizeSettingsButton(_ ->
-            curvesPanel.randomize()));
-        buttonsPanel.add(GUIUtils.createResetAllButton(_ ->
-            curvesPanel.resetAllCurves()));
-
-        return buttonsPanel;
+    public ToneCurvesGUI(Filter filter, Filterable layer, ToneCurves curves) {
+        super(filter, layer, curves, new ToneCurvesPanel(curves));
     }
 
-    private static JCheckBox createShowOriginalCB(Filterable layer) {
-        JCheckBox showOriginalCB = new JCheckBox("Show Original");
-        showOriginalCB.setName("show original");
-        showOriginalCB.addActionListener(_ -> layer.setShowOriginal(showOriginalCB.isSelected()));
-        return showOriginalCB;
-    }
-
-    public void stateChanged() {
-        // synchronize the UI dropdown to reflect the filter's
-        // backend data model (necessary when loading a preset)
-        channelSelectorPanel.setColorSpaceUI(curves.getColorSpace());
-
-        // paint the updated tone curves and dispatch standard events
-        curvesPanel.stateChanged();
-    }
-
-    public ToneCurves getCurves() {
-        return curves;
+    @Override
+    protected void refreshEditor() {
+        editorComponent.repaint();
     }
 }

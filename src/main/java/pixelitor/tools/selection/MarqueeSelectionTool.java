@@ -51,7 +51,12 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
     protected MarqueeSelectionTool(SelectionType selectionType, String shortName,
                                    char hotkey, String statusBarMessage) {
         super(shortName, hotkey, statusBarMessage, Cursors.DEFAULT, false);
-        repositionOnSpace = true; // allow moving the start point with space down
+
+        if (selectionType != SelectionType.RECTANGLE && selectionType != SelectionType.ELLIPSE) {
+            throw new IllegalArgumentException("unexpected selectionType: " + selectionType);
+        }
+
+        repositionOnSpace = true; // allows moving both the start and the end points with space down
         pixelSnapping = true;
         this.selectionType = selectionType;
     }
@@ -97,13 +102,13 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
 
     @Override
     protected void dragStarted(PMouseEvent e) {
-        initCombinatorAndBuilder(e, selectionType);
+        initSession(e, selectionType);
     }
 
     @Override
     protected void ongoingDrag(PMouseEvent e) {
-        if (selectionBuilder == null) {
-            // can happen if the image changed mid-drag; restart the drag
+        if (selectionSession == null) {
+            // the session is missing if the composition changed mid-drag; create it again
             dragStarted(e);
         }
 
@@ -121,40 +126,40 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
             altUsedForCombinator = false;
         }
 
-        drag.setExpandFromCenter(expandFromCenter);
-        selectionBuilder.updateDraftSelection(drag);
+        drag.setExpandedFromCenter(expandFromCenter);
+        selectionSession.updateFromDrag(drag);
         e.repaint();
     }
 
     @Override
     protected void dragFinished(PMouseEvent e) {
         // common logic in the base class
-        finalizeDragBasedSelection(e);
+        handleDragFinished(e);
     }
 
     // altPressed() and altReleased() mirror the expand-from-center handling
     // in ongoingDrag(), but fire immediately on the key event since
     // there may be no mouse movement to trigger it otherwise
     @Override
-    public void altPressed() {
+    public void altPressed(boolean shiftDown) {
         if (!altUsedForCombinator && drag != null && drag.isDragging()) {
-            drag.setExpandFromCenter(true);
-            if (selectionBuilder != null) {
-                selectionBuilder.updateDraftSelection(drag);
+            drag.setExpandedFromCenter(true);
+            if (selectionSession != null) {
+                selectionSession.updateFromDrag(drag);
             }
         }
     }
 
     @Override
-    public void altReleased() {
+    public void altReleased(boolean shiftDown) {
         boolean wasAltCombinator = altUsedForCombinator;
 
-        super.altReleased(); // clears altUsedForCombinator
+        super.altReleased(shiftDown); // clears altUsedForCombinator
 
         if (!wasAltCombinator && drag != null && drag.isDragging()) {
-            drag.setExpandFromCenter(false);
-            if (selectionBuilder != null) {
-                selectionBuilder.updateDraftSelection(drag);
+            drag.setExpandedFromCenter(false);
+            if (selectionSession != null) {
+                selectionSession.updateFromDrag(drag);
             }
         }
     }
@@ -164,5 +169,23 @@ public class MarqueeSelectionTool extends AbstractSelectionTool {
         return selectionType == SelectionType.RECTANGLE
             ? ToolIcons::paintRectangleSelectionIcon
             : ToolIcons::paintEllipseSelectionIcon;
+    }
+
+    /**
+     * Whether the current gesture builds a selection rather than moving existing pixels.
+     */
+    protected boolean isSelectionDrag() {
+        return true;
+    }
+
+    @Override
+    public boolean checkInvariants() {
+        super.checkInvariants();
+
+        if (drag != null && drag.isDragging() && isSelectionDrag() && selectionSession == null) {
+            throw new AssertionError("active drag without selectionSession");
+        }
+
+        return true;
     }
 }

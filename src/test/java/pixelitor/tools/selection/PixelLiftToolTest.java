@@ -428,7 +428,7 @@ class PixelLiftToolTest {
     private void configureTool(boolean autoMerge, boolean autoSelect) {
         var preset = new UserPreset("pixel lift settings");
         tool.saveStateTo(preset);
-        preset.put("New Selection", SelectionCombinator.REPLACE.name());
+        preset.put("Combinator", SelectionCombinator.REPLACE.name());
         preset.putBoolean("Auto Merge", autoMerge);
         preset.putBoolean("Auto Select", autoSelect);
         tool.loadUserPreset(preset);
@@ -437,7 +437,7 @@ class PixelLiftToolTest {
     private void setCombinator(SelectionCombinator combinator) {
         var preset = new UserPreset("combinator");
         tool.saveStateTo(preset);
-        preset.put("New Selection", combinator.name());
+        preset.put("Combinator", combinator.name());
         tool.loadUserPreset(preset);
     }
 

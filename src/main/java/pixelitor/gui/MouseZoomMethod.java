@@ -21,6 +21,9 @@ import pixelitor.Views;
 import pixelitor.utils.AppPreferences;
 
 import javax.swing.*;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Point;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 
@@ -63,116 +66,51 @@ public enum MouseZoomMethod {
         }
     }
 
-    private static void viewZoomed(View view, MouseWheelEvent e) {
-        zoom(view, e, e.getPoint());
+    private static void viewZoomed(View view, MouseWheelEvent e, int steps) {
+        Point point = e.getPoint();
+        if (steps < 0) { // up, away from the user
+            for (int i = 0; i < -steps; i++) {
+                view.zoomIn(point);
+            }
+        } else {  // down, towards the user
+            for (int i = 0; i < steps; i++) {
+                view.zoomOut(point);
+            }
+        }
     }
 
-    private static void otherZoomed(MouseWheelEvent e) {
+    private static void otherZoomed(int steps) {
         View view = Views.getActive();
         if (view == null) {
             return; // all views are closed
         }
-        zoom(view, e, null);
+        if (steps < 0) { // up, away from the user
+            for (int i = 0; i < -steps; i++) {
+                view.zoomIn();
+            }
+        } else {  // down, towards the user
+            for (int i = 0; i < steps; i++) {
+                view.zoomOut();
+            }
+        }
     }
-
-    private static final String ACCUM_CLIENT_PROPERTY = "pixelitor.mouseZoomAccum";
-    private static final String LAST_WHEN_CLIENT_PROPERTY = "pixelitor.mouseZoomLastWhen";
-
-    // Trackpads generate a lot of small wheel deltas. Scaling them down makes zooming feel
-    // less jumpy and gives finer control without changing the discrete zoom levels.
-    private static final double TRACKPAD_ROTATION_SCALE = 0.25;
-    private static final long TRACKPAD_ACCUM_RESET_MS = 250;
-    private static final int MAX_TRACKPAD_STEPS_PER_EVENT = 3;
 
     /**
-     * Performs discrete zoom steps based on the (possibly fractional) wheel delta.
-     * <p>
-     * Trackpads typically generate many small wheel events. Using
-     * {@link MouseWheelEvent#getWheelRotation()} would collapse them to -1/0/1 and
-     * make zooming extremely fast and jittery. Instead, use
-     * {@link MouseWheelEvent#getPreciseWheelRotation()} and accumulate deltas until
-     * they add up to a whole "notch".
+     * Forwards an unhandled mouse wheel event up the ancestor hierarchy to the
+     * nearest container that listens for wheel events (such as an enclosing JScrollPane).
      */
-    private static void zoom(View view, MouseWheelEvent e, java.awt.Point coFocusPoint) {
-        double preciseRotation = e.getPreciseWheelRotation();
-        int wheelRotation = e.getWheelRotation();
-
-        boolean hasPreciseRotation = preciseRotation != 0.0;
-        double rotation = hasPreciseRotation ? preciseRotation : wheelRotation;
-        if (rotation == 0.0) {
+    private static void forwardToParent(Component source, MouseWheelEvent e) {
+        if (source == null) {
             return;
         }
-
-        // prevent JScrollPane from also scrolling (which feels glitchy while zooming)
-        e.consume();
-
-        JComponent source = (e.getComponent() instanceof JComponent jc) ? jc : view;
-        boolean looksLikeTrackpad = hasPreciseRotation && (wheelRotation == 0
-            || Math.abs(preciseRotation - Math.rint(preciseRotation)) > 1e-6);
-
-        if (looksLikeTrackpad) {
-            long when = e.getWhen();
-            long lastWhen = getLastWhen(source);
-            if (lastWhen != 0 && when - lastWhen > TRACKPAD_ACCUM_RESET_MS) {
-                // avoid carrying over tiny remainder deltas to a later gesture
-                setAccumulatedRotation(source, 0.0);
-            }
-            setLastWhen(source, when);
-
-            rotation *= TRACKPAD_ROTATION_SCALE;
+        Container parent = source.getParent();
+        while (parent != null && parent.getMouseWheelListeners().length == 0) {
+            parent = parent.getParent();
         }
-
-        double accum = getAccumulatedRotation(source) + rotation;
-
-        int steps = (int) Math.floor(Math.abs(accum));
-        if (looksLikeTrackpad) {
-            steps = Math.min(steps, MAX_TRACKPAD_STEPS_PER_EVENT);
+        if (parent != null) {
+            parent.dispatchEvent(SwingUtilities.convertMouseEvent(source, e, parent));
+            e.consume();
         }
-        if (steps == 0) {
-            setAccumulatedRotation(source, accum);
-            return;
-        }
-
-        if (accum < 0) { // up, away from the user
-            for (int i = 0; i < steps; i++) {
-                view.zoomIn(coFocusPoint);
-            }
-            accum += steps;
-        } else { // down, towards the user
-            for (int i = 0; i < steps; i++) {
-                view.zoomOut(coFocusPoint);
-            }
-            accum -= steps;
-        }
-
-        if (Math.abs(accum) < 1e-9) {
-            accum = 0.0;
-        }
-        setAccumulatedRotation(source, accum);
-    }
-
-    private static double getAccumulatedRotation(JComponent c) {
-        Object value = c.getClientProperty(ACCUM_CLIENT_PROPERTY);
-        if (value instanceof Double d) {
-            return d;
-        }
-        return 0.0;
-    }
-
-    private static void setAccumulatedRotation(JComponent c, double value) {
-        c.putClientProperty(ACCUM_CLIENT_PROPERTY, value);
-    }
-
-    private static long getLastWhen(JComponent c) {
-        Object value = c.getClientProperty(LAST_WHEN_CLIENT_PROPERTY);
-        if (value instanceof Long l) {
-            return l;
-        }
-        return 0L;
-    }
-
-    private static void setLastWhen(JComponent c, long when) {
-        c.putClientProperty(LAST_WHEN_CLIENT_PROPERTY, when);
     }
 
     public static void loadFromPreferences() {
@@ -205,6 +143,9 @@ public enum MouseZoomMethod {
     }
 
     private static final int SCROLL_PAN_STEP = 20;
+    private static final double TRACKPAD_ROTATION_SCALE = 0.25;
+    private static final long TRACKPAD_ACCUM_RESET_MS = 250;
+    private static final int MAX_TRACKPAD_STEPS_PER_EVENT = 3;
 
     private static void panWithWheel(View view, MouseWheelEvent e) {
         int rotation = e.getWheelRotation();
@@ -220,10 +161,22 @@ public enum MouseZoomMethod {
         }
     }
 
-    private record ZoomListener(View view, boolean requiresCtrl) implements MouseWheelListener {
+    private static class ZoomListener implements MouseWheelListener {
+        private final View view;
+        private final boolean requiresCtrl;
+        private double rotationAccumulator = 0.0;
+        private long lastWhen = 0;
+
+        ZoomListener(View view, boolean requiresCtrl) {
+            this.view = view;
+            this.requiresCtrl = requiresCtrl;
+        }
+
         @Override
         public void mouseWheelMoved(MouseWheelEvent e) {
             if (GlobalEvents.isSpaceDown()) {
+                rotationAccumulator = 0.0;
+                lastWhen = 0;
                 View target = view != null ? view : Views.getActive();
                 if (target != null) {
                     panWithWheel(target, e);
@@ -231,13 +184,53 @@ public enum MouseZoomMethod {
                 return;
             }
             if (requiresCtrl && !e.isControlDown()) {
+                rotationAccumulator = 0.0;
+                lastWhen = 0;
+                Component source = (view != null) ? view : e.getComponent();
+                forwardToParent(source, e);
                 return;
             }
-            if (view != null) {
-                viewZoomed(view, e);
-            } else {
-                otherZoomed(e);
+
+            double preciseRotation = e.getPreciseWheelRotation();
+            int wheelRotation = e.getWheelRotation();
+            double rotation = preciseRotation != 0.0 ? preciseRotation : wheelRotation;
+            if (rotation == 0.0) {
+                return;
             }
+
+            // Slow down trackpad zoom and discard remainders between gestures.
+            boolean looksLikeTrackpad = preciseRotation != 0.0 && (wheelRotation == 0
+                || Math.abs(preciseRotation - Math.rint(preciseRotation)) > 1e-6);
+            if (looksLikeTrackpad) {
+                long when = e.getWhen();
+                if (lastWhen != 0 && when - lastWhen > TRACKPAD_ACCUM_RESET_MS) {
+                    rotationAccumulator = 0.0;
+                }
+                lastWhen = when;
+                rotation *= TRACKPAD_ROTATION_SCALE;
+            }
+
+            // reset partial ticks if the user reversed the scroll direction
+            if ((rotationAccumulator > 0 && rotation < 0) || (rotationAccumulator < 0 && rotation > 0)) {
+                rotationAccumulator = 0.0;
+            }
+
+            rotationAccumulator += rotation;
+            int steps = (int) rotationAccumulator;
+            if (looksLikeTrackpad) {
+                steps = Math.clamp(steps, -MAX_TRACKPAD_STEPS_PER_EVENT, MAX_TRACKPAD_STEPS_PER_EVENT);
+            }
+
+            if (steps != 0) {
+                rotationAccumulator -= steps;
+                if (view != null) {
+                    viewZoomed(view, e, steps);
+                } else {
+                    otherZoomed(steps);
+                }
+            }
+
+            e.consume();
         }
     }
 }

@@ -26,11 +26,7 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 
-import static java.awt.BasicStroke.CAP_BUTT;
-import static java.awt.BasicStroke.CAP_ROUND;
-import static java.awt.BasicStroke.JOIN_BEVEL;
-import static java.awt.BasicStroke.JOIN_MITER;
-import static java.awt.BasicStroke.JOIN_ROUND;
+import static java.awt.BasicStroke.*;
 
 public class ToolIcons {
     private ToolIcons() {
@@ -162,7 +158,7 @@ public class ToolIcons {
         g.fill(arrowHead);
     }
 
-    public static void paintLassoSelectionIcon(Graphics2D g) {
+    public static void paintFreehandSelectionIcon(Graphics2D g) {
         // based on lasso_tool.svg
         Path2D path = new Path2D.Double(Path2D.WIND_EVEN_ODD);
 

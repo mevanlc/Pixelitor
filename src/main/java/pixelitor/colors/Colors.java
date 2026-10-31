@@ -24,6 +24,7 @@ import pixelitor.colors.palette.ColorSwatchClickHandler;
 import pixelitor.colors.palette.PalettePanel;
 import pixelitor.gui.GlobalEvents;
 import pixelitor.gui.utils.Dialogs;
+import pixelitor.gui.utils.GUIUtils;
 import pixelitor.gui.utils.TaskAction;
 import pixelitor.utils.Lazy;
 import pixelitor.utils.Utils;
@@ -65,6 +66,8 @@ public class Colors {
     public static final Color OK_RED = new Color(213, 63, 63);
     public static final Color OK_BLUE = new Color(66, 0, 254);
     public static final Color OK_YELLOW = new Color(254, 157, 0);
+
+    private static final int SWATCH_BUTTON_SIZE = 30;
 
     private Colors() {
     }
@@ -147,29 +150,47 @@ public class Colors {
         if (text.length() != 8) {
             throw new IllegalArgumentException("text = " + text);
         }
-        try {
-            return new Color(
-                parseInt(text.substring(0, 2), 16),
-                parseInt(text.substring(2, 4), 16),
-                parseInt(text.substring(4, 6), 16),
-                parseInt(text.substring(6, 8), 16));
-        } catch (Exception e) {
-            return null;
-        }
+        return new Color(
+            // NumberFormatException is a subclass of IllegalArgumentException
+            parseInt(text.substring(0, 2), 16),
+            parseInt(text.substring(2, 4), 16),
+            parseInt(text.substring(4, 6), 16),
+            parseInt(text.substring(6, 8), 16));
     }
 
     public static Color fromHtmlHexRgb(String text) {
         if (text.length() != 6) {
             throw new IllegalArgumentException("text = " + text);
         }
-        try {
-            return new Color(
-                parseInt(text.substring(0, 2), 16),
-                parseInt(text.substring(2, 4), 16),
-                parseInt(text.substring(4, 6), 16));
-        } catch (Exception e) {
-            return null;
+        return new Color(
+            // NumberFormatException is a subclass of IllegalArgumentException
+            parseInt(text.substring(0, 2), 16),
+            parseInt(text.substring(2, 4), 16),
+            parseInt(text.substring(4, 6), 16));
+    }
+
+    /**
+     * Formats an array of colors as a comma-separated list of 8-character hex strings (RRGGBBAA).
+     */
+    public static String toHtmlHexList(Color[] colors) {
+        return Arrays.stream(colors)
+            .map(c -> toHtmlHex(c, true))
+            .collect(Collectors.joining(","));
+    }
+
+    /**
+     * Parses a comma-separated list of 8-character hex strings (RRGGBBAA) into an array of colors.
+     */
+    public static Color[] parseHtmlHexList(String text) {
+        if (text.isEmpty()) {
+            return new Color[0];
         }
+        String[] parts = text.split(",", -1);
+        Color[] colors = new Color[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            colors[i] = fromHtmlHexRgba(parts[i]);
+        }
+        return colors;
     }
 
     public static void selectColorWithDialog(JComponent component, String title,
@@ -189,10 +210,15 @@ public class Colors {
         assert colorSetter != null;
 
         Color prevColor = defaultColor;
+
         GlobalEvents.modalDialogOpened();
-        Color color = ColorPicker.showDialog(owner, title, defaultColor,
-            allowTransparency, colorSetter);
-        GlobalEvents.modalDialogClosed();
+        Color color;
+        try {
+            color = ColorPicker.showDialog(owner, title, defaultColor,
+                allowTransparency, colorSetter);
+        } finally {
+            GlobalEvents.modalDialogClosed();
+        }
 
         if (color == null) {
             // cancel was pressed, reset the previous color
@@ -209,16 +235,27 @@ public class Colors {
         Utils.copyStringToClipboard(toHtmlHex(c));
     }
 
+    // returns null if the clipboard doesn’t contain a valid color
     private static Color getColorFromClipboard() {
         String text;
         try {
             var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             text = (String) clipboard.getData(DataFlavor.stringFlavor);
-        } catch (UnsupportedFlavorException | IOException e) {
+        } catch (UnsupportedFlavorException | IOException | IllegalStateException e) {
             return null;
         }
 
-        text = text.trim();
+        try {
+            return parseColor(text.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    // Returns null if the format isn't recognized, and throws
+    // IllegalArgumentException (including NumberFormatException)
+    // if the format is recognized but the values are invalid.
+    private static Color parseColor(String text) {
         if (text.startsWith("#")) {
             text = text.substring(1);
         }
@@ -231,20 +268,15 @@ public class Colors {
         }
 
         // try rgb(163, 69, 151) format
-        if (text.toLowerCase(Locale.ROOT).startsWith("rgb(") && text.endsWith(")")) {
-            try {
-                String[] components = text.substring(4, text.length() - 1).split("\\s*,\\s*");
-                if (components.length == 3) {
-                    return new Color(
-                        parseInt(components[0].trim()),
-                        parseInt(components[1].trim()),
-                        parseInt(components[2].trim()));
-                }
-            } catch (Exception e) {
-                return null;
+        if (text.regionMatches(true, 0, "rgb(", 0, 4) && text.endsWith(")")) {
+            String[] components = text.substring(4, text.length() - 1).split(",");
+            if (components.length == 3) {
+                return new Color(
+                    parseInt(components[0].trim()),
+                    parseInt(components[1].trim()),
+                    parseInt(components[2].trim()));
             }
         }
-
         return null;
     }
 
@@ -291,13 +323,13 @@ public class Colors {
                                                      Consumer<Color> colorSetter) {
         JPopupMenu popup = new JPopupMenu();
 
-        ColorSwatchClickHandler clickHandler = (swatchColor, e) -> colorSetter.accept(swatchColor);
+        ColorSwatchClickHandler clickHandler = ColorSwatchClickHandler.forFilter(colorSetter);
         Window owner = SwingUtilities.windowForComponent(parent);
 
         popup.add(new TaskAction("Color Variations...", () ->
-            PalettePanel.showFilterVariationsDialog(colorSource.get(), clickHandler)));
+            PalettePanel.showFilterVariationsDialog(owner, colorSource.get(), clickHandler)));
         popup.add(new TaskAction("Color History...", () ->
-            ColorHistory.INSTANCE.showDialog(owner, clickHandler, true)));
+            ColorHistory.INSTANCE.showDialog(owner, clickHandler)));
 
         popup.addSeparator();
         popup.add(createCopyColorAction(colorSource));
@@ -389,5 +421,20 @@ public class Colors {
         return Arrays.stream(colors)
             .map(Colors::formatForDebugging)
             .collect(Collectors.joining(", ", "[", "]"));
+    }
+
+    public static ColorSwatch createFilterSwatch(JComponent owner, Color initial, String title,
+                                                 Supplier<Color> getter, boolean allowAlpha,
+                                                 Consumer<Color> modelSetter) {
+        ColorSwatch swatch = new ColorSwatch(initial, SWATCH_BUTTON_SIZE);
+        Consumer<Color> apply = c -> {
+            swatch.setForeground(c);
+            swatch.paintImmediately(0, 0, SWATCH_BUTTON_SIZE, SWATCH_BUTTON_SIZE);
+            modelSetter.accept(c);
+        };
+        GUIUtils.addClickAction(swatch, () ->
+            selectColorWithDialog(owner, title, getter.get(), allowAlpha, apply));
+        setupFilterColorPopupMenu(owner, swatch, getter, apply);
+        return swatch;
     }
 }

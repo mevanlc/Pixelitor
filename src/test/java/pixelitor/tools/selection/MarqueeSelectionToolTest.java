@@ -32,6 +32,7 @@ import pixelitor.history.History;
 import pixelitor.tools.Tools;
 import pixelitor.tools.gui.ToolSettingsPanelContainer;
 import pixelitor.tools.move.MoveMode;
+import pixelitor.utils.Texts;
 
 import java.awt.Rectangle;
 import java.awt.event.InputEvent;
@@ -48,8 +49,9 @@ class MarqueeSelectionToolTest {
     private View view;
 
     @BeforeAll
-    static void beforeAllTests() {
+    static void beforeAllTests() throws Exception {
         TestHelper.setUnitTestingMode();
+        TestHelper.initToolSettings(Tools.MOVE, Texts.getResources());
     }
 
     @BeforeEach

@@ -17,6 +17,7 @@
 
 package pixelitor.filters.painters;
 
+import pixelitor.Composition;
 import pixelitor.filters.gui.UserPreset;
 import pixelitor.utils.AppPreferences;
 
@@ -40,24 +41,24 @@ public final class TextDialogPreferences {
         return AppPreferences.mainPrefs.node("text_dialog");
     }
 
-    public static TextSettings loadSettings() {
-        return loadSettings(prefs());
+    public static TextSettings loadSettings(Composition comp) {
+        return loadSettings(prefs(), comp);
     }
 
     // Overloads allow tests to use a separate preference node.
-    static TextSettings loadSettings(Preferences prefs) {
+    static TextSettings loadSettings(Preferences prefs, Composition comp) {
         String savedSettings = prefs.get(SETTINGS_KEY, null);
         if (savedSettings == null) {
-            return new TextSettings();
+            return new TextSettings(comp);
         }
 
         UserPreset preset = new UserPreset("Last Used Text Settings");
-        new TextSettings().saveStateTo(preset);
+        new TextSettings(comp).saveStateTo(preset);
         preset.loadFromString(savedSettings);
         try {
             return new TextSettings(preset, null);
         } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
-            return new TextSettings();
+            return new TextSettings(comp);
         }
     }
 

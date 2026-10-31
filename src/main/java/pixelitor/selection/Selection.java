@@ -45,9 +45,8 @@ import static java.awt.Color.WHITE;
  * Represents a selection area on an image with an animated "marching ants" border.
  */
 public class Selection implements Transformable {
-    private static final double DASH_WIDTH = 1.0;
+    private static final double LINE_WIDTH = 1.0;
     private static final float DASH_LENGTH = 4.0f;
-    private static final float[] MARCHING_ANTS_DASH = {DASH_LENGTH, DASH_LENGTH};
     private float dashPhase;
     private Timer marchingAntsTimer;
 
@@ -161,28 +160,23 @@ public class Selection implements Transformable {
         // ensure that the border width doesn't depend on the zoom level,
         // considering that the graphics coordinates are in image space
         double viewScale = view.getZoomScale();
-        float lineWidth = (float) (DASH_WIDTH / viewScale);
+        float lineWidth = (float) (LINE_WIDTH / viewScale);
 
-        float[] dash;
-        if (viewScale == 1.0) { // optimize for the common case
-            dash = MARCHING_ANTS_DASH;
-        } else {
-            float scaledDashLength = (float) (DASH_LENGTH / viewScale);
-            dash = new float[]{scaledDashLength, scaledDashLength};
-        }
+        float scaledDash = (float) (DASH_LENGTH / viewScale);
+        float[] dash = {scaledDash, scaledDash};
 
-        // draw white segments
-        drawSegments(g, WHITE, lineWidth, dash, dashPhase);
+        // draw white dashes
+        drawDashes(g, WHITE, lineWidth, dash, dashPhase);
 
-        // draw black segments offset by half a dash length
-        float blackPhase = (float) (dashPhase + DASH_LENGTH / viewScale);
-        drawSegments(g, BLACK, lineWidth, dash, blackPhase);
+        // draw black dashes offset by one dash (half of the pattern period)
+        float blackPhase = dashPhase + scaledDash;
+        drawDashes(g, BLACK, lineWidth, dash, blackPhase);
 
         // restore original stroke
         g.setStroke(origStroke);
     }
 
-    private void drawSegments(Graphics2D g, Color color, float lineWidth, float[] dash, float phase) {
+    private void drawDashes(Graphics2D g, Color color, float lineWidth, float[] dash, float phase) {
         g.setColor(color);
         g.setStroke(new BasicStroke(lineWidth,
             CAP_BUTT, JOIN_ROUND, 0.0f, dash, phase));
@@ -372,9 +366,9 @@ public class Selection implements Transformable {
     }
 
     /**
-     * Applies a transformation relative to the selection before the drag.
+     * Applies a transformation relative to the backup selection data.
      */
-    private void transformWhileDragging(AffineTransform at) {
+    private void transformFromBackup(AffineTransform at) {
         assert checkInvariants();
         assert dataBeforeTransform != null;
 
@@ -389,16 +383,16 @@ public class Selection implements Transformable {
     /**
      * Moves the selection during a drag operation.
      */
-    public void moveWhileDragging(double relImX, double relImY) {
+    public void moveWhileDragging(double imDx, double imDy) {
         assert checkInvariants();
         assert dataBeforeTransform != null;
 
-        data = dataBeforeTransform.translated(relImX, relImY);
+        data = dataBeforeTransform.translated(imDx, imDy);
     }
 
     /**
-     * Finalizes the movement of the selection after
-     * a drag operation and returns an edit for undo/redo.
+     * Finalizes the transformation of the selection
+     * and returns an edit for undo/redo.
      */
     @Override
     public PixelitorEdit finalizeTransform() {
@@ -435,7 +429,7 @@ public class Selection implements Transformable {
 
     @Override
     public void imTransform(AffineTransform transform) {
-        transformWhileDragging(transform);
+        transformFromBackup(transform);
     }
 
     @Override
@@ -476,9 +470,10 @@ public class Selection implements Transformable {
 
     @Override
     public String toString() {
-        return "Selection{" +
-            "composition=" + view.getComp().getName() +
-            ", data=" + data +
-            '}';
+        String compStr = view != null ? view.getComp().getName() : "no view";
+        return "Selection{compName=" + compStr
+            + ", disposed=" + disposed
+            + ", data=" + data
+            + '}';
     }
 }

@@ -71,9 +71,9 @@ public class SelectionChangeEdit extends PixelitorEdit {
         }
 
         // the selection data is immutable, so it can be swapped without copying
-        SelectionData tmp = selection.getData();
+        SelectionData currentData = selection.getData();
         selection.setData(backupData);
-        backupData = tmp;
+        backupData = currentData;
     }
 
     @Override

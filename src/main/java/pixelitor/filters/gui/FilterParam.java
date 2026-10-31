@@ -21,14 +21,20 @@ import pixelitor.layers.Filterable;
 import pixelitor.utils.debug.Debuggable;
 
 /**
- * The model for a filter parameter, which (unlike a button) holds
- * a value that can be changed by the user.
- *
+ * The model for a filter parameter, which (unlike a button)
+ * holds a value that can be changed by the user.
  * For practical reasons, implementations of this interface are also
  * used outside of filters as models of GUI elements. In such cases,
  * only a subset of their functionality is used.
  */
 public non-sealed interface FilterParam extends FilterSetting, Resettable, Debuggable {
+    /**
+     * The possible layouts when this filter parameter is
+     * embedded into a composite filter parameter.
+     */
+    enum Layout {
+        DIALOG, VERTICAL, HORIZONTAL
+    }
 
     /**
      * Sets a random value without triggering any filter update.
@@ -55,6 +61,12 @@ public non-sealed interface FilterParam extends FilterSetting, Resettable, Debug
     String getPresetKey();
 
     /**
+     * Returns a last-resort preset key used in earlier versions.
+     * Returns null if there is no legacy key.
+     */
+    String getLegacyPresetKey();
+
+    /**
      * Loads the state from the given state object into this parameter,
      * optionally updating the GUI, and without triggering the filter.
      */
@@ -63,6 +75,7 @@ public non-sealed interface FilterParam extends FilterSetting, Resettable, Debug
     /**
      * Loads the state from the given string into this parameter,
      * updating the GUI, and without triggering the filter.
+     * The argument must not be null.
      */
     void loadStateFrom(String savedValue);
 
@@ -74,7 +87,14 @@ public non-sealed interface FilterParam extends FilterSetting, Resettable, Debug
         // overridden in the composite params
         String savedValue = preset.get(getPresetKey());
 
-        if (savedValue != null) {
+        if (savedValue == null) {
+            String legacyKey = getLegacyPresetKey();
+            if (legacyKey != null) {
+                savedValue = preset.get(legacyKey);
+            }
+        }
+
+        if (savedValue != null) { // presets don't have to include everything
             loadStateFrom(savedValue);
         }
     }
@@ -105,6 +125,16 @@ public non-sealed interface FilterParam extends FilterSetting, Resettable, Debug
     void setRandomizeMode(RandomizeMode mode);
 
     /**
+     * Returns the display name of this parameter.
+     */
+    String getName();
+
+    /**
+     * Sets the display name of this parameter.
+     */
+    void setName(String displayName);
+
+    /**
      * Sets a tooltip message for the GUI widget associated with this parameter.
      */
     void setToolTip(String tip);
@@ -118,12 +148,14 @@ public non-sealed interface FilterParam extends FilterSetting, Resettable, Debug
      * Returns true if the filter should support presets
      * even if this is its only parameter.
      */
-    default boolean isComplex() {
+    default boolean requiresPresetSupport() {
+        // complex widgets with multiple controls
+        // override this to return true
         return false;
     }
 
     /**
-     * Signals that this filter param is embedded into a bordered layout.
+     * Signals that this filter param is embedded into a composite layout.
      */
-    void setEmbedded();
+    void setEmbedded(Layout layout);
 }

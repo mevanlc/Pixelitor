@@ -25,9 +25,6 @@ import javax.swing.*;
 import java.awt.Color;
 import java.io.Serial;
 import java.util.Arrays;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.joining;
 
 /**
  * A filter parameter for selecting a list of colors.
@@ -38,8 +35,11 @@ public class ColorListParam extends AbstractFilterParam {
     private final Color[] candidateColors;
     private final Color[] defaultColors;
 
+    // candidateColors supplies the initial colors, the colors for newly revealed swatches, and the maximum count
     public ColorListParam(String name, int defaultNumColors, int minNumColors, Color... candidateColors) {
         super(name, RandomizeMode.ALLOW);
+        assert minNumColors <= defaultNumColors && defaultNumColors <= candidateColors.length;
+
         this.minNumColors = minNumColors;
         this.candidateColors = candidateColors;
         this.colors = Arrays.copyOf(candidateColors, defaultNumColors);
@@ -48,11 +48,7 @@ public class ColorListParam extends AbstractFilterParam {
 
     @Override
     public JComponent createGUI() {
-        var gui = new ColorListParamGUI(this, candidateColors, minNumColors);
-        paramGUI = gui;
-        syncWithGui();
-
-        return gui;
+        return installGUI(new ColorListParamGUI(this));
     }
 
     /**
@@ -75,43 +71,55 @@ public class ColorListParam extends AbstractFilterParam {
         return colors[index];
     }
 
-    /**
-     * Sets the color at the given index and optionally triggers an update.
-     */
-    public void setColor(int index, Color newColor, boolean trigger) {
-        Color oldColor = colors[index];
-        if (oldColor.equals(newColor)) {
-            return;
-        }
-        colors[index] = newColor;
+    public int getMinNumColors() {
+        return minNumColors;
+    }
 
-        ColorHistory.remember(newColor);
+    public int getMaxNumColors() {
+        return candidateColors.length;
+    }
 
-        updateGUI(trigger);
+    public Color getCandidateColor(int index) {
+        return candidateColors[index];
     }
 
     /**
-     * Sets the list of colors and optionally triggers an update.
+     * Sets the color at the given index.
+     */
+    public void setColor(int index, Color newColor, boolean trigger) {
+        if (colors[index].equals(newColor)) {
+            return;
+        }
+        Color[] newColors = colors.clone();
+        newColors[index] = newColor;
+        colors = newColors;
+
+        ColorHistory.remember(newColor);
+
+        updateGUI();
+
+        if (trigger) {
+            triggerFilter();
+        }
+    }
+
+    /**
+     * Sets the list of colors.
      */
     public void setColors(Color[] newColors, boolean trigger) {
-        if (newColors.length < minNumColors) {
-            throw new IllegalArgumentException("Expected at least " + minNumColors + " colors, got " + newColors.length);
+        if (newColors.length < minNumColors || newColors.length > candidateColors.length) {
+            throw new IllegalArgumentException("Expected %d-%d colors, got %d"
+                .formatted(minNumColors, candidateColors.length, newColors.length));
         }
 
         if (Arrays.equals(colors, newColors)) {
             return;
         }
-        colors = newColors;
-        updateGUI(trigger);
-    }
+        colors = newColors.clone();
+        updateGUI();
 
-    private void updateGUI(boolean trigger) {
-        if (paramGUI != null) {
-            paramGUI.updateGUI();
-        }
-
-        if (trigger && adjustmentListener != null) {
-            adjustmentListener.paramAdjusted();
+        if (trigger) {
+            triggerFilter();
         }
     }
 
@@ -136,12 +144,12 @@ public class ColorListParam extends AbstractFilterParam {
 
     @Override
     public void loadStateFrom(String savedValue) {
-        String[] colorStrings = savedValue.split(",");
-        Color[] newColors = new Color[colorStrings.length];
-        for (int i = 0; i < newColors.length; i++) {
-            newColors[i] = Colors.fromHtmlHexRgba(colorStrings[i]);
+        try {
+            Color[] newColors = Colors.parseHtmlHexList(savedValue);
+            setColors(newColors, false);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Could not parse " + savedValue, e);
         }
-        setColors(newColors, false);
     }
 
     @Override
@@ -161,8 +169,7 @@ public class ColorListParam extends AbstractFilterParam {
 
     @Override
     public void reset(boolean trigger) {
-        Color[] defCopy = Arrays.copyOf(defaultColors, defaultColors.length);
-        setColors(defCopy, trigger);
+        setColors(defaultColors, trigger);
     }
 
     /**
@@ -179,9 +186,7 @@ public class ColorListParam extends AbstractFilterParam {
 
         @Override
         public String toPresetString() {
-            return Stream.of(colors)
-                .map(c -> Colors.toHtmlHex(c, true))
-                .collect(joining(","));
+            return Colors.toHtmlHexList(colors);
         }
     }
 }

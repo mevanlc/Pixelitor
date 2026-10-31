@@ -61,8 +61,6 @@ import static java.awt.RenderingHints.*;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static pixelitor.compactions.FlipDirection.HORIZONTAL;
-import static pixelitor.filters.FilterContext.BATCH_AUTOMATE;
-import static pixelitor.filters.FilterContext.REPEAT_LAST;
 import static pixelitor.layers.ImageLayer.State.*;
 import static pixelitor.utils.ImageUtils.copyImage;
 import static pixelitor.utils.ImageUtils.replaceSelectedRegion;
@@ -107,14 +105,9 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     /**
      * The source image for filters, which can differ
      * from the layer's image if there is a selection.
+     * Cached only during filter preview sessions.
      */
     private transient BufferedImage filterSourceImage;
-
-    /**
-     * Whether the preview image is different from the normal image.
-     * Relevant only in preview state.
-     */
-    private transient boolean imageContentChanged = false;
 
     // the current transform to be applied for live preview during a free transform session
     private transient AffineTransform liveTransform;
@@ -257,7 +250,6 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
         in.defaultReadObject();
         setImage(PXCFormat.deserializeImage(in));
-        imageContentChanged = false;
     }
 
     public State getState() {
@@ -297,11 +289,6 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     @Override
     protected ImageLayer createTypeSpecificCopy(CopyOptions options, Composition newComp) {
         BufferedImage imageCopy = copyImage(image);
-        if (imageCopy == null) {
-            // there was an out of memory error
-            return null;
-        }
-
         String copyName = options.createLayerCopyName(name);
         return new ImageLayer(newComp, imageCopy, copyName, getTx(), getTy());
     }
@@ -313,6 +300,10 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
     @Override
     public BufferedImage getFilterSourceImage() {
+        if (state == NORMAL) {
+            return getSelectedSubImage(false);
+        }
+
         if (filterSourceImage == null) {
             filterSourceImage = getSelectedSubImage(false);
         }
@@ -453,7 +444,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         updateIconImage();
     }
 
-    private void replaceTranslatedImage(BufferedImage newImage, String editName, int newTx, int newTy) {
+    void replaceTranslatedImage(BufferedImage newImage, String editName, int newTx, int newTy) {
         int prevTx = getTx();
         int prevTy = getTy();
         setTranslation(newTx, newTy);
@@ -512,17 +503,12 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         assert state == PREVIEW || state == SHOW_ORIGINAL;
         assert previewImage != null;
 
-        if (imageContentChanged) {
-            History.add(new ImageEdit(filterName, comp, this,
-                getSelectedSubImage(true), false));
-        }
+        History.add(new ImageEdit(filterName, comp, this,
+            getSelectedSubImage(true), false));
 
         image = previewImage;
         imageRefChanged();
-
-        if (imageContentChanged) {
-            updateIconImage();
-        }
+        updateIconImage();
 
         boolean wasShowOriginal = state == SHOW_ORIGINAL;
         setState(NORMAL);
@@ -554,76 +540,36 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         assert previewImage != null :
             format("previewImage was null with %s, context = %s, class = %s",
                 filterName, context, getClass().getSimpleName());
+
         assert newPreview != null;
+        assert newPreview != image;
 
-        if (newPreview == image) {
-            // this can happen if a filter with preview decides that no
-            // change is necessary and returns the src
-
-            imageContentChanged = false; // no history will be necessary
-
-            // it can still happen that the image needs to be repainted
-            // because the preview image can be different from the image
-            // (the user does something, but then resets the params to a do-nothing state)
-            boolean shouldRefresh = image != previewImage;
-            previewImage = image;
-
-            if (shouldRefresh) {
-                imageRefChanged();
-                update();
-            }
-        } else {
-            imageContentChanged = true; // history will be necessary
-
-            setPreviewWithSelection(newPreview);
-        }
+        setPreviewWithSelection(newPreview);
     }
 
     /**
      * Applies the result of a non-interactive filter operation.
      */
     @Override
-    public void filterWithoutDialogFinished(BufferedImage filteredImage, FilterContext context, String filterName) {
-        requireNonNull(filteredImage);
+    public void filterWithoutDialogFinished(BufferedImage src, BufferedImage dest, FilterContext context, String filterName) {
+        requireNonNull(src);
+        requireNonNull(dest);
+
+        assert dest != image : filterName + " returned the original image, context = " + context;
 
         comp.setDirty(true);
-
-        // a filter without dialog should never return the original image...
-        if (filteredImage == image) {
-            // ...unless "Repeat Last" or "Batch Filter" starts a filter
-            // with settings without its dialog
-            if (context != REPEAT_LAST && context != BATCH_AUTOMATE) {
-                throw new IllegalStateException(filterName
-                    + " returned the original image, context = " + context);
-            } else {
-                return;
-            }
-        }
 
         // filters without dialog run in the normal state
         assert state == NORMAL;
 
-        BufferedImage imageForUndo = getFilterSourceImage();
-        setImageWithSelection(filteredImage, false);
+        setImageWithSelection(dest, false);
 
-        if (!context.needsUndo()) {
-            return;
+        if (context.needsUndo()) {
+            var edit = new ImageEdit(filterName, comp, this,
+                src, false);
+            History.add(edit);
         }
 
-        // at this point we are sure that the image changed,
-        // considering that a filter without dialog was running
-        if (imageForUndo == image) {
-            throw new IllegalStateException("imageForUndo == image");
-        }
-        assert imageForUndo != null;
-
-        var edit = new ImageEdit(filterName, comp, this,
-            imageForUndo, false);
-        History.add(edit);
-
-        // otherwise the next filter run will take the old image source,
-        // not the actual one
-        filterSourceImage = null;
         update();
         updateIconImage();
     }
@@ -703,7 +649,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         BufferedImage dest = ImageUtils.createImageWithSameCM(image);
         Graphics2D g = dest.createGraphics();
 
-        g.setTransform(direction.createImageTransform(image));
+        g.setTransform(direction.createImTransform(image));
         g.drawImage(image, 0, 0, image.getWidth(), image.getHeight(), null);
         g.dispose();
 
@@ -752,7 +698,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     private void rotateOnlyThisLayer(QuadrantAngle angle) {
         Point2D canvasCenter = comp.getCanvas().getImCenter();
         AffineTransform at = AffineTransform.getQuadrantRotateInstance(
-            angle.getAngleDegree() / 90, canvasCenter.getX(), canvasCenter.getY());
+            angle.getAngleDegrees() / 90, canvasCenter.getX(), canvasCenter.getY());
         // the transform must also include the layer's current translation
         at.translate(getTx(), getTy());
 
@@ -768,7 +714,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
     private void rotateFullComp(QuadrantAngle angle) {
         int newTx;
         int newTy;
-        switch (angle.getAngleDegree()) {
+        switch (angle.getAngleDegrees()) {
             case 90 -> {
                 newTx = comp.getCanvasHeight() - image.getHeight() - getTy();
                 newTy = getTx();
@@ -781,7 +727,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
                 newTx = comp.getCanvasWidth() - image.getWidth() - getTx();
                 newTy = comp.getCanvasHeight() - image.getHeight() - getTy();
             }
-            default -> throw new IllegalStateException("angleDegree = " + angle.getAngleDegree());
+            default -> throw new IllegalStateException("angle = " + angle.getAngleDegrees());
         }
 
         BufferedImage dest = angle.createDestImage(image);
@@ -789,7 +735,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         Graphics2D g = dest.createGraphics();
         // nearest neighbor should be ok for 90, 180, 270 degrees
         g.setRenderingHint(KEY_INTERPOLATION, VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g.setTransform(angle.createImageTransform(image));
+        g.setTransform(angle.createImTransform(image));
         g.drawImage(image, 0, 0, image.getWidth(), image.getHeight(), null);
         g.dispose();
 
@@ -1231,20 +1177,24 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
      * to the transparency of the layer.
      */
     public BufferedImage applyLayerMask(boolean addToHistory) {
-        BufferedImage previousLayerImage = copyImage(image);
-        LayerMask previousMask = mask;
-        MaskViewMode previousMaskViewMode = comp.getView().getMaskViewMode();
+        BufferedImage prevLayerImage = copyImage(image);
+        LayerMask prevMask = mask;
+        MaskViewMode prevMaskViewMode = comp.getMaskViewMode();
 
-        mask.applyTo(image);
+        // the layer and the mask can have independent translations
+        mask.applyTo(image,
+            mask.getTx() - getTx(),
+            mask.getTy() - getTy());
+
         deleteMask(false);
 
         if (addToHistory) {
-            History.add(new ApplyLayerMaskEdit(this, previousMask,
-                previousLayerImage, previousMaskViewMode));
+            History.add(new ApplyLayerMaskEdit(this, prevMask,
+                prevLayerImage, prevMaskViewMode));
         }
 
         updateIconImage();
-        return previousLayerImage;
+        return prevLayerImage;
     }
 
     @Override
@@ -1291,12 +1241,12 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
 
     @Override
     public void prepareForTransform() {
-        this.liveTransform = null;
-        this.liveMapping = null;
-        this.liveTransformImage = null;
-        this.transformSourceImage = image;
-        this.transformSourceTx = getTx();
-        this.transformSourceTy = getTy();
+        liveTransform = null;
+        liveMapping = null;
+        liveTransformImage = null;
+        transformSourceImage = image;
+        transformSourceTx = getTx();
+        transformSourceTy = getTy();
         synchronized (this) {
             transformPreviewGeneration++;
             requestedPreviewMapping = null;
@@ -1305,9 +1255,9 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         int tx = getTx();
         int ty = getTy();
         if (tx == 0 && ty == 0) {
-            this.originalTransform = null;
+            originalTransform = null;
         } else {
-            this.originalTransform = AffineTransform.getTranslateInstance(tx, ty);
+            originalTransform = AffineTransform.getTranslateInstance(tx, ty);
         }
     }
 
@@ -1316,11 +1266,11 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         liveMapping = null;
         liveTransformImage = null;
         if (originalTransform == null) {
-            this.liveTransform = at;
+            liveTransform = at;
         } else {
             // the given `at` transform is relative to the canvas origin
-            this.liveTransform = (AffineTransform) at.clone();
-            this.liveTransform.concatenate(this.originalTransform);
+            liveTransform = (AffineTransform) at.clone();
+            liveTransform.concatenate(originalTransform);
         }
 
         comp.invalidateImageCache();
@@ -1447,7 +1397,7 @@ public class ImageLayer extends ContentLayer implements Drawable, Transformable 
         }
 
         // use the last known affine transform for the final render
-        AffineTransform finalTransform = this.liveTransform;
+        AffineTransform finalTransform = liveTransform;
 
         // if no transform was applied (e.g., user just clicked without dragging), do nothing
         if (finalTransform == null || finalTransform.isIdentity()) {

@@ -17,10 +17,15 @@
 
 package pixelitor.filters.impl;
 
-import net.jafama.FastMath;
+import pixelitor.filters.util.Complex;
+import pixelitor.filters.util.ComplexBounds;
+
+import java.awt.geom.Point2D;
 
 /**
- * Filter implementing Newton's and Halley's root-finding methods for solving zⁿ − 1 = 0 on the complex plane.
+ * Newton's and Halley's methods for zⁿ − 1 = 0 with a complex relaxation factor a:
+ * z ← z − a·Δz, where Δz is the classic correction (f/f′ for Newton).
+ * a = 1 gives the classic methods; the roots attract iff |1 − a| < 1.
  */
 public class NewtonFractalFilter extends ComplexPlaneFilter {
     public static final int METHOD_NEWTON = 0;
@@ -33,21 +38,39 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
     private final int[][] colors;
     private final int method;
 
-    public NewtonFractalFilter(double xMin, double xMax,
-                               double yMin, double yMax,
+    // the complex relaxation factor
+    private final double reA;
+    private final double imA;
+
+    // precomputed roots of unity: rootRe[k] = cos(2πk/n), rootIm[k] = sin(2πk/n)
+    private final double[] rootRe;
+    private final double[] rootIm;
+
+    public NewtonFractalFilter(String filterName,
+                               ComplexBounds bounds,
                                int n,
                                double zoom,
-                               double zoomCenterX,
-                               double zoomCenterY,
+                               Point2D zoomCenter,
                                int maxIterations,
                                int[][] colors,
-                               int method) {
-        super("Newton Fractal", xMin, xMax, yMin, yMax, zoom, zoomCenterX, zoomCenterY);
+                               int method,
+                               Complex a) {
+        super(filterName, bounds, zoom, zoomCenter, false);
 
         this.n = n;
         this.maxIterations = maxIterations;
         this.colors = colors;
         this.method = method;
+        this.reA = a.re();
+        this.imA = a.im();
+
+        this.rootRe = new double[n];
+        this.rootIm = new double[n];
+        for (int k = 0; k < n; k++) {
+            double angle = (2.0 * Math.PI * k) / n;
+            rootRe[k] = Math.cos(angle);
+            rootIm[k] = Math.sin(angle);
+        }
     }
 
     @Override
@@ -67,9 +90,11 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
     }
 
     private int calcNewton(double zx, double zy) {
+        double invN = 1.0 / n;
+
         for (int step = 1; step <= maxIterations; step++) {
             if (!Double.isFinite(zx) || !Double.isFinite(zy)) {
-                return IN_SET_COLOR;
+                return NOT_CONVERGED_COLOR;
             }
 
             // calculate w = z^(n - 1)
@@ -84,16 +109,23 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
 
             double denom = n * (u * u + v * v);
             if (denom == 0.0) {
-                return IN_SET_COLOR; // derivative is zero (singularity at origin)
+                return NOT_CONVERGED_COLOR; // derivative is zero (singularity at origin)
             }
 
             // Newton step for f(z) = zⁿ − 1:
-            // z_(m+1) = ((n - 1) / n) * z + 1 / (n * z^(n - 1))
-            double factor = (double) (n - 1) / n;
-            double nextZx = factor * zx + u / denom;
-            double nextZy = factor * zy - v / denom;
+            // Δz = f(z) / f'(z) = (zⁿ - 1) / (n * zⁿ⁻¹) = z / n - 1 / (n * zⁿ⁻¹)
+            // 1 / (n * zⁿ⁻¹) = (u - i*v) / denom
+            double deltaX = zx * invN - u / denom;
+            double deltaY = zy * invN + v / denom;
 
-            if (isConverged(zx, zy, nextZx, nextZy)) {
+            // relaxed step: a * Δz = (reA + i*imA) * (deltaX + i*deltaY)
+            double stepX = reA * deltaX - imA * deltaY;
+            double stepY = reA * deltaY + imA * deltaX;
+
+            double nextZx = zx - stepX;
+            double nextZy = zy - stepY;
+
+            if (isConverged(zx, zy, deltaX, deltaY)) {
                 return colors[findClosestRoot(nextZx, nextZy)][step];
             }
 
@@ -101,13 +133,13 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
             zy = nextZy;
         }
 
-        return IN_SET_COLOR;
+        return NOT_CONVERGED_COLOR;
     }
 
     private int calcHalley(double zx, double zy) {
         for (int step = 1; step <= maxIterations; step++) {
             if (!Double.isFinite(zx) || !Double.isFinite(zy)) {
-                return IN_SET_COLOR;
+                return NOT_CONVERGED_COLOR;
             }
 
             // calculate w = zⁿ
@@ -126,7 +158,7 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
             double dy = (n + 1) * v;
             double denom = dx * dx + dy * dy;
             if (denom < 1e-14 || !Double.isFinite(denom)) {
-                return IN_SET_COLOR;
+                return NOT_CONVERGED_COLOR;
             }
 
             // 2 * z * (zⁿ − 1) = 2 * (zx + i*zy) * ((u - 1) + i*v)
@@ -137,10 +169,14 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
             double deltaX = (numX * dx + numY * dy) / denom;
             double deltaY = (numY * dx - numX * dy) / denom;
 
-            double nextZx = zx - deltaX;
-            double nextZy = zy - deltaY;
+            // relaxed step: a * Δz = (reA + i*imA) * (deltaX + i*deltaY)
+            double stepX = reA * deltaX - imA * deltaY;
+            double stepY = reA * deltaY + imA * deltaX;
 
-            if (isConverged(zx, zy, nextZx, nextZy)) {
+            double nextZx = zx - stepX;
+            double nextZy = zy - stepY;
+
+            if (isConverged(zx, zy, deltaX, deltaY)) {
                 return colors[findClosestRoot(nextZx, nextZy)][step];
             }
 
@@ -148,32 +184,41 @@ public class NewtonFractalFilter extends ComplexPlaneFilter {
             zy = nextZy;
         }
 
-        return IN_SET_COLOR;
+        return NOT_CONVERGED_COLOR;
     }
 
     /**
-     * Checks if the iteration step has converged to an actual root of zⁿ − 1 = 0.
+     * Checks if the iteration has converged to an actual root of zⁿ − 1 = 0.
+     * <p>
+     * Convergence is tested using the unrelaxed correction Δz rather than the relaxed step a·Δz,
+     * so that the tolerance is independent of the relaxation factor a and does not falsely
+     * report convergence when |a| is small or zero.
      * <p>
      * In Halley's method, z = 0 is an extraneous repelling fixed point where the step size Δz ∝ z
      * becomes arbitrarily small near the origin. Since all actual roots lie on the unit circle (|z| = 1),
-     * checking that |nextZ|² > 0.25 prevents false convergence at the origin and allows points
+     * checking that |z|² > 0.25 prevents false convergence at the origin and allows points
      * near the origin to escape and converge to a true root.
      */
-    private static boolean isConverged(double zx, double zy, double nextZx, double nextZy) {
-        double diffX = nextZx - zx;
-        double diffY = nextZy - zy;
-        return diffX * diffX + diffY * diffY < CONVERGENCE_TOLERANCE_SQ
-            && (nextZx * nextZx + nextZy * nextZy > 0.25);
+    private static boolean isConverged(double zx, double zy, double deltaX, double deltaY) {
+        return deltaX * deltaX + deltaY * deltaY < CONVERGENCE_TOLERANCE_SQ
+            && zx * zx + zy * zy > 0.25;
     }
 
     /**
-     * Derives the index k ∈ [0, n - 1] of the closest root of unity e^(i * 2πk / n) directly from the angle.
+     * Finds the index k ∈ [0, n - 1] of the closest root of unity e^(i * 2πk / n).
+     * Since all roots lie on the unit circle (|root| = 1), minimizing the Euclidean
+     * distance |z - root| is equivalent to maximizing the dot product z · root.
      */
     private int findClosestRoot(double zx, double zy) {
-        double angle = FastMath.atan2(zy, zx);
-        if (angle < 0.0) {
-            angle += 2.0 * Math.PI;
+        int best = 0;
+        double bestDot = Double.NEGATIVE_INFINITY;
+        for (int k = 0; k < n; k++) {
+            double dot = zx * rootRe[k] + zy * rootIm[k];
+            if (dot > bestDot) {
+                bestDot = dot;
+                best = k;
+            }
         }
-        return (int) Math.round(angle * n / (2.0 * Math.PI)) % n;
+        return best;
     }
 }

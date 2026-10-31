@@ -17,14 +17,15 @@
 
 package pixelitor.filters.gui;
 
-import com.jhlabs.image.CellularFilter;
+import com.jhlabs.image.CellSearchFilter;
+import pixelitor.utils.Choice;
 
 import java.util.List;
 
 /**
  * A {@link ChoiceParam} for choosing a value from an enum.
  */
-public class EnumParam<E extends Enum<E>> extends ChoiceParam<E> {
+public class EnumParam<E extends Enum<E> & Choice> extends ChoiceParam<E> {
     public EnumParam(String name, Class<E> enumClass) {
         super(name, enumClass.getEnumConstants(), RandomizeMode.ALLOW);
     }
@@ -43,11 +44,11 @@ public class EnumParam<E extends Enum<E>> extends ChoiceParam<E> {
         setPresetKey(presetKey);
     }
 
-    public static EnumParam<CellularFilter.GridType> forGridType(String name, RangeParam randomnessParam) {
-        var param = new EnumParam<>(name, CellularFilter.GridType.class);
+    public static EnumParam<CellSearchFilter.GridType> forGridType(String name, RangeParam randomnessParam) {
+        var param = new EnumParam<>(name, CellSearchFilter.GridType.class);
         // enable the randomness slider only if the grid type isn't "Fully Random"
         param.enableOtherWhen(randomnessParam, selected ->
-            selected != CellularFilter.GridType.RANDOM);
+            selected != CellSearchFilter.GridType.RANDOM);
         return param;
     }
 

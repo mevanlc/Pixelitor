@@ -37,7 +37,6 @@ import pixelitor.tools.util.PPoint;
 import pixelitor.tools.util.PRectangle;
 import pixelitor.utils.AppPreferences;
 import pixelitor.utils.ImageUtils;
-import pixelitor.utils.Lazy;
 import pixelitor.utils.Messages;
 import pixelitor.utils.debug.DebugNode;
 import pixelitor.utils.debug.Debuggable;
@@ -48,7 +47,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
@@ -67,14 +65,14 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     private Composition comp;
     private Canvas canvas;
 
-    private ZoomLevel zoomLevel = ZoomLevel.ACTUAL_SIZE;
-    private double zoomScale = 1.0f;
+    private ZoomLevel zoomLevel;
+    private double zoomScale;
 
     private ViewContainer viewContainer = null;
     private final LayersPanel layersPanel;
     private Navigator navigator;
 
-    private MaskViewMode maskViewMode;
+    private MaskViewMode maskViewMode = MaskViewMode.NORMAL;
 
     private static final CheckerboardPainter checkerboardPainter
         = ImageUtils.createCheckerboardPainter();
@@ -85,12 +83,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     private int canvasStartX;
     private int canvasStartY;
 
-    // cached coordinate transformation matrices
-    private final Lazy<AffineTransform> imToCo = Lazy.of(this::createImToCoTransform);
-    private final Lazy<AffineTransform> coToIm = Lazy.of(this::createCoToImTransform);
-
-    private static boolean pixelGridVisible = false;
-
     // true if the snapping preference is set and the active tool also approves
     private static boolean pixelSnapping = false;
 
@@ -98,10 +90,12 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         assert !AppMode.isUnitTesting() : "Swing component in unit test";
         assert comp != null;
 
-        setComp(comp);
-        setZoom(ZoomLevel.calcBestFitZoom(canvas, null, false));
-
+        canvas = comp.getCanvas();
+        zoomLevel = ZoomLevel.calcBestFitZoom(null, canvas, false);
+        zoomScale = zoomLevel.getScale();
         layersPanel = new LayersPanel();
+
+        setComp(comp);
         addMouseListeners();
     }
 
@@ -181,15 +175,8 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
         // do this before actually replacing so that the old comp is
         // deselected before its view is set to null
-        History.add(new CompositionReplacedEdit(
-            "Reload", this, comp, newComp, null, true));
-        replaceComp(newComp, MaskViewMode.NORMAL, true);
-
-        // the view was active when the reloading started, but since
-        // the reloading was asynchronous, this could have changed
-        if (isActive()) {
-            SelectionActions.update(newComp);
-        }
+        History.add(new CompositionReplacedEdit("Reload", this, comp, newComp, CompositionReplacedContext.RELOAD));
+        replaceComp(newComp, MaskViewMode.NORMAL, CompositionReplacedContext.RELOAD);
 
         Messages.showStatusMessage(String.format(
             "The image <b>%s</b> was reloaded from the file <b>%s</b>.",
@@ -211,19 +198,17 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
     // the simple form of replacing, used by multi-layer edits
     public void replaceComp(Composition newComp) {
-        replaceComp(newComp, getMaskViewMode(), false);
+        replaceComp(newComp, getMaskViewMode(), CompositionReplacedContext.TRANSFORM);
     }
 
     public void replaceComp(Composition newComp,
                             MaskViewMode newMaskViewMode,
-                            boolean reloaded) {
+                            CompositionReplacedContext context) {
         assert newComp != null;
 
         Composition oldComp = comp;
         setComp(newComp);
         oldComp.dispose();
-
-        newComp.createLayerUIs();
 
         // Evaluates all smart objects. It's better to do it here than
         // have it triggered by async updateIconImage calls when the
@@ -234,7 +219,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         newComp.addLayersToUI();
 
         if (isActive()) {
-            updateUIForNewComp(newComp, newMaskViewMode, reloaded);
+            updateUIForNewComp(newComp, newMaskViewMode, context);
         }
 
         if (newComp.isSmartObjectContent()) {
@@ -243,7 +228,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
             }
         }
 
-        revalidate(); // update the scrollbars if the new comp has a different size
         canvasCoSizeChanged();
         repaint();
     }
@@ -251,17 +235,18 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     /**
      * Updates all UI elements when a new composition becomes active in this view.
      */
-    private void updateUIForNewComp(Composition newComp, MaskViewMode newMaskViewMode, boolean reloaded) {
-        LayersContainer.showLayersFor(this);
+    private void updateUIForNewComp(Composition newComp, MaskViewMode newMaskViewMode, CompositionReplacedContext context) {
+        showLayersUI();
 
-        LayerEvents.fireActiveCompChanged(newComp, reloaded);
+        LayerEvents.fireActiveCompChanged(newComp, context == CompositionReplacedContext.RELOAD);
 
         setMaskViewMode(newMaskViewMode, newComp.getActiveLayer());
 
         repaintNavigator(true);
         HistogramsPanel.updateFrom(newComp);
         PixelitorWindow.get().updateTitle(newComp);
-        Tools.compReplaced(newComp, reloaded);
+        Tools.compReplaced(newComp, context);
+        SelectionActions.update(newComp);
     }
 
     @Override
@@ -269,7 +254,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         if (comp.hasNoLayers()) {
             return super.getPreferredSize();
         } else {
-            return canvas.getCoSize();
+            return getCanvasCoSize();
         }
     }
 
@@ -401,7 +386,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         boolean showMask = maskViewMode.isShowingMask();
         if (!showMask) {
             checkerboardPainter.paint(g2, this,
-                canvas.getCoWidth(), canvas.getCoHeight());
+                getCanvasCoWidth(), getCanvasCoHeight());
         }
 
         // apply canvas zoom
@@ -431,7 +416,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
                 mask.paint(g2, true);
             } else {
                 // paint the composite image
-                g2.drawImage(comp.getCompositeImage(), 0, 0, null);
+                ImageUtils.drawImageVisiblePart(g2, comp.getCompositeImage(), 0, 0);
 
                 if (maskViewMode.isShowingRubylith()) {
                     // paint the mask as a red "rubylith" overlay over the composite image
@@ -459,16 +444,17 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     /**
-     * Paints overlays that appear on top of the image content (grid, guides, tools).
+     * Paints overlays that appear over the composition
+     * content (grid, guides, tool widgets) in component space.
      */
     private void paintOverlays(Graphics2D g) {
-        if (pixelGridVisible && zoomLevel.allowsPixelGrid()) {
+        if (PixelGrid.visible && zoomLevel.allowsPixelGrid()) {
             // use XOR mode for visibility on any background
             g.setColor(WHITE);
             g.setXORMode(BLACK);
 
             try {
-                drawPixelGrid(g);
+                PixelGrid.draw(g, this);
             } finally {
                 // stop the XOR mode
                 g.setPaintMode();
@@ -479,63 +465,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
         if (isActive()) {
             Tools.getActive().paintOverCanvas(g, comp);
-        }
-    }
-
-    /**
-     * Draws the pixel grid lines in component space.
-     */
-    private void drawPixelGrid(Graphics2D g) {
-        double pixelSize = zoomScale;
-        assert pixelSize > 1;
-
-        Rectangle visibleRect = getVisibleRegion();
-
-        // calculate horizontal bounds in component space
-        double startX = canvasStartX;
-        if (visibleRect.x > canvasStartX) {
-            startX += Math.floor((visibleRect.x - canvasStartX) / pixelSize) * pixelSize;
-        }
-
-        double endX = Math.min(
-            visibleRect.x + visibleRect.width + pixelSize,
-            canvasStartX + canvas.getCoWidth()
-        ) - 1;
-
-        // calculate vertical bounds in component space
-        double startY = canvasStartY;
-        if (visibleRect.y > canvasStartY) {
-            startY += Math.floor((visibleRect.y - canvasStartY) / pixelSize) * pixelSize;
-        }
-
-        double endY = Math.min(
-            visibleRect.y + visibleRect.height + pixelSize,
-            canvasStartY + canvas.getCoHeight()
-        ) - 1;
-
-        // vertical lines
-        for (double x = startX + pixelSize; x < endX; x += pixelSize) {
-            g.draw(new Line2D.Double(x, startY, x, endY));
-        }
-
-        // horizontal lines
-        for (double y = startY + pixelSize; y < endY; y += pixelSize) {
-            g.draw(new Line2D.Double(startX, y, endX, y));
-        }
-    }
-
-    /**
-     * Enables or disables the visibility of the pixel grid.
-     */
-    public static void setPixelGridVisible(boolean visible) {
-        if (pixelGridVisible == visible) {
-            return;
-        }
-        pixelGridVisible = visible;
-        if (visible) {
-            ImageArea.pixelGridEnabled();
-        } else {
-            Views.repaintVisible();
         }
     }
 
@@ -561,12 +490,12 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         // adjust for thickness (zoom dependent)
         double coThickness = zoomScale * thickness;
 
-        int x = (int) (minX - coThickness);
-        int y = (int) (minY - coThickness);
-        int w = (int) (maxX - minX + 2 * coThickness) + 1;
-        int h = (int) (maxY - minY + 2 * coThickness) + 1;
+        int x = (int) Math.floor(minX - coThickness);
+        int y = (int) Math.floor(minY - coThickness);
+        int right = (int) Math.ceil(maxX + coThickness);
+        int bottom = (int) Math.ceil(maxY + coThickness);
 
-        repaint(x, y, w, h);
+        repaint(x, y, right - x, bottom - y);
     }
 
     /**
@@ -620,13 +549,16 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     /**
-     * Called when the canvas component-space size has changed (zoom, resize, crop, etc.).
+     * Called when the canvas component-space size might have changed
+     * (zoom, resize, crop, etc.). The size itself is derived on demand,
+     * so this only refreshes the state that depends on it.
      */
     public void canvasCoSizeChanged() {
         assert Invariants.imageCoversCanvas(comp);
 
         fitFrameToCanvas();
         updateLayout();
+        revalidate();
     }
 
     private void fitFrameToCanvas() {
@@ -647,6 +579,37 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         return canvasStartY;
     }
 
+    /**
+     * Returns the width of the canvas in component space (screen pixels).
+     */
+    public int getCanvasCoWidth() {
+        return (int) (zoomScale * canvas.getWidth());
+    }
+
+    /**
+     * Returns the height of the canvas in component space (screen pixels).
+     */
+    public int getCanvasCoHeight() {
+        return (int) (zoomScale * canvas.getHeight());
+    }
+
+    /**
+     * Returns the size of the canvas in component space (screen pixels).
+     */
+    public Dimension getCanvasCoSize() {
+        return new Dimension(getCanvasCoWidth(), getCanvasCoHeight());
+    }
+
+    /**
+     * Returns the bounds of the canvas in component space.
+     * The location is valid only after the view has been laid out.
+     */
+    public Rectangle getCanvasCoBounds() {
+        return new Rectangle(
+            canvasStartX, canvasStartY,
+            getCanvasCoWidth(), getCanvasCoHeight());
+    }
+
     public double getZoomScale() {
         return zoomScale;
     }
@@ -659,7 +622,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
      * Sets the zoom level using an automatic zoom calculation type.
      */
     public void setZoom(AutoZoom autoZoom) {
-        setZoom(ZoomLevel.calcBestFitZoom(canvas, autoZoom, true));
+        setZoom(ZoomLevel.calcBestFitZoom(autoZoom, canvas, true));
     }
 
     /**
@@ -695,18 +658,19 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
         // map the determined focus point into image-space coordinates
         if (focusPoint != null) {
-            imFocus = componentToImageSpace(focusPoint);
+            // componentToImageSpace() would apply pixel snapping
+            imFocus = new Point2D.Double(
+                (focusPoint.x - canvasStartX) / zoomScale,
+                (focusPoint.y - canvasStartY) / zoomScale);
         }
 
         // apply the zoom logic
         this.zoomLevel = newZoom;
         zoomScale = newZoom.getScale();
-        canvas.recalcCoSize(this, true);
+        canvasCoSizeChanged();
 
         if (ImageArea.isActiveMode(ImageArea.Mode.FRAMES)) {
             updateTitle();
-        } else {
-            revalidate(); // ensure scrollbars update in tabbed UI
         }
 
         if (viewContainer != null) {
@@ -725,7 +689,9 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
                                            Point2D imFocus,
                                            Rectangle oldVisibleRegion) {
         // the tracked image point in the newly-scaled component-space
-        Point newCoFocusPoint = fromImageToComponentSpace(imFocus, zoomLevel);
+        Point newCoFocusPoint = new Point(
+            (int) imageXToComponentSpace(imFocus.getX()),
+            (int) imageYToComponentSpace(imFocus.getY()));
 
         // the physical offset of the mouse from the old viewport's top-left corner
         int offsetX = oldCoFocusPoint.x - oldVisibleRegion.x;
@@ -758,11 +724,11 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
             return;
         }
 
-        Canvas tmpCanvas = new Canvas(
-            Math.max(1, (int) (zoomRect.getWidth() + 0.5)),
-            Math.max(1, (int) (zoomRect.getHeight() + 0.5)));
+        int zoomWidth = Math.max(1, (int) (zoomRect.getWidth() + 0.5));
+        int zoomHeight = Math.max(1, (int) (zoomRect.getHeight() + 0.5));
+        setZoom(ZoomLevel.calcBestFitZoom(AutoZoom.FIT_SPACE,
+            zoomWidth, zoomHeight, true));
 
-        setZoom(ZoomLevel.calcBestFitZoom(tmpCanvas, AutoZoom.FIT_SPACE, true));
         scrollRectToVisible(imageToComponentSpace(zoomRect));
     }
 
@@ -796,8 +762,8 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     private void updateLayout() {
         int viewWidth = getWidth();
         int viewHeight = getHeight();
-        int canvasCoWidth = canvas.getCoWidth();
-        int canvasCoHeight = canvas.getCoHeight();
+        int canvasCoWidth = getCanvasCoWidth();
+        int canvasCoHeight = getCanvasCoHeight();
 
         // ensure the view is at least as big as the canvas
         if (viewWidth < canvasCoWidth || viewHeight < canvasCoHeight) {
@@ -818,9 +784,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
             Tools.coCoordsChanged(this);
         }
         comp.coCoordsChanged();
-
-        imToCo.invalidate();
-        coToIm.invalidate();
     }
 
     public static boolean isPixelSnapping() {
@@ -840,24 +803,19 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
         if (activeTool == Tools.CROP) {
             pixelSnapping = true; // the crop tool always snaps
         } else {
-            pixelSnapping = newValue && activeTool.hasPixelSnapping();
+            pixelSnapping = newValue && activeTool.usesPixelSnapping();
         }
+    }
+
+    private static double snapIfNeeded(double v) {
+        return pixelSnapping ? Math.floor(v + 0.5) : v;
     }
 
     public double componentXToImageSpace(double coX) {
-        if (pixelSnapping) {
-            return (int) (((coX - canvasStartX) / zoomScale) + 0.5);
-        } else {
-            return ((coX - canvasStartX) / zoomScale);
-        }
+        return snapIfNeeded((coX - canvasStartX) / zoomScale);
     }
-
     public double componentYToImageSpace(double coY) {
-        if (pixelSnapping) {
-            return (int) (((coY - canvasStartY) / zoomScale) + 0.5);
-        } else {
-            return ((coY - canvasStartY) / zoomScale);
-        }
+        return snapIfNeeded((coY - canvasStartY) / zoomScale);
     }
 
     public double imageXToComponentSpace(double imX) {
@@ -880,34 +838,12 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
             imageYToComponentSpace(im.getY()));
     }
 
-    private Point2D fromComponentToImageSpace(Point co, ZoomLevel zoom) {
-        double zoomViewScale = zoom.getScale();
-        return new Point2D.Double(
-            (co.x - canvasStartX) / zoomViewScale,
-            (co.y - canvasStartY) / zoomViewScale
-        );
-    }
-
-    private Point fromImageToComponentSpace(Point2D im, ZoomLevel zoom) {
-        double zoomViewScale = zoom.getScale();
-        return new Point(
-            (int) (canvasStartX + im.getX() * zoomViewScale),
-            (int) (canvasStartY + im.getY() * zoomViewScale)
-        );
-    }
-
     public Rectangle2D componentToImageSpace(Rectangle2D co) {
-        double imX = componentXToImageSpace(co.getX());
-        double imY = componentYToImageSpace(co.getY());
-        double imWidth, imHeight;
-        if (pixelSnapping) {
-            imWidth = (int) ((co.getWidth() / zoomScale) + 0.5);
-            imHeight = (int) ((co.getHeight() / zoomScale) + 0.5);
-        } else {
-            imWidth = co.getWidth() / zoomScale;
-            imHeight = co.getHeight() / zoomScale;
-        }
-        return new Rectangle2D.Double(imX, imY, imWidth, imHeight);
+        double x1 = componentXToImageSpace(co.getMinX());
+        double x2 = componentXToImageSpace(co.getMaxX());
+        double y1 = componentYToImageSpace(co.getMinY());
+        double y2 = componentYToImageSpace(co.getMaxY());
+        return new Rectangle2D.Double(x1, y1, x2 - x1, y2 - y1);
     }
 
     public Rectangle imageToComponentSpace(Rectangle2D im) {
@@ -929,10 +865,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     public AffineTransform getImageToComponentTransform() {
-        return imToCo.get();
-    }
-
-    private AffineTransform createImToCoTransform() {
         var at = new AffineTransform();
         at.translate(canvasStartX, canvasStartY);
         at.scale(zoomScale, zoomScale);
@@ -940,10 +872,6 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
     }
 
     public AffineTransform getComponentToImageTransform() {
-        return coToIm.get();
-    }
-
-    private AffineTransform createCoToImTransform() {
         var at = new AffineTransform();
         double s = 1.0 / zoomScale;
         at.scale(s, s);
@@ -1055,7 +983,7 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
      */
     public Rectangle getVisibleCanvasBoundsOnScreen() {
         // the canvas bounds relative to this view
-        Rectangle canvasBounds = canvas.getCoBounds(this);
+        Rectangle canvasBounds = getCanvasCoBounds();
 
         // take scrollbars into account
         Rectangle visibleCanvas = canvasBounds.intersection(getVisibleRegion());
@@ -1097,6 +1025,8 @@ public class View extends JComponent implements MouseListener, MouseMotionListen
 
         node.addInt("view width", getWidth());
         node.addInt("view height", getHeight());
+        node.addInt("canvas co width", getCanvasCoWidth());
+        node.addInt("canvas co height", getCanvasCoHeight());
 
         if (viewContainer instanceof ImageFrame frame) {
             node.addInt("frame width", frame.getWidth());

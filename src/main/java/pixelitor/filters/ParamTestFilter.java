@@ -22,7 +22,8 @@ import pixelitor.colors.Colors;
 import pixelitor.filters.gui.*;
 import pixelitor.filters.gui.IntChoiceParam.Item;
 import pixelitor.filters.jhlabsproxies.JHWeave;
-import pixelitor.layers.BlendingMode;
+import pixelitor.filters.util.Complex;
+import pixelitor.filters.util.ComplexBounds;
 import pixelitor.utils.ImageUtils;
 import pixelitor.utils.test.RandomGuiTest;
 
@@ -40,7 +41,7 @@ import static java.awt.RenderingHints.*;
 import static pixelitor.filters.gui.TransparencyMode.RANDOMIZED_ALPHA;
 
 /**
- * A test {@link ParametrizedFilter} with all {@link FilterParam} objects
+ * A test {@link ParametrizedFilter} with all {@link FilterParam} objects.
  */
 public class ParamTestFilter extends ParametrizedFilter {
     public static final String NAME = "Param Test";
@@ -108,30 +109,55 @@ public class ParamTestFilter extends ParametrizedFilter {
         float[] defaultThumbPositions = {0.0f, 0.5f, 1.0f};
         Color[] defaultValues = {BLACK, BLUE, WHITE};
 
-        RangeParam a = new RangeParam("A", 0, 50, 100);
-        RangeParam b = new RangeParam("B", 0, 25, 100);
-        RangeParam c = new RangeParam("C", 0, 25, 100);
+        var rangeA = new RangeParam("A", 0, 50, 100);
+        var rangeB = new RangeParam("B", 0, 25, 100);
+        var rangeC = new RangeParam("C", 0, 25, 100);
 
-        return new FilterParam[]{
+        var intChoice = new IntChoiceParam("IntChoiceParam", new Item[]{
+            new Item("Enable All", 1),
+            new Item("Disable \"GroupedColorsParam\"", 2),
+            new Item("Disable \"Linked Group\"", 3),
+            new Item("Disable \"ColorListParam\"", 4),
+            new Item("Disable \"ComplexNumberParam\"", 5),
+        });
+        var normalizedRangeGroup = new GroupedRangeParam("Normalized Group", new RangeParam[]{
+            rangeA, rangeB, rangeC}, false).autoNormalized();
+        var linkedRangeGroup = new GroupedRangeParam("Linked Group", 0, 50, 100, true);
+        var groupedColors = new GroupedColorsParam("GroupedColorsParam",
+            "A", WHITE, "B", YELLOW, RANDOMIZED_ALPHA, true, false);
+        var colorList = new ColorListParam("ColorListParam", 3, 2,
+            RED, BLUE, WHITE, YELLOW, MAGENTA);
+        var complex = new ComplexNumberParam("ComplexNumberParam",
+            new Complex(0, 0), new ComplexBounds(-1, 1, -1, 1));
+
+        intChoice.disableOtherWhen(groupedColors, item -> item.hasValue(2));
+        intChoice.disableOtherWhen(linkedRangeGroup, item -> item.hasValue(3));
+        intChoice.disableOtherWhen(colorList, item -> item.hasValue(4));
+        intChoice.disableOtherWhen(complex, item -> item.hasValue(5));
+
+        FilterParam[] params = {
+            intChoice,
+            complex,
+            groupedColors,
+            linkedRangeGroup,
+            colorList,
             new GradientParam("Colors", defaultThumbPositions, defaultValues),
             new RangeParam("RangeParam", 0, 50, 100),
-            new GroupedRangeParam("Normalized Group", new RangeParam[]{
-                a, b, c}, false).autoNormalized(),
+            normalizedRangeGroup,
             new RangeWithColorsParam(RED, BLUE, "RangeWithColorsParam", 0, 50, 100),
             new ImagePositionParam("ImagePositionParam"),
-            new IntChoiceParam("IntChoiceParam", new Item[]{
-                new Item("value 1", 1),
-                new Item("value 2", 2),
-            }),
             new ColorParam("ColorParam", WHITE, RANDOMIZED_ALPHA),
-            new GroupedColorsParam("GroupedColorsParam", "A", WHITE, "B", Color.YELLOW, RANDOMIZED_ALPHA, true, false),
             new AngleParam("AngleParam", 0),
             new ElevationAngleParam("ElevationAngleParam", 0),
-            new BlendingModeParam(BlendingMode.values()),
             new BooleanParam("BooleanParam"),
             new TextParam("TextParam", "default value", true),
             new LogZoomParam("Zoom", 200, 200, 1000),
             new GridParam("Grid", JHWeave.WEAVE_PRESETS, GridCellPainter.createForWeave()),
         };
+        for (FilterParam param : params) {
+            param.setToolTip(param.getName() + " ToolTip");
+        }
+
+        return params;
     }
 }

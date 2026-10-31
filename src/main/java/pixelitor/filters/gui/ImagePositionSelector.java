@@ -19,6 +19,7 @@ package pixelitor.filters.gui;
 
 import pixelitor.Views;
 import pixelitor.layers.Drawable;
+import pixelitor.utils.Cursors;
 import pixelitor.utils.ImageUtils;
 import pixelitor.utils.Thumbnails;
 
@@ -30,20 +31,15 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 
-import static java.awt.Color.BLACK;
-import static java.awt.Color.WHITE;
-
 /**
- * A component that displays a thumbnail image and allows users
- * to select a position by clicking or dragging.
+ * A component that displays a thumbnail image and allows
+ * users to select a position by clicking or dragging.
  */
 public class ImagePositionSelector extends JComponent {
     public static final int THUMBNAIL_SIZE = 100;
-    private static final int MARKER_SIZE = 10;
-    private static final int MARKER_OFFSET = MARKER_SIZE / 2;
 
     private final ImagePositionParam model;
-    private BufferedImage thumb; // a thumbnail image for the background
+    private final BufferedImage thumb; // a thumbnail image for the background
 
     public ImagePositionSelector(ImagePositionParam model) {
         this.model = model;
@@ -51,39 +47,32 @@ public class ImagePositionSelector extends JComponent {
         MouseAdapter mouseAdapter = new MouseAdapter() {
             @Override
             public void mouseDragged(MouseEvent e) {
-                updatePosition(e, true);
+                updateModelFromMouse(e, true);
             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                updatePosition(e, false);
+                updateModelFromMouse(e, false);
             }
         };
 
         addMouseListener(mouseAdapter);
         addMouseMotionListener(mouseAdapter);
 
-//        if (AppMode.isUnitTesting()) {
-//            // Had spurious failures on Linux in createThumbnail().
-//            // This workaround should no longer be necessary.
-//            return;
-//        }
+        thumb = createThumbnail();
 
-        createThumbnail();
-
-        setPreferredSize(new Dimension(
-            thumb.getWidth(),
-            thumb.getHeight()));
+        setPreferredSize(new Dimension(thumb.getWidth(), thumb.getHeight()));
+        setCursor(Cursors.CROSSHAIR);
     }
 
-    private void createThumbnail() {
+    private BufferedImage createThumbnail() {
         Drawable dr = Views.getActiveDrawable();
         if (dr == null) {
             // no active drawable, e.g. when editing an adjustment layer
-            thumb = ImageUtils.createSysCompatibleImage(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
+            return ImageUtils.createSysCompatibleImage(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
         } else {
             BufferedImage sourceImage = dr.getImageForFilterDialogs();
-            thumb = Thumbnails.createThumbnail(sourceImage, THUMBNAIL_SIZE, null);
+            return Thumbnails.createThumbnail(sourceImage, THUMBNAIL_SIZE, null);
         }
     }
 
@@ -104,50 +93,18 @@ public class ImagePositionSelector extends JComponent {
 
         g.drawImage(thumb, xOffset, yOffset, null);
 
-        // Draws the position indicator, consisting of
-        // a crosshair and a central square marker.
+        // draws the position indicator, consisting of
+        // a crosshair and a central square marker
         int x = xOffset + (int) (model.getRelativeX() * thumbWidth);
         int y = yOffset + (int) (model.getRelativeY() * thumbHeight);
 
         // the crosshair should not be restricted to the thumbnail's
         // dimensions, because users are allowed to select outside the bounds
-        drawCrosshair(g, x, y, getWidth(), getHeight());
-        drawCentralMarker(g, x, y);
+        CrosshairPainter.paint(g, x, y, getWidth(), getHeight());
     }
 
-    private static void drawCrosshair(Graphics g, int x, int y, int width, int height) {
-        // draw a 1px white crosshair with a 1px black outline
-        g.setColor(BLACK);
-        // black outline for vertical line
-        if (x > 0) {
-            g.drawLine(x - 1, 0, x - 1, height - 1); // west
-        }
-        if (x < width - 1) {
-            g.drawLine(x + 1, 0, x + 1, height - 1); // east
-        }
-        // black outline for horizontal line
-        if (y > 0) {
-            g.drawLine(0, y - 1, width - 1, y - 1); // north
-        }
-        if (y < height - 1) {
-            g.drawLine(0, y + 1, width - 1, y + 1); // south
-        }
-
-        g.setColor(WHITE);
-        // white center lines
-        g.drawLine(x, 0, x, height - 1); // vertical
-        g.drawLine(0, y, width - 1, y); // horizontal
-    }
-
-    private static void drawCentralMarker(Graphics g, int x, int y) {
-        g.setColor(BLACK);
-        g.drawRect(x - MARKER_OFFSET, y - MARKER_OFFSET, MARKER_SIZE, MARKER_SIZE);
-        g.setColor(WHITE);
-        g.fillRect(x - MARKER_OFFSET + 1, y - MARKER_OFFSET + 1, MARKER_SIZE - 2, MARKER_SIZE - 2);
-    }
-
-    private void updatePosition(MouseEvent e, boolean isAdjusting) {
-        if (!isEnabled()) {
+    private void updateModelFromMouse(MouseEvent e, boolean isAdjusting) {
+        if (!isEnabled() || !SwingUtilities.isLeftMouseButton(e)) {
             return;
         }
 
@@ -159,7 +116,7 @@ public class ImagePositionSelector extends JComponent {
         double relX = (e.getX() - xOffset) / (double) thumb.getWidth();
         double relY = (e.getY() - yOffset) / (double) thumb.getHeight();
 
-        model.setRelativePosition(relX, relY, true, isAdjusting, true);
+        model.setRelativePosition(relX, relY, true, !isAdjusting);
     }
 
     private int getXOffset() {
@@ -168,5 +125,11 @@ public class ImagePositionSelector extends JComponent {
 
     private int getYOffset() {
         return (getHeight() - thumb.getHeight()) / 2;
+    }
+
+    @Override
+    public void setEnabled(boolean enabled) {
+        super.setEnabled(enabled);
+        setCursor(enabled ? Cursors.CROSSHAIR : Cursors.DEFAULT);
     }
 }

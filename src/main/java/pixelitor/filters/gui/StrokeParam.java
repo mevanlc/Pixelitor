@@ -44,8 +44,8 @@ public class StrokeParam extends AbstractFilterParam {
     private final EnumParam<ShapeType> shapeTypeParam = ShapeType.asParam();
     private final BooleanParam dashedParam = new BooleanParam("Dashed");
 
-    private ResetButton resetButton;
     private JComponent previewer;
+    private JPanel dialogContentPanel;
 
     private final FilterParam[] childParams = {
         strokeWidthParam, strokeCapParam, strokeJoinParam,
@@ -67,10 +67,8 @@ public class StrokeParam extends AbstractFilterParam {
 
     @Override
     public JComponent createGUI() {
-        resetButton = new ResetButton(this);
-        paramGUI = new DialogLauncherGUI(this::configureSettingsDialog, resetButton);
-        syncWithGui();
-        return (JComponent) paramGUI;
+        return installGUI(new DialogLauncherGUI(
+            this::configureDialog, new ResetButton(this)));
     }
 
     @Override
@@ -92,6 +90,23 @@ public class StrokeParam extends AbstractFilterParam {
         }
     }
 
+    @Override
+    public void guiDisposed() {
+        super.guiDisposed();
+
+        if (dialogContentPanel == null) {
+            // the dialog was never opened, the children GUIs
+            // were never created, so no cleanup is necessary
+            return;
+        }
+
+        for (FilterParam param : childParams) {
+            param.guiDisposed();
+        }
+        dialogContentPanel = null;
+        previewer = null;
+    }
+
     /**
      * Creates a stroke based on the current settings.
      */
@@ -108,9 +123,9 @@ public class StrokeParam extends AbstractFilterParam {
         float baseWidth = strokeWidthParam.getValueAsFloat();
         // calculate a random width between 50% and 150% of the base width
         float randomWidth = baseWidth / 2.0f + baseWidth * random.nextFloat();
-        float finalWidth = ImageMath.lerp(randomness, baseWidth, randomWidth);
+        float effectiveWidth = ImageMath.lerp(randomness, baseWidth, randomWidth);
 
-        return getStrokeType().createStroke(this, finalWidth);
+        return getStrokeType().createStroke(this, effectiveWidth);
     }
 
     public float[] getDashPattern(float width) {
@@ -169,21 +184,18 @@ public class StrokeParam extends AbstractFilterParam {
     }
 
     @Override
-    public void loadStateFrom(UserPreset preset) {
+    public void saveStateTo(UserPreset preset) {
         for (FilterParam param : childParams) {
-            String savedString = preset.get(param.getPresetKey());
-            if (savedString != null) { // presets don't have to include everything
-                param.loadStateFrom(savedString);
-            }
+            param.saveStateTo(preset);
         }
-        updateResetButtonState();
     }
 
     @Override
-    public void saveStateTo(UserPreset preset) {
+    public void loadStateFrom(UserPreset preset) {
         for (FilterParam param : childParams) {
-            preset.put(param.getPresetKey(), param.copyState().toPresetString());
+            param.loadStateFrom(preset);
         }
+        updateResetButtonState();
     }
 
     @Override
@@ -214,7 +226,7 @@ public class StrokeParam extends AbstractFilterParam {
         }
 
         if (trigger) {
-            adjustmentListener.paramAdjusted();
+            triggerFilter();
             // the reset button state is updated in the decorated adjustment listener
         } else {
             // if not triggered, the reset button state must be updated manually
@@ -223,16 +235,19 @@ public class StrokeParam extends AbstractFilterParam {
     }
 
     private void updateResetButtonState() {
-        if (resetButton != null) {
-            resetButton.updateState();
+        if (paramGUI != null) {
+            paramGUI.updateGUI();
         }
     }
 
-    public void configureSettingsDialog(DialogBuilder builder) {
+    public void configureDialog(DialogBuilder builder) {
+        if (dialogContentPanel == null) {
+            dialogContentPanel = new StrokeSettingsPanel(this);
+        }
         builder
             .title("Stroke Settings")
             .modeless()
-            .content(new StrokeSettingsPanel(this))
+            .content(dialogContentPanel)
             .withScrollbars()
             .noCancelButton()
             .okText(CLOSE_DIALOG);

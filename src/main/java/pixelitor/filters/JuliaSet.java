@@ -17,10 +17,10 @@
 
 package pixelitor.filters;
 
-import pixelitor.filters.gui.GroupedRangeParam;
+import pixelitor.filters.gui.ComplexNumberParam;
 import pixelitor.filters.gui.Help;
-import pixelitor.filters.gui.RangeParam;
 import pixelitor.filters.impl.JuliaSetFilter;
+import pixelitor.filters.util.Complex;
 
 import java.awt.image.BufferedImage;
 import java.io.Serial;
@@ -34,34 +34,38 @@ public class JuliaSet extends EscapeTimeFractal {
     @Serial
     private static final long serialVersionUID = -3089167245262580096L;
 
-    private final GroupedRangeParam cParam = new GroupedRangeParam("Complex Constant (*100)",
-        new RangeParam[]{
-            new RangeParam("Re", -150, -70, 50),
-            new RangeParam("Im", -150, 27, 50)
-        }, false);
+    // iterationTypeParam is a superclass field, so it is already initialized here
+    private final ComplexNumberParam cParam = new ComplexNumberParam("Complex Constant",
+        new Complex(-0.7, 0.27),
+        iterationTypeParam.getValue().bounds());
 
     public JuliaSet() {
         super(300, 0.22f);
 
+        // ensure that the bounds for c are updated when the iteration type changes
+        iterationTypeParam.updateOtherWhen(cParam,
+            (c, type) -> c.updateBounds(type.bounds()));
+
         // insert right after Zoom, before Zoom Center, to match the base param order
-        insertParam(cParam.notLinkable().withDecimalPlaces(2), 3);
+        insertParam(cParam, 3);
+
+        insideOutParam.setToolTip("Inverts the starting coordinates: f(z) = 1/z");
 
         help = Help.fromWikiURL("https://en.wikipedia.org/wiki/Julia_set");
     }
 
     @Override
-    public BufferedImage renderFractal(BufferedImage src, BufferedImage dest) {
+    protected BufferedImage renderFractal(BufferedImage src, BufferedImage dest) {
         int iterations = iterationsParam.getValue();
+        int[] palette = genPalette(colorsParam.getValue(), iterations);
 
-        JuliaSetFilter filter = new JuliaSetFilter(
-            createIterator(),
+        JuliaSetFilter filter = new JuliaSetFilter(NAME,
+            iterationTypeParam.getValue().strategy(),
             zoomParam.getZoomRatio(),
-            zoomCenterParam.getRelativeX(),
-            zoomCenterParam.getRelativeY(),
+            zoomCenterParam.getRelativePoint(),
             iterations,
-            getColors(colorsParam.getValue(), iterations),
-            cParam.getPercentage(0),
-            cParam.getPercentage(1),
+            palette,
+            cParam.getValue(),
             insideOutParam.isChecked()
         );
 

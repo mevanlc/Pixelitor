@@ -27,6 +27,7 @@ import pixelitor.filters.Invert;
 import pixelitor.filters.painters.AreaEffects;
 import pixelitor.filters.painters.TextSettings;
 import pixelitor.gui.AppPanel;
+import pixelitor.gui.CompositionReplacedContext;
 import pixelitor.gui.View;
 import pixelitor.gui.utils.MlpAlignmentSelector;
 import pixelitor.history.History;
@@ -41,6 +42,7 @@ import pixelitor.tools.gradient.GradientColorType;
 import pixelitor.tools.gradient.GradientType;
 import pixelitor.tools.gui.ToolSettingsPanel;
 import pixelitor.tools.gui.ToolSettingsPanelContainer;
+import pixelitor.tools.move.MoveMode;
 import pixelitor.tools.util.Drag;
 import pixelitor.utils.*;
 
@@ -61,7 +63,6 @@ import static pixelitor.assertions.PixelitorAssertions.assertThat;
 import static pixelitor.colors.Colors.toPackedArgb;
 import static pixelitor.layers.MaskInitMethod.REVEAL_ALL;
 import static pixelitor.layers.MaskViewMode.NORMAL;
-import static pixelitor.tools.move.MoveMode.MOVE_LAYER_ONLY;
 
 /**
  * Static utility methods for the unit tests.
@@ -124,6 +125,7 @@ public class TestHelper {
             new Rectangle(0, 0, TEST_WIDTH, TEST_HEIGHT));
         when(comp.getCanvasWidth()).thenReturn(TEST_WIDTH);
         when(comp.getCanvasHeight()).thenReturn(TEST_HEIGHT);
+        when(comp.getMaskViewMode()).thenReturn(NORMAL);
 
         View view = createMockViewWithoutComp();
         when(view.getComp()).thenReturn(comp);
@@ -139,8 +141,8 @@ public class TestHelper {
         }).when(comp).setSelection(any(Selection.class));
 
         // when getSelection() is called, return the currentSel field
-        when(comp.getSelection()).thenAnswer(invocation -> currentSel);
-        when(comp.hasSelection()).thenAnswer(invocation -> currentSel != null);
+        when(comp.getSelection()).thenAnswer(_ -> currentSel);
+        when(comp.hasSelection()).thenAnswer(_ -> currentSel != null);
 
         return comp;
     }
@@ -311,11 +313,11 @@ public class TestHelper {
         doAnswer(invocation -> {
             updateCurrentComp.accept(invocation.getArgument(0));
             return null;
-        }).when(view).replaceComp(any(Composition.class), any(MaskViewMode.class), anyBoolean());
+        }).when(view).replaceComp(any(Composition.class), any(MaskViewMode.class), any(CompositionReplacedContext.class));
 
         // when getComp() or getCanvas() is called, delegate to the currentComp field
-        when(view.getComp()).thenAnswer(invocation -> currentComp);
-        when(view.getCanvas()).thenAnswer(invocation -> currentComp.getCanvas());
+        when(view.getComp()).thenAnswer(_ -> currentComp);
+        when(view.getCanvas()).thenAnswer(_ -> currentComp.getCanvas());
 
         comp.setView(view);
 
@@ -369,9 +371,9 @@ public class TestHelper {
 
     public static void move(Composition comp, int relX, int relY,
                             boolean makeDuplicateLayer) {
-        comp.prepareMovement(MOVE_LAYER_ONLY, makeDuplicateLayer);
-        comp.moveActiveContent(MOVE_LAYER_ONLY, relX, relY);
-        comp.finalizeMovement(MOVE_LAYER_ONLY);
+        MoveMode.MOVE_LAYER_ONLY.prepareMovement(comp, makeDuplicateLayer);
+        MoveMode.MOVE_LAYER_ONLY.moveActiveContent(comp, relX, relY);
+        MoveMode.MOVE_LAYER_ONLY.finalizeMovement(comp);
 
         History.undoRedo("Move Layer");
     }
@@ -454,7 +456,7 @@ public class TestHelper {
         AppMode.setUnitTestingMode();
 
         Utils.ensureAssertionsEnabled();
-        Utils.preloadUnitTestFontNames();
+        FontNames.preloadUnitTestFontNames();
 
         Language.setActive(Language.ENGLISH);
         Messages.setHandler(new TestMessageHandler());

@@ -17,6 +17,8 @@
 
 package pixelitor.selection;
 
+import pixelitor.utils.Shapes;
+
 import java.awt.Shape;
 import java.awt.geom.Path2D;
 
@@ -83,7 +85,7 @@ final class MaskContourTracer {
                 traceLoop(edges, width, height, px, py + 1, DIR_UP, originX, originY, path);
             }
         }
-        return path;
+        return Shapes.removeCollinearVertices(path);
     }
 
     /**
