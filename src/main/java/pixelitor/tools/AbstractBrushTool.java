@@ -249,18 +249,18 @@ public abstract class AbstractBrushTool extends Tool implements pixelitor.utils.
             .getDialog();
     }
 
-    private JPanel createLazyMouseConfigPanel() {
+    JPanel createLazyMouseConfigPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(createEmptyBorder(5, 5, 5, 5));
         var gbh = new GridBagHelper(panel);
 
         lazyMouseEnabled.setAdjustmentListener(this::updateActiveBrush);
+        lazyMouseEnabled.enableOtherWhenChecked(lazyMouseDist);
         gbh.addLabelAndControlNoStretch("Enabled:", lazyMouseEnabled.createGUI());
 
         var distSlider = lazyMouseDist.createGUI("distSlider");
         gbh.addLabelAndControl(lazyMouseDist.getName() + ":", distSlider);
 
-        lazyMouseEnabled.enableOtherWhenChecked(lazyMouseDist);
         return panel;
     }
 
