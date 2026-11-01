@@ -55,7 +55,7 @@ public class ColorPickerTool extends Tool {
         "<b>click</b> to pick the foreground color, " +
             "<b>Alt-click</b> (or <b>right-click</b>) to pick the background color.";
 
-    private final JCheckBox layerOnlySamplingCB = new JCheckBox();
+    private final JCheckBox layerOnlySamplingCB = new JCheckBox(SAMPLE_LABEL_TEXT);
     private final RangeParam samplingRadius = new RangeParam(GUIText.RADIUS,
         0, 0, 10, false, WEST);
 
@@ -72,7 +72,6 @@ public class ColorPickerTool extends Tool {
 
     @Override
     public void initSettingsPanel(ResourceBundle resources) {
-        settingsPanel.add(new JLabel(SAMPLE_LABEL_TEXT + ":"));
         settingsPanel.add(layerOnlySamplingCB);
 
         settingsPanel.addSeparator();

@@ -80,7 +80,7 @@ public class PixelLiftTool extends MarqueeSelectionTool {
         LIFTING
     }
 
-    private final JCheckBox autoSelectCheckBox = new JCheckBox();
+    private final JCheckBox autoSelectCheckBox = new JCheckBox("Auto Select Layer");
 
     private LiftState liftState = LiftState.NONE;
 
@@ -105,8 +105,9 @@ public class PixelLiftTool extends MarqueeSelectionTool {
     public void initSettingsPanel(ResourceBundle resources) {
         super.initSettingsPanel(resources);
 
-        settingsPanel.addWithLabel("Auto Select Layer:",
-            autoSelectCheckBox, "autoSelectCheckBox");
+        settingsPanel.addSeparator();
+        autoSelectCheckBox.setName("autoSelectCheckBox");
+        settingsPanel.add(autoSelectCheckBox);
         autoSelectCheckBox.setToolTipText(
             "Cut from the layer under the mouse instead of the active layer");
     }

@@ -62,8 +62,8 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
     private final JComboBox<MoveMode> modeSelector = new JComboBox<>(MoveMode.values());
     private MoveMode activeMode = getActiveMode();
 
-    private final JCheckBox autoSelectCheckBox = new JCheckBox();
-    private final JCheckBox freeTransformCheckBox = new JCheckBox();
+    private final JCheckBox autoSelectCheckBox = new JCheckBox("Auto Select Layer");
+    private final JCheckBox freeTransformCheckBox = new JCheckBox("Free Transform");
 
     // Usually the selected mode, but Command + Selection Only temporarily
     // includes the newly created layer so that the gesture can move it.
@@ -91,11 +91,12 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
         modeSelector.addActionListener(_ -> modeChanged());
 
         settingsPanel.addSeparator();
-        settingsPanel.addWithLabel("Auto Select Layer:",
-            autoSelectCheckBox, "autoSelectCheckBox");
+        autoSelectCheckBox.setName("autoSelectCheckBox");
+        settingsPanel.add(autoSelectCheckBox);
 
-        settingsPanel.addWithLabel("Free Transform:",
-            freeTransformCheckBox, "freeTransformCheckBox");
+        settingsPanel.addSeparator();
+        freeTransformCheckBox.setName("freeTransformCheckBox");
+        settingsPanel.add(freeTransformCheckBox);
         freeTransformCheckBox.addActionListener(_ ->
             setFreeTransformMode(freeTransformCheckBox.isSelected()));
 
@@ -123,10 +124,9 @@ public class MoveTool extends DragTool implements SelectionChangeListener {
             String moveText = pixelitor.utils.Texts.getResources().getString("mt_move");
             settingsPanel.addComboBox(moveText, modeSelector, "modeSelector");
             settingsPanel.addSeparator();
-            settingsPanel.addWithLabel("Auto Select Layer:",
-                autoSelectCheckBox, "autoSelectCheckBox");
-            settingsPanel.addWithLabel("Free Transform:",
-                freeTransformCheckBox, "freeTransformCheckBox");
+            settingsPanel.add(autoSelectCheckBox);
+            settingsPanel.addSeparator();
+            settingsPanel.add(freeTransformCheckBox);
         }
         settingsPanel.revalidate();
         settingsPanel.repaint();

@@ -224,6 +224,7 @@ public class CropTool extends DragTool {
             "<html>If checked, pixels outside the crop area are permanently removed." +
                 "<br>If unchecked, only the canvas size is reduced, preserving the pixels outside the canvas.");
 
+        settingsPanel.addSeparator();
         allowGrowingCB = settingsPanel.addCheckBox(
             ALLOW_GROWING_TEXT, false, "allowGrowingCB",
             "Enables enlarging the canvas.");

@@ -124,10 +124,8 @@ public class GradientTool extends DragTool {
     }
 
     private void addReverseCheckBox() {
-        reverseCB = new JCheckBox();
-        reverseCB.addActionListener(_ ->
-            regenerateGradient("Reverse Gradient"));
-        settingsPanel.addWithLabel("Reverse: ", reverseCB, "reverseCB");
+        reverseCB = settingsPanel.addCheckBox("Reverse", false,
+            "reverseCB", _ -> regenerateGradient("Reverse Gradient"));
     }
 
     private void addBlendingModePanel() {

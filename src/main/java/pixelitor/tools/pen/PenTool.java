@@ -49,8 +49,7 @@ import static pixelitor.tools.util.DraggablePoint.lastActive;
 public class PenTool extends PathTool {
     private static final String SHOW_RUBBER_BAND_TEXT = "Show Rubber Band";
 
-    private final JLabel rubberBandLabel = new JLabel(SHOW_RUBBER_BAND_TEXT + ":");
-    private final JCheckBox rubberBandCB = new JCheckBox("", true);
+    private final JCheckBox rubberBandCB = new JCheckBox(SHOW_RUBBER_BAND_TEXT, true);
     private boolean showRubberBand = true; // whether the path preview is shown
 
     // state of the path building process
@@ -74,7 +73,6 @@ public class PenTool extends PathTool {
 
     @Override
     public void initSettingsPanel(ResourceBundle resources) {
-        settingsPanel.add(rubberBandLabel);
         settingsPanel.add(rubberBandCB);
         rubberBandCB.addActionListener(_ -> {
             showRubberBand = rubberBandCB.isSelected();
